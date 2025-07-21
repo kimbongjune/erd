@@ -26,35 +26,43 @@ const Toolbox = () => {
   const setConnectionMode = useStore((state) => state.setConnectionMode);
   const connectionMode = useStore((state) => state.connectionMode);
 
+  const handleConnectionModeClick = (mode: string) => {
+    if (connectionMode === mode) {
+      setConnectionMode(null); // Toggle off if the same button is clicked
+    } else {
+      setConnectionMode(mode);
+    }
+  };
+
   return (
     <ToolboxContainer>
-      <ToolButton onClick={() => addNode('entity')}>Entity</ToolButton>
+      <ToolButton onClick={() => addNode('entity')} $isActive={false}>Entity</ToolButton>
       <ToolButton
-        onClick={() => setConnectionMode('one-to-one-identifying')}
+        onClick={() => handleConnectionModeClick('one-to-one-identifying')}
         $isActive={connectionMode === 'one-to-one-identifying'}
       >
         1:1 Identifying
       </ToolButton>
       <ToolButton
-        onClick={() => setConnectionMode('one-to-one-non-identifying')}
+        onClick={() => handleConnectionModeClick('one-to-one-non-identifying')}
         $isActive={connectionMode === 'one-to-one-non-identifying'}
       >
         1:1 Non-Identifying
       </ToolButton>
       <ToolButton
-        onClick={() => setConnectionMode('one-to-many-identifying')}
+        onClick={() => handleConnectionModeClick('one-to-many-identifying')}
         $isActive={connectionMode === 'one-to-many-identifying'}
       >
         1:N Identifying
       </ToolButton>
       <ToolButton
-        onClick={() => setConnectionMode('one-to-many-non-identifying')}
+        onClick={() => handleConnectionModeClick('one-to-many-non-identifying')}
         $isActive={connectionMode === 'one-to-many-non-identifying'}
       >
         1:N Non-Identifying
       </ToolButton>
-      <ToolButton onClick={() => addNode('comment')}>Comment</ToolButton>
-      <ToolButton onClick={() => addNode('text')}>Text</ToolButton>
+      <ToolButton onClick={() => addNode('comment')} $isActive={false}>Comment</ToolButton>
+      <ToolButton onClick={() => addNode('text')} $isActive={false}>Text</ToolButton>
     </ToolboxContainer>
   );
 };

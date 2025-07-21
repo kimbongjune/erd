@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Node, Edge, OnNodesChange, OnEdgesChange, applyNodeChanges, applyEdgeChanges, addEdge } from 'reactflow';
+import { Node, Edge, OnNodesChange, OnEdgesChange, applyNodeChanges, applyEdgeChanges, addEdge, Connection, NodeChange, MarkerType } from 'reactflow';
 
 type RFState = {
   nodes: Node[];
@@ -8,8 +8,6 @@ type RFState = {
   isBottomPanelOpen: boolean;
   connectionMode: string | null;
   connectingNodeId: string | null;
-  temporaryEdge: Edge | null;
-  
   
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
@@ -19,9 +17,11 @@ type RFState = {
   deleteNode: (id: string) => void;
   setNodes: (nodes: Node[]) => void;
   setEdges: (edges: Edge[]) => void;
-  onConnect: (connection: any) => void;
+  onConnect: (connection: Connection) => void;
   setConnectionMode: (mode: string | null) => void;
   setConnectingNodeId: (id: string | null) => void;
+  finishConnection: (targetNodeId: string | null) => void;
+  cancelConnection: () => void;
 };
 
 const useStore = create<RFState>((set, get) => ({
@@ -52,24 +52,51 @@ const useStore = create<RFState>((set, get) => ({
       },
     },
   ],
-  edges: [{ id: 'e1-2', source: '1', target: '2' }],
+  edges: [{
+    id: 'e1-2',
+    source: '1',
+    target: '2',
+    sourceHandle: 'right',
+    targetHandle: 'left',
+    type: 'one-to-many-non-identifying', // Example type
+    markerStart: { type: MarkerType.Custom, id: 'marker-one' },
+    markerEnd: { type: MarkerType.Custom, id: 'marker-crow-many' },
+  }],
   selectedNodeId: null,
   isBottomPanelOpen: false,
-  connectionMode: null, // 초기값은 null
+  connectionMode: null,
   connectingNodeId: null,
-  temporaryEdge: null,
   
-  
-  onNodesChange: (changes) => {
-    const { nodes, connectionMode, connectingNodeId } = get();
-    const filteredChanges = changes.filter(change => {
-      if (connectionMode && connectingNodeId && change.type === 'position' && change.id === connectingNodeId) {
-        return false; // Prevent position changes for the connecting node when in connection mode
+  onNodesChange: (changes: NodeChange[]) => {
+    set((state) => {
+      const updatedNodes = applyNodeChanges(changes, state.nodes);
+      let updatedEdges = state.edges;
+
+      const positionChange = changes.find((change) => change.type === 'position');
+
+      if (positionChange && positionChange.type === 'position') {
+        const changedNodeId = positionChange.id;
+        updatedEdges = state.edges.map(edge => {
+          if (edge.source === changedNodeId || edge.target === changedNodeId) {
+            const sourceNode = updatedNodes.find(n => n.id === edge.source);
+            const targetNode = updatedNodes.find(n => n.id === edge.target);
+
+            if (sourceNode && targetNode) {
+              const sourceX = sourceNode.position.x + (sourceNode.width ?? 0) / 2;
+              const targetX = targetNode.position.x + (targetNode.width ?? 0) / 2;
+
+              return {
+                ...edge,
+                sourceHandle: sourceX < targetX ? 'right' : 'left',
+                targetHandle: sourceX < targetX ? 'left' : 'right',
+              };
+            }
+          }
+          return edge;
+        });
       }
-      return true;
-    });
-    set({
-      nodes: applyNodeChanges(filteredChanges, nodes),
+
+      return { nodes: updatedNodes, edges: updatedEdges };
     });
   },
   onEdgesChange: (changes) => {
@@ -88,81 +115,97 @@ const useStore = create<RFState>((set, get) => ({
   },
   setSelectedNodeId: (id) => set({ selectedNodeId: id }),
   setBottomPanelOpen: (isOpen) => set({ isBottomPanelOpen: isOpen }),
-  updateNodeData: (nodeId, data) => {
-    set({
-      nodes: get().nodes.map((node) => {
-        if (node.id === nodeId) {
-          return { ...node, data: { ...node.data, ...data } };
-        }
-        return node;
-      }),
-    });
-  },
-  setNodes: (nodes) => set({ nodes }),
-  setEdges: (edges) => set({ edges }),
   deleteNode: (id) => {
     set({
       nodes: get().nodes.filter((node) => node.id !== id),
       selectedNodeId: get().selectedNodeId === id ? null : get().selectedNodeId,
     });
   },
+  setNodes: (nodes) => set({ nodes }),
+  setEdges: (edges) => set({ edges }),
   onConnect: (connection) => {
-    const { nodes, edges, connectionMode } = get();
-    console.log("onConnect triggered! Connection:", connection, "Connection Mode:", connectionMode);
-    const sourceNode = nodes.find((node) => node.id === connection.source);
-    const targetNode = nodes.find((node) => node.id === connection.target);
+    set((state) => {
+      let updatedNodes = state.nodes;
+      const sourceNode = state.nodes.find((node) => node.id === connection.source);
+      const targetNode = state.nodes.find((node) => node.id === connection.target);
 
-    if (sourceNode && targetNode && sourceNode.type === 'entity' && targetNode.type === 'entity') {
-      const sourcePkColumn = sourceNode.data.columns?.find((col) => col.pk);
+      let sourceMarker = { type: MarkerType.Custom, id: 'marker-one' };
+      let targetMarker = { type: MarkerType.Custom, id: 'marker-one' };
 
-      if (sourcePkColumn) {
-        let newTargetColumns = [...(targetNode.data.columns || [])];
-        const fkColumnName = `${sourceNode.data.label.toLowerCase()}_${sourcePkColumn.name}`;
+      // Determine markers based on connectionMode
+      if (state.connectionMode?.includes('one-to-many')) {
+        targetMarker = { type: MarkerType.Custom, id: 'marker-crow-many' };
+      } else if (state.connectionMode?.includes('one-to-one')) {
+        // Default to one-to-one markers (already set as marker-one)
+      }
 
-        // 이미 존재하는지 확인
-        const existingFkIndex = newTargetColumns.findIndex(col => col.name === fkColumnName);
+      if (sourceNode && targetNode && sourceNode.type === 'entity' && targetNode.type === 'entity') {
+        const sourcePkColumn = sourceNode.data.columns?.find((col) => col.pk);
 
-        if (connectionMode === 'one-to-one-identifying' || connectionMode === 'one-to-many-identifying') {
-          // 식별 관계: 부모 PK를 자식 PK이자 FK로
-          if (existingFkIndex === -1) {
-            newTargetColumns.push({ name: fkColumnName, type: sourcePkColumn.type, pk: true, fk: true });
+        if (sourcePkColumn) {
+          let newTargetColumns = [...(targetNode.data.columns || [])];
+          const fkColumnName = `${sourceNode.data.label.toLowerCase()}_${sourcePkColumn.name}`;
+          const existingFkIndex = newTargetColumns.findIndex(col => col.name === fkColumnName);
+
+          const relationshipType = state.connectionMode;
+
+          if (relationshipType === 'one-to-one-identifying' || relationshipType === 'one-to-many-identifying') {
+            if (existingFkIndex === -1) {
+              newTargetColumns.push({ name: fkColumnName, type: sourcePkColumn.type, pk: true, fk: true });
+            } else {
+              newTargetColumns[existingFkIndex] = { ...newTargetColumns[existingFkIndex], pk: true, fk: true };
+            }
           } else {
-            newTargetColumns[existingFkIndex] = { ...newTargetColumns[existingFkIndex], pk: true, fk: true };
+            if (existingFkIndex === -1) {
+              newTargetColumns.push({ name: fkColumnName, type: sourcePkColumn.type, pk: false, fk: true });
+            } else {
+              newTargetColumns[existingFkIndex] = { ...newTargetColumns[existingFkIndex], pk: false, fk: true };
+            }
           }
-        } else if (connectionMode === 'one-to-one-non-identifying' || connectionMode === 'one-to-many-non-identifying') {
-          // 비식별 관계: 부모 PK를 자식 FK로
-          if (existingFkIndex === -1) {
-            newTargetColumns.push({ name: fkColumnName, type: sourcePkColumn.type, pk: false, fk: true });
-          } else {
-            newTargetColumns[existingFkIndex] = { ...newTargetColumns[existingFkIndex], pk: false, fk: true };
-          }
-        } else {
-          // 알 수 없는 관계 모드일 경우 기본적으로 비식별 관계로 처리
-          if (existingFkIndex === -1) {
-            newTargetColumns.push({ name: fkColumnName, type: sourcePkColumn.type, pk: false, fk: true });
-          } else {
-            newTargetColumns[existingFkIndex] = { ...newTargetColumns[existingFkIndex], pk: false, fk: true };
-          }
-        }
 
-        set({
-          nodes: nodes.map((node) =>
+          updatedNodes = state.nodes.map((node) =>
             node.id === targetNode.id
               ? { ...node, data: { ...node.data, columns: newTargetColumns } }
               : node
-          ),
-        });
+          );
+        }
       }
-    }
 
-    const newEdge = { ...connection, type: connectionMode || 'default' };
-    set({
-      edges: addEdge(newEdge, edges),
+      const sourceX = sourceNode.position.x + (sourceNode.width ?? 0) / 2;
+      const targetX = targetNode.position.x + (targetNode.width ?? 0) / 2;
+
+      const newEdge = {
+        ...connection,
+        sourceHandle: sourceX < targetX ? 'right' : 'left',
+        targetHandle: sourceX < targetX ? 'left' : 'right',
+        type: state.connectionMode || 'one-to-many-non-identifying', // Default type
+        markerStart: sourceMarker,
+        markerEnd: targetMarker,
+      };
+      const updatedEdges = addEdge(newEdge, state.edges);
+
+      console.log('[Store] New Edge created:', newEdge);
+
+      return { nodes: updatedNodes, edges: updatedEdges };
     });
-    set({ connectionMode: null });
   },
-  setConnectionMode: (mode) => set({ connectionMode: mode }),
+  setConnectionMode: (mode) => {
+    set({ connectionMode: mode });
+  },
   setConnectingNodeId: (id) => set({ connectingNodeId: id }),
-  setTemporaryEdge: (edge) => set({ temporaryEdge: edge })
+  finishConnection: (targetNodeId) => {
+    const { connectingNodeId, connectionMode, onConnect } = get();
+    if (targetNodeId && connectingNodeId && connectionMode) {
+      onConnect({
+        source: connectingNodeId,
+        target: targetNodeId,
+      });
+    }
+    set({ connectingNodeId: null, connectionMode: null });
+  },
+  cancelConnection: () => {
+    set({ connectingNodeId: null, connectionMode: null });
+  },
 }));
+
 export default useStore;

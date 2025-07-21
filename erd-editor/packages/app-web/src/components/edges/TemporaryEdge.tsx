@@ -1,5 +1,5 @@
 import React from 'react';
-import { BaseEdge, getStraightPath } from 'reactflow';
+import { BaseEdge, getSmoothStepPath } from 'reactflow';
 
 interface TemporaryEdgeProps {
   id: string;
@@ -20,14 +20,15 @@ const TemporaryEdge: React.FC<TemporaryEdgeProps> = ({
   targetY,
   sourcePosition,
   targetPosition,
-  style = { strokeWidth: 2, stroke: '#007bff', strokeDasharray: '5 5' },
+  style = { strokeWidth: 2, stroke: '#007bff', strokeDasharray: '5, 5', animated: true },
 }) => {
-  console.log("TemporaryEdge rendered!", { id, sourceX, sourceY, targetX, targetY });
-  const [edgePath] = getStraightPath({
+  const [edgePath] = getSmoothStepPath({
     sourceX,
     sourceY,
+    sourcePosition,
     targetX,
     targetY,
+    targetPosition,
   });
 
   return <BaseEdge id={id} path={edgePath} style={style} />;

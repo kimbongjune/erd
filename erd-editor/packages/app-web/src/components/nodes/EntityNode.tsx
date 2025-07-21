@@ -23,12 +23,18 @@ const Column = styled.div`
   gap: 5px;
 `;
 
-const EntityNode = ({ data }) => {
+const StyledHandle = styled(Handle)`
+  opacity: 0;
+  width: 10px;
+  height: 10px;
+  pointer-events: none; /* Ensure handles don't block mouse events on the node */
+`;
+
+const EntityNode = ({ data, onMouseDown }) => {
   return (
-    <NodeContainer color={data.color}>
-      <Handle type="target" position={Position.Top} />
-      <Handle type="target" position={Position.Left} />
-      <Handle type="target" position={Position.Right} />
+    <NodeContainer color={data.color} onMouseDown={onMouseDown}>
+      <StyledHandle type="target" position={Position.Left} id="left" />
+      <StyledHandle type="target" position={Position.Right} id="right" />
       <Header>{data.label}</Header>
       <Columns>
         {data.columns?.map((col, i) => (
@@ -40,9 +46,8 @@ const EntityNode = ({ data }) => {
           </Column>
         ))}
       </Columns>
-      <Handle type="source" position={Position.Bottom} />
-      <Handle type="source" position={Position.Left} />
-      <Handle type="source" position={Position.Right} />
+      <StyledHandle type="source" position={Position.Left} id="left" />
+      <StyledHandle type="source" position={Position.Right} id="right" />
     </NodeContainer>
   );
 };

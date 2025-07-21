@@ -1,5 +1,5 @@
 import React from 'react';
-import { BaseEdge, EdgeLabelRenderer, getBezierPath } from 'reactflow';
+import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath } from 'reactflow';
 
 interface OneToOneIdentifyingEdgeProps {
   id: string;
@@ -10,7 +10,7 @@ interface OneToOneIdentifyingEdgeProps {
   sourcePosition: any;
   targetPosition: any;
   style?: React.CSSProperties;
-  markerEnd?: string;
+  
   data?: any;
 }
 
@@ -23,10 +23,11 @@ const OneToOneIdentifyingEdge: React.FC<OneToOneIdentifyingEdgeProps> = ({
   sourcePosition,
   targetPosition,
   style = { strokeWidth: 1.5, stroke: 'black' },
-  markerEnd,
   data,
 }) => {
-  const [edgePath, labelX, labelY] = getBezierPath({
+  const markerStart = 'url(#marker-one)';
+  const markerEnd = undefined;
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
     sourcePosition,
@@ -37,7 +38,7 @@ const OneToOneIdentifyingEdge: React.FC<OneToOneIdentifyingEdgeProps> = ({
 
   return (
     <>
-      <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} />
+      <BaseEdge id={id} path={edgePath} style={style} markerStart={markerStart} markerEnd={markerEnd} />
       <EdgeLabelRenderer>
         <div
           style={{

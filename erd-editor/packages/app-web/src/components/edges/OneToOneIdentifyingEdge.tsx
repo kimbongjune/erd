@@ -25,8 +25,8 @@ const OneToOneIdentifyingEdge: React.FC<OneToOneIdentifyingEdgeProps> = ({
   style = { strokeWidth: 1.5, stroke: 'black' },
   data,
 }) => {
-  const markerStart = 'url(#marker-one)';
-  const markerEnd = undefined;
+  const markerStart = data?.markerStart ? `url(#${data.markerStart.id})` : 'url(#marker-parent)';
+  const markerEnd = data?.markerEnd ? `url(#${data.markerEnd.id})` : 'url(#marker-one)';
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,

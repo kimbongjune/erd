@@ -69,9 +69,35 @@ const useStore = create<RFState>((set, get) => ({
   selectMode: true,
   
   onNodesChange: (changes: NodeChange[]) => {
-    set((state) => ({
-      nodes: applyNodeChanges(changes, state.nodes),
-    }));
+    set((state) => {
+      const newNodes = applyNodeChanges(changes, state.nodes);
+      
+      // 노드가 이동했을 때 관계선의 핸들 위치를 자동으로 업데이트
+      const hasPositionChange = changes.some(change => change.type === 'position');
+      if (hasPositionChange) {
+        const updatedEdges = state.edges.map(edge => {
+          const sourceNode = newNodes.find(node => node.id === edge.source);
+          const targetNode = newNodes.find(node => node.id === edge.target);
+          
+          if (sourceNode && targetNode) {
+            const sourceX = sourceNode.position.x + (sourceNode.width || 200) / 2;
+            const targetX = targetNode.position.x + (targetNode.width || 200) / 2;
+            
+            return {
+              ...edge,
+              sourceHandle: sourceX <= targetX ? 'right' : 'left',
+              targetHandle: sourceX <= targetX ? 'left' : 'right',
+            };
+          }
+          return edge;
+        });
+        
+        // nodes와 edges를 한 번에 업데이트
+        return { nodes: newNodes, edges: updatedEdges };
+      }
+      
+      return { nodes: newNodes };
+    });
   },
   onEdgesChange: (changes) => {
     set({
@@ -110,15 +136,15 @@ const useStore = create<RFState>((set, get) => ({
         (edge.source === connection.target && edge.target === connection.source)
       );
 
-      let sourceMarker = { type: MarkerType.ArrowClosed, id: 'marker-one' };
-      let targetMarker = { type: MarkerType.ArrowClosed, id: 'marker-one' };
+      // 부모에는 세로선, 자식에는 관계 타입에 따른 마커 (1:1은 마커 없음, 1:N은 까마귀발)
+      let sourceMarker = undefined; // markerStart용 - 자식 쪽
+      let targetMarker = { type: MarkerType.ArrowClosed, id: 'marker-parent' }; // markerEnd용 (부모)
 
       // Determine markers based on connectionMode
       if (state.connectionMode?.includes('oneToMany')) {
-        targetMarker = { type: MarkerType.ArrowClosed, id: 'marker-crow-many' };
-      } else if (state.connectionMode?.includes('oneToOne')) {
-        // Default to one-to-one markers (already set as marker-one)
+        sourceMarker = { type: MarkerType.ArrowClosed, id: 'marker-crow-many' }; // N쪽 (자식)에 까마귀발
       }
+      // 1:1 관계는 자식 쪽에 마커 없음 (sourceMarker = undefined)
 
       if (sourceNode && targetNode && sourceNode.type === 'entity' && targetNode.type === 'entity') {
         const sourcePkColumn = sourceNode.data.columns?.find((col: any) => col.pk);
@@ -192,8 +218,8 @@ const useStore = create<RFState>((set, get) => ({
         // Create new edge
         const newEdge = {
           ...connection,
-          sourceHandle: sourceX < targetX ? 'right' : 'left',
-          targetHandle: sourceX < targetX ? 'left' : 'right',
+          sourceHandle: sourceX <= targetX ? 'right' : 'left',
+          targetHandle: sourceX <= targetX ? 'left' : 'right',
           type: getEdgeType(state.connectionMode),
           markerStart: sourceMarker,
           markerEnd: targetMarker,
@@ -218,7 +244,13 @@ const useStore = create<RFState>((set, get) => ({
         targetHandle: null,
       });
     }
-    set({ connectingNodeId: null, connectionMode: null });
+    // 관계 생성 후 선택 모드로 돌아가기
+    set({ 
+      connectingNodeId: null, 
+      connectionMode: null,
+      createMode: null,
+      selectMode: true 
+    });
   },
   cancelConnection: () => {
     set({ connectingNodeId: null, connectionMode: null });
@@ -229,13 +261,14 @@ const useStore = create<RFState>((set, get) => ({
       
       const updatedEdges = state.edges.map(edge => {
         if (edge.id === state.selectedEdgeId) {
-          // Update markers based on new type
-          let sourceMarker = { type: MarkerType.ArrowClosed, id: 'marker-one' };
-          let targetMarker = { type: MarkerType.ArrowClosed, id: 'marker-one' };
+          // 부모에는 세로선, 자식에는 관계 타입에 따른 마커
+          let sourceMarker = undefined; // markerStart용 - 자식 쪽
+          let targetMarker = { type: MarkerType.ArrowClosed, id: 'marker-parent' }; // markerEnd용 (부모)
 
           if (newType.includes('one-to-many')) {
-            targetMarker = { type: MarkerType.ArrowClosed, id: 'marker-crow-many' };
+            sourceMarker = { type: MarkerType.ArrowClosed, id: 'marker-crow-many' }; // N쪽 (자식)
           }
+          // 1:1 관계는 자식 쪽에 마커 없음
 
           return {
             ...edge,

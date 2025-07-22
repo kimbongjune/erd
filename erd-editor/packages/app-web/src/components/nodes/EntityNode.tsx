@@ -7,12 +7,40 @@ const NodeContainer = styled.div<{ $isSelected: boolean }>`
   width: auto;
   min-height: 100px;
   height: auto;
-  border: 2px solid ${props => props.$isSelected ? '#007acc' : '#ddd'};
-  background-color: #fff;
+  border: 3px solid ${props => props.$isSelected ? '#007acc' : '#ddd'};
+  background-color: ${props => props.$isSelected ? '#f0f8ff' : '#fff'};
   border-radius: 8px;
-  box-shadow: ${props => props.$isSelected ? '0 4px 12px rgba(0, 122, 204, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.1)'};
+  box-shadow: ${props => props.$isSelected ? '0 8px 25px rgba(0, 122, 204, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.6)' : '0 2px 8px rgba(0, 0, 0, 0.1)'};
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  transform: ${props => props.$isSelected ? 'scale(1.02)' : 'scale(1)'};
+  
+  &:hover {
+    border-color: ${props => props.$isSelected ? '#005999' : '#60a5fa'};
+    box-shadow: ${props => props.$isSelected 
+      ? '0 12px 35px rgba(0, 122, 204, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.8)' 
+      : '0 4px 15px rgba(96, 165, 250, 0.2)'};
+    transform: ${props => props.$isSelected ? 'scale(1.03)' : 'scale(1.01)'};
+  }
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: ${props => props.$isSelected ? 'linear-gradient(90deg, #007acc, #4da6ff, #007acc)' : 'transparent'};
+    background-size: 200% 100%;
+    animation: ${props => props.$isSelected ? 'shimmer 2s infinite' : 'none'};
+  }
+  
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
 `;
 
 const Header = styled.div`
@@ -86,11 +114,25 @@ const InvisibleHandle = styled(Handle)`
 
 const EntityNode = ({ data, id, onMouseDown }: any) => {
   const selectedNodeId = useStore((state) => state.selectedNodeId);
+  const setSelectedNodeId = useStore((state) => state.setSelectedNodeId);
+  const setBottomPanelOpen = useStore((state) => state.setBottomPanelOpen);
   
   // 현재 노드가 선택되었는지 확인 (id 사용)
   const isSelected = selectedNodeId === id;
   
   const handleMouseDown = (e: any) => {
+    const connectionMode = useStore.getState().connectionMode;
+    
+    // 관계선 연결 모드일 때는 하단 패널을 열지 않음
+    if (!connectionMode) {
+      // 단일 클릭으로 노드 선택 및 하단 패널 열기 (더블클릭과 같은 효과)
+      setSelectedNodeId(id);
+      setBottomPanelOpen(true);
+    } else {
+      // 관계선 연결 모드일 때는 선택만 하고 패널은 열지 않음
+      setSelectedNodeId(id);
+    }
+    
     // Only call onMouseDown for connection mode, let double click pass through
     if (onMouseDown) {
       onMouseDown(e);
@@ -99,10 +141,14 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
 
   return (
     <NodeContainer $isSelected={isSelected} onMouseDown={handleMouseDown}>
-      {/* 보이지 않는 연결 핸들들 */}
+      {/* 보이지 않는 연결 핸들들 - 모든 핸들을 source와 target 둘 다 지원 */}
       <InvisibleHandle type="target" position={Position.Left} id="left" />
+      <InvisibleHandle type="source" position={Position.Left} id="left" />
+      <InvisibleHandle type="target" position={Position.Right} id="right" />
       <InvisibleHandle type="source" position={Position.Right} id="right" />
       <InvisibleHandle type="target" position={Position.Top} id="top" />
+      <InvisibleHandle type="source" position={Position.Top} id="top" />
+      <InvisibleHandle type="target" position={Position.Bottom} id="bottom" />
       <InvisibleHandle type="source" position={Position.Bottom} id="bottom" />
       
       <Header>

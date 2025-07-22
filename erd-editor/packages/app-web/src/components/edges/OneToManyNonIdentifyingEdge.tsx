@@ -25,8 +25,8 @@ const OneToManyNonIdentifyingEdge: React.FC<OneToManyNonIdentifyingEdgeProps> = 
   style = { strokeWidth: 1.5, stroke: 'black', strokeDasharray: '5, 5' }, // Add dashed style for non-identifying
   data,
 }) => {
-  const markerStart = undefined;
-  const markerEnd = 'url(#marker-crow-many)';
+  const markerStart = data?.markerStart ? `url(#${data.markerStart.id})` : 'url(#marker-parent)';
+  const markerEnd = data?.markerEnd ? `url(#${data.markerEnd.id})` : 'url(#marker-crow-many)';
 
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,

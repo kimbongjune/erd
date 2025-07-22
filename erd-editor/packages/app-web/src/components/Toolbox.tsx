@@ -6,14 +6,49 @@ import {
   FiMessageSquare,
   FiDatabase,
 } from 'react-icons/fi';
-import { 
-  MdOutlineHorizontalRule,
-  MdOutlineArrowForward,
-} from 'react-icons/md';
+import { FaTable } from "react-icons/fa";
+
 import { 
   BsDashLg,
   BsArrowRight,
+  BsDot,
 } from 'react-icons/bs';
+import { 
+  TbTriangle,
+} from 'react-icons/tb';
+
+// Custom SVG icons for relationships
+const OneToOneIdentifyingIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+    <line x1="2" y1="10" x2="18" y2="10" stroke="currentColor" strokeWidth="3"/>
+  </svg>
+);
+
+const OneToOneNonIdentifyingIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+    <line x1="2" y1="10" x2="18" y2="10" stroke="currentColor" strokeWidth="2" strokeDasharray="3,2"/>
+  </svg>
+);
+
+const OneToManyIdentifyingIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+    <line x1="2" y1="10" x2="11" y2="10" stroke="currentColor" strokeWidth="3"/>
+    {/* 더 길고 명확한 삼발이 Crow's foot */}
+    <line x1="11" y1="10" x2="17" y2="5" stroke="currentColor" strokeWidth="2"/>
+    <line x1="11" y1="10" x2="18" y2="10" stroke="currentColor" strokeWidth="2"/>
+    <line x1="11" y1="10" x2="17" y2="15" stroke="currentColor" strokeWidth="2"/>
+  </svg>
+);
+
+const OneToManyNonIdentifyingIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+    <line x1="2" y1="10" x2="11" y2="10" stroke="currentColor" strokeWidth="2" strokeDasharray="3,2"/>
+    {/* 더 길고 명확한 삼발이 Crow's foot */}
+    <line x1="11" y1="10" x2="17" y2="5" stroke="currentColor" strokeWidth="2"/>
+    <line x1="11" y1="10" x2="18" y2="10" stroke="currentColor" strokeWidth="2"/>
+    <line x1="11" y1="10" x2="17" y2="15" stroke="currentColor" strokeWidth="2"/>
+  </svg>
+);
 
 const ToolboxContainer = styled.div`
   display: flex;
@@ -25,171 +60,131 @@ const ToolboxContainer = styled.div`
   padding: 20px 10px;
 `;
 
-const ToolButton = styled.button<{ $isActive: boolean }>`
+const ToolButton = styled.button<{ $isActive?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
   width: 50px;
   height: 50px;
-  background-color: ${(props) => (props.$isActive ? '#007acc' : '#fff')};
-  border: 2px solid ${(props) => (props.$isActive ? '#007acc' : '#ddd')};
+  border: 2px solid ${props => props.$isActive ? '#007acc' : '#e2e8f0'};
+  background-color: ${props => props.$isActive ? '#e8f2ff' : '#ffffff'};
   border-radius: 8px;
   cursor: pointer;
-  color: ${(props) => (props.$isActive ? '#fff' : '#333')};
-  font-size: 18px;
-  transition: all 0.2s ease;
+  color: ${props => props.$isActive ? '#007acc' : '#64748b'};
+  font-size: 20px;
+  transition: all 0.2s ease-in-out;
   position: relative;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 
   &:hover {
-    background-color: ${(props) => (props.$isActive ? '#005999' : '#f0f0f0')};
     border-color: #007acc;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    background-color: #f0f8ff;
+    color: #007acc;
   }
 
-  /* 툴팁 스타일 */
-  &:hover::after {
+  &::after {
     content: attr(title);
     position: absolute;
-    left: 60px;
+    left: 100%;
     top: 50%;
     transform: translateY(-50%);
-    background: #333;
+    margin-left: 8px;
+    background: #374151;
     color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
+    padding: 4px 8px;
+    border-radius: 4px;
     font-size: 12px;
     white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease-in-out;
     z-index: 1000;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
 
-  /* 툴팁 화살표 */
-  &:hover::before {
-    content: '';
-    position: absolute;
-    left: 55px;
-    top: 50%;
-    transform: translateY(-50%);
-    border: 6px solid transparent;
-    border-right-color: #333;
-    z-index: 1001;
+  &:hover::after {
+    opacity: 1;
   }
 `;
 
 const Toolbox = () => {
-  const setConnectionMode = useStore((state) => state.setConnectionMode);
-  const setCreateMode = useStore((state) => state.setCreateMode);
-  const setSelectMode = useStore((state) => state.setSelectMode);
   const connectionMode = useStore((state) => state.connectionMode);
   const createMode = useStore((state) => state.createMode);
   const selectMode = useStore((state) => state.selectMode);
+  const setConnectionMode = useStore((state) => state.setConnectionMode);
+  const setCreateMode = useStore((state) => state.setCreateMode);
+  const setSelectMode = useStore((state) => state.setSelectMode);
 
-  const handleSelectClick = () => {
-    setSelectMode(true);
-    setConnectionMode(null);
-    setCreateMode(null);
-  };
-
-  const handleEntityClick = () => {
-    setCreateMode('entity');
-    setConnectionMode(null);
-    setSelectMode(false);
-  };
-
-  const handleCommentClick = () => {
-    setCreateMode('comment');
-    setConnectionMode(null);
-    setSelectMode(false);
-  };
-
-  const handleOneToOneIdentifyingClick = () => {
-    setConnectionMode('oneToOneIdentifying');
-    setCreateMode(null);
-    setSelectMode(false);
-  };
-
-  const handleOneToManyIdentifyingClick = () => {
-    setConnectionMode('oneToManyIdentifying');
-    setCreateMode(null);
-    setSelectMode(false);
-  };
-
-  const handleOneToOneNonIdentifyingClick = () => {
-    setConnectionMode('oneToOneNonIdentifying');
-    setCreateMode(null);
-    setSelectMode(false);
-  };
-
-  const handleOneToManyNonIdentifyingClick = () => {
-    setConnectionMode('oneToManyNonIdentifying');
-    setCreateMode(null);
-    setSelectMode(false);
+  const handleToolClick = (tool: string) => {
+    if (tool === 'select') {
+      setSelectMode(true);
+      setConnectionMode(null);
+      setCreateMode(null);
+    } else if (tool === 'entity' || tool === 'comment') {
+      setCreateMode(tool);
+      setConnectionMode(null);
+      setSelectMode(false);
+    } else {
+      setConnectionMode(tool);
+      setCreateMode(null);
+      setSelectMode(false);
+    }
   };
 
   return (
     <ToolboxContainer>
-      {/* 선택 모드 */}
-      <ToolButton 
-        onClick={handleSelectClick} 
-        $isActive={selectMode && !connectionMode && !createMode}
-        title="선택 및 이동"
+      <ToolButton
+        $isActive={selectMode}
+        onClick={() => handleToolClick('select')}
+        title="선택 도구"
       >
         <FiMousePointer />
       </ToolButton>
-      
-      {/* 엔티티 생성 */}
-      <ToolButton 
-        onClick={handleEntityClick} 
+
+      <ToolButton
         $isActive={createMode === 'entity'}
-        title="엔티티 추가"
+        onClick={() => handleToolClick('entity')}
+        title="엔터티 생성"
       >
         <FiDatabase />
       </ToolButton>
-      
-      {/* 코멘트 생성 */}
-      <ToolButton 
-        onClick={handleCommentClick} 
+
+      <ToolButton
         $isActive={createMode === 'comment'}
-        title="메모 추가"
+        onClick={() => handleToolClick('comment')}
+        title="코멘트 생성"
       >
         <FiMessageSquare />
       </ToolButton>
-      
-      {/* 1:1 식별 관계 */}
-      <ToolButton 
-        onClick={handleOneToOneIdentifyingClick} 
+
+      <ToolButton
         $isActive={connectionMode === 'oneToOneIdentifying'}
+        onClick={() => handleToolClick('oneToOneIdentifying')}
         title="1:1 식별 관계"
       >
-        <MdOutlineHorizontalRule />
+        <OneToOneIdentifyingIcon />
       </ToolButton>
-      
-      {/* 1:N 식별 관계 */}
-      <ToolButton 
-        onClick={handleOneToManyIdentifyingClick} 
-        $isActive={connectionMode === 'oneToManyIdentifying'}
-        title="1:N 식별 관계"
-      >
-        <MdOutlineArrowForward />
-      </ToolButton>
-      
-      {/* 1:1 비식별 관계 */}
-      <ToolButton 
-        onClick={handleOneToOneNonIdentifyingClick} 
+
+      <ToolButton
         $isActive={connectionMode === 'oneToOneNonIdentifying'}
+        onClick={() => handleToolClick('oneToOneNonIdentifying')}
         title="1:1 비식별 관계"
       >
-        <BsDashLg />
+        <OneToOneNonIdentifyingIcon />
       </ToolButton>
-      
-      {/* 1:N 비식별 관계 */}
-      <ToolButton 
-        onClick={handleOneToManyNonIdentifyingClick} 
+
+      <ToolButton
+        $isActive={connectionMode === 'oneToManyIdentifying'}
+        onClick={() => handleToolClick('oneToManyIdentifying')}
+        title="1:N 식별 관계"
+      >
+        <OneToManyIdentifyingIcon />
+      </ToolButton>
+
+      <ToolButton
         $isActive={connectionMode === 'oneToManyNonIdentifying'}
+        onClick={() => handleToolClick('oneToManyNonIdentifying')}
         title="1:N 비식별 관계"
       >
-        <BsArrowRight />
+        <OneToManyNonIdentifyingIcon />
       </ToolButton>
     </ToolboxContainer>
   );

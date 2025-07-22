@@ -1,4 +1,4 @@
-import ReactFlow, { Node, useReactFlow, Edge, MarkerType } from 'reactflow';
+import ReactFlow, { Node, useReactFlow, Edge, MarkerType, MiniMap } from 'reactflow';
 import React, { useCallback, useRef, useState, MouseEvent, useEffect } from 'react';
 import 'reactflow/dist/style.css';
 import useStore from '../store/useStore';
@@ -69,6 +69,27 @@ const Canvas = () => {
   const { screenToFlowPosition, flowToScreenPosition } = useReactFlow();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [temporaryEdge, setTemporaryEdge] = useState<Edge | null>(null);
+
+  // ESC 키 이벤트 핸들러
+  const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      // 모든 동작 취소하고 선택 모드로 돌아가기
+      cancelConnection();
+      setTemporaryEdge(null);
+      useStore.getState().setCreateMode(null);
+      useStore.getState().setConnectionMode(null);
+      useStore.getState().setConnectingNodeId(null);
+      useStore.getState().setSelectMode(true);
+    }
+  }, [cancelConnection]);
+
+  // 키보드 이벤트 리스너 등록
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleKeyDown]);
 
   // Listen for temporary edge creation events
   React.useEffect(() => {
@@ -166,12 +187,13 @@ const Canvas = () => {
           position,
           data: {
             label: 'New Entity',
-            columns: [
-              { name: 'id', type: 'INT', pk: true }
-            ],
+            columns: [], // 기본 컬럼 제거
           },
         };
         useStore.getState().setNodes([...nodes, newNode]);
+        // 생성 후 선택 모드로 돌아가기
+        useStore.getState().setCreateMode(null);
+        useStore.getState().setSelectMode(true);
       } else if (createMode === 'comment') {
         const newNode = {
           id: `comment_${Date.now()}`,
@@ -180,6 +202,9 @@ const Canvas = () => {
           data: { label: 'New Comment' },
         };
         useStore.getState().setNodes([...nodes, newNode]);
+        // 생성 후 선택 모드로 돌아가기
+        useStore.getState().setCreateMode(null);
+        useStore.getState().setSelectMode(true);
       }
     }
   }, [createMode, nodes, screenToFlowPosition]);
@@ -196,6 +221,12 @@ const Canvas = () => {
     setSelectedNodeId(null); // Clear node selection when edge is selected
     setBottomPanelOpen(false); // Close bottom panel when edge is selected
   }, [setSelectedEdgeId, setSelectedNodeId, setBottomPanelOpen]);
+
+  // 노드 클릭 시 선택 처리
+  const handleNodeClick = useCallback((event: any, node: any) => {
+    event.stopPropagation();
+    setSelectedNodeId(node.id);
+  }, [setSelectedNodeId]);
 
   const handleMouseMove = useCallback((event: MouseEvent) => {
     if (connectingNodeId && temporaryEdge) {
@@ -273,16 +304,16 @@ const Canvas = () => {
             <path d="M 0 5 L 10 0 M 0 5 L 10 5 M 0 5 L 10 10" stroke="#000" strokeWidth="1" fill="none" />
           </marker>
           <marker
-            id="marker-one"
-            markerWidth="10"
-            markerHeight="10"
-            viewBox="-5 -5 10 10"
-            refX="0"
+            id="marker-parent"
+            markerWidth="12"
+            markerHeight="12"
+            viewBox="-6 -6 12 12"
+            refX="-8"
             refY="0"
             markerUnits="strokeWidth"
             orient="auto"
           >
-            <path d="M-5,-5 L-5,5" stroke="#000" strokeWidth="1.5" fill="none" />
+            <path d="M-2,-6 L-2,6" stroke="#000" strokeWidth="1" fill="none" />
           </marker>
         </defs>
       </svg>
@@ -358,6 +389,7 @@ const Canvas = () => {
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
         onEdgeClick={handleEdgeClick}
         onPaneClick={handlePaneClick}
@@ -366,7 +398,22 @@ const Canvas = () => {
         selectionOnDrag={!connectionMode && !createMode}
         nodesDraggable={!connectionMode}
         connectionLineComponent={connectionMode ? CustomConnectionLine : undefined}
-      />
+      >
+        <MiniMap 
+          nodeColor="#e2e8f0"
+          nodeStrokeColor="#64748b"
+          nodeStrokeWidth={2}
+          maskColor="rgba(0, 0, 0, 0.2)"
+          pannable={true}
+          zoomable={true}
+          ariaLabel="Mini map"
+          style={{ 
+            backgroundColor: '#f8fafc',
+            border: '2px solid #e2e8f0',
+            borderRadius: '8px'
+          }}
+        />
+      </ReactFlow>
     </div>
   );
 };

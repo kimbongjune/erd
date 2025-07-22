@@ -32,15 +32,9 @@ const EntityNodeWrapper = React.memo(({ data, ...props }: any) => {
       event.stopPropagation();
       setConnectingNodeId(props.id);
       
-      // 클릭 위치 정보를 포함해서 이벤트 전달
+      // Trigger temporary edge creation through a custom event or callback
       const customEvent = new CustomEvent('createTemporaryEdge', {
-        detail: { 
-          nodeId: props.id, 
-          nodes, 
-          connectionMode,
-          clientX: event.clientX,
-          clientY: event.clientY
-        }
+        detail: { nodeId: props.id, nodes, connectionMode }
       });
       window.dispatchEvent(customEvent);
     }
@@ -84,14 +78,19 @@ const Canvas = () => {
   // Listen for temporary edge creation events
   React.useEffect(() => {
     const handleCreateTemporaryEdge = (event: any) => {
-      const { nodeId, nodes: currentNodes, connectionMode: currentMode, clientX, clientY } = event.detail;
+      const { nodeId, nodes: currentNodes, connectionMode: currentMode } = event.detail;
       if (currentMode) {
-        const reactFlowBounds = reactFlowWrapper.current?.querySelector('.react-flow')?.getBoundingClientRect();
-        if (reactFlowBounds) {
-          // 클릭 위치를 ReactFlow flow 좌표로 변환
-          const relativeX = clientX - reactFlowBounds.left;
-          const relativeY = clientY - reactFlowBounds.top;
-          const flowPosition = screenToFlowPosition({ x: relativeX, y: relativeY });
+      // Get source node position
+      const sourceNode = currentNodes.find((n: any) => n.id === nodeId);
+      if (sourceNode) {
+        // Convert ReactFlow coordinates to screen coordinates
+        const nodeCenterFlow = {
+          x: sourceNode.position.x + (sourceNode.width ?? 200) / 2,
+          y: sourceNode.position.y + (sourceNode.height ?? 100) / 2
+        };
+        const projected = flowToScreenPosition(nodeCenterFlow);
+        const sourceX = projected.x;
+        const sourceY = projected.y;
           
           const newTemporaryEdge = {
             id: 'temp-edge',
@@ -101,19 +100,15 @@ const Canvas = () => {
             targetHandle: 'left',
             type: 'temporary',
             data: {
-              sourceX: flowPosition.x,
-              sourceY: flowPosition.y,
-              targetX: flowPosition.x,
-              targetY: flowPosition.y,
+              sourceX,
+              sourceY,
+              targetX: sourceX,
+              targetY: sourceY,
             },
             style: { strokeWidth: 2, stroke: '#007bff', strokeDasharray: '5, 5' }
           };
           setTemporaryEdge(newTemporaryEdge);
-          console.log('Created temporary edge via event with click position:', { 
-            clientX, 
-            clientY, 
-            flowPosition
-          });
+          console.log('Created temporary edge via event:', newTemporaryEdge);
         }
       }
     };
@@ -122,7 +117,7 @@ const Canvas = () => {
     return () => {
       window.removeEventListener('createTemporaryEdge', handleCreateTemporaryEdge);
     };
-  }, [screenToFlowPosition]);
+  }, []);
 
   const handleNodeMouseDown = useCallback((event: MouseEvent, node: Node) => {
     if (connectionMode && node.type === 'entity') {
@@ -137,7 +132,7 @@ const Canvas = () => {
         const clientX = event.clientX - reactFlowBounds.left;
         const clientY = event.clientY - reactFlowBounds.top;
         
-        // ReactFlow의 screenToFlowPosition 함수로 flow 좌표 계산 (zoom, pan 고려)
+        // ReactFlow의 screenToFlowPosition 함수로 변환된 좌표 계산 (zoom, pan 고려)
         const flowPosition = screenToFlowPosition({ x: clientX, y: clientY });
         
         const newTemporaryEdge = {
@@ -184,28 +179,40 @@ const Canvas = () => {
 
   const handleMouseMove = useCallback((event: MouseEvent) => {
     if (connectingNodeId && temporaryEdge) {
-      // 마우스 위치를 ReactFlow 좌표로 변환
-      const reactFlowBounds = reactFlowWrapper.current?.querySelector('.react-flow')?.getBoundingClientRect();
-      if (reactFlowBounds) {
-        const clientX = event.clientX - reactFlowBounds.left;
-        const clientY = event.clientY - reactFlowBounds.top;
+      // Get source node position using flowToScreenPosition 
+      const sourceNode = nodes.find(n => n.id === connectingNodeId);
+      if (sourceNode) {
+        // Convert ReactFlow coordinates to screen coordinates for both source and target
+        const nodeCenterFlow = {
+          x: sourceNode.position.x + (sourceNode.width ?? 200) / 2,
+          y: sourceNode.position.y + (sourceNode.height ?? 100) / 2
+        };
+        const sourceScreenPos = flowToScreenPosition(nodeCenterFlow);
         
-        // 마우스 위치를 flow 좌표로 변환
-        const mouseFlowPos = screenToFlowPosition({ x: clientX, y: clientY });
+        // Convert mouse position to flow coordinates first, then back to screen coordinates
+        // This ensures both coordinates are in the same coordinate system
+        const mouseFlowPos = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+        const targetScreenPos = flowToScreenPosition(mouseFlowPos);
         
-        // temporaryEdge의 초기 sourceX, sourceY는 클릭 위치 그대로 유지
+        console.log('Coords:', { 
+          sourceScreen: sourceScreenPos, 
+          targetScreen: targetScreenPos,
+          mouseClient: { x: event.clientX, y: event.clientY }
+        });
+        
         setTemporaryEdge(prev => prev ? { 
           ...prev, 
           data: {
             ...prev.data,
-            // sourceX, sourceY는 클릭 시 설정된 값 그대로 유지
-            targetX: mouseFlowPos.x,
-            targetY: mouseFlowPos.y,
+            sourceX: sourceScreenPos.x,
+            sourceY: sourceScreenPos.y,
+            targetX: targetScreenPos.x,
+            targetY: targetScreenPos.y,
           }
         } : null);
       }
     }
-  }, [connectingNodeId, temporaryEdge, screenToFlowPosition]);
+  }, [connectingNodeId, temporaryEdge, flowToScreenPosition, screenToFlowPosition, nodes]);
 
   const handleMouseUp = useCallback((event: MouseEvent) => {
     if (connectingNodeId && temporaryEdge) {

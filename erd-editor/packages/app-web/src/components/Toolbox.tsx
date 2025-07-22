@@ -2,9 +2,7 @@ import styled from 'styled-components';
 import useStore from '../store/useStore';
 import { 
   FiMousePointer, 
-  FiGrid, 
   FiMessageSquare,
-  FiDatabase,
 } from 'react-icons/fi';
 import { FaTable } from "react-icons/fa";
 
@@ -144,7 +142,7 @@ const Toolbox = () => {
         onClick={() => handleToolClick('entity')}
         title="엔터티 생성"
       >
-        <FiDatabase />
+        <FaTable />
       </ToolButton>
 
       <ToolButton

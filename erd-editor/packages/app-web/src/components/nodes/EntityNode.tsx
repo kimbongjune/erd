@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import { Handle, Position } from 'reactflow';
+import { FaKey } from 'react-icons/fa';
 import useStore from '../../store/useStore';
 
 const NodeContainer = styled.div<{ $isSelected: boolean }>`
@@ -65,14 +66,22 @@ const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean }>`
   padding: 8px 16px;
   border-bottom: 1px solid #f0f0f0;
   font-size: 13px;
-  background: ${props => props.$isPrimaryKey ? '#fff8e7' : '#fff'};
+  background: ${props => {
+    if (props.$isPrimaryKey) return '#fff8e7';
+    if (props.$isForeignKey) return '#e3f2fd';
+    return '#fff';
+  }};
   
   &:last-child {
     border-bottom: none;
   }
   
   &:hover {
-    background: #f8f9fa;
+    background: ${props => {
+      if (props.$isPrimaryKey) return '#fff4d6';
+      if (props.$isForeignKey) return '#d1e7dd';
+      return '#f8f9fa';
+    }};
   }
 `;
 
@@ -97,8 +106,10 @@ const ColumnType = styled.span`
 
 const IconWrapper = styled.span<{ $type?: 'pk' | 'fk' | 'uk' }>`
   font-size: 14px;
+  display: flex;
+  align-items: center;
   color: ${props => {
-    if (props.$type === 'pk') return '#d68910';
+    if (props.$type === 'pk') return '#f1c40f';
     if (props.$type === 'fk') return '#2196f3';
     if (props.$type === 'uk') return '#f44336';
     return '#666';
@@ -122,15 +133,19 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
   
   const handleMouseDown = (e: any) => {
     const connectionMode = useStore.getState().connectionMode;
+    const isBottomPanelOpen = useStore.getState().isBottomPanelOpen;
     
-    // 관계선 연결 모드일 때는 하단 패널을 열지 않음
-    if (!connectionMode) {
-      // 단일 클릭으로 노드 선택 및 하단 패널 열기 (더블클릭과 같은 효과)
+    // 관계선 연결 모드이거나 하단 패널이 열려있을 때는 관계선 생성을 우선시
+    if (connectionMode) {
+      // 관계선 연결 모드일 때는 선택만 하고 패널 상태는 유지
+      setSelectedNodeId(id);
+    } else if (isBottomPanelOpen && selectedNodeId !== id) {
+      // 다른 노드가 선택되어 있고 하단 패널이 열려있을 때는 선택만 변경
+      setSelectedNodeId(id);
+    } else {
+      // 일반적인 경우: 노드 선택 및 하단 패널 열기
       setSelectedNodeId(id);
       setBottomPanelOpen(true);
-    } else {
-      // 관계선 연결 모드일 때는 선택만 하고 패널은 열지 않음
-      setSelectedNodeId(id);
     }
     
     // Only call onMouseDown for connection mode, let double click pass through
@@ -160,13 +175,13 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
           <Column key={i} $isPrimaryKey={col.pk} $isForeignKey={col.fk}>
             <ColumnLeft>
               {col.pk && col.fk ? (
-                <IconWrapper $type="pk">🔑</IconWrapper>
+                <IconWrapper $type="pk"><FaKey /></IconWrapper>
               ) : col.pk ? (
-                <IconWrapper $type="pk">🔑</IconWrapper>
+                <IconWrapper $type="pk"><FaKey /></IconWrapper>
               ) : col.fk ? (
-                <IconWrapper $type="fk">🔑</IconWrapper>
+                <IconWrapper $type="fk"><FaKey /></IconWrapper>
               ) : col.uk ? (
-                <IconWrapper $type="uk">🔑</IconWrapper>
+                <IconWrapper $type="uk"><FaKey /></IconWrapper>
               ) : null}
               <ColumnName $isPrimaryKey={col.pk}>{col.name}</ColumnName>
             </ColumnLeft>

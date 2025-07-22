@@ -1,6 +1,5 @@
 ```markdown
 1. 전체적인 css 수정
-2. 좌측  목록 아이콘화
 3. 관계 맺을 시 pk 확인 필요
 4. 하단의 드래그 영역 전체로
 5. 하단에 물리, 논리이름들 추가
@@ -34,11 +33,10 @@
 BottomPanel.tsx:32 Uncaught TypeError: updateNodeData is not a function
     at removeColumn (BottomPanel.tsx:32:5)
     at onClick (BottomPanel.tsx:57:44)
-35. fk는 파란색 열쇠
 36. 엔티티 클릭 시 이어져있는 선들에 애니메이션?
 37. 오른쪽 메뉴 없애고
     선 클릭시 위쪽에 팔레트 선 색 바꾸게
     엔티티 클릭하면 위쪽에 팔레트로 색 바꾸게
     메모장 클릭하면 위쪽에 팔레트로 색 바꾸게
-
+38. 관계 이을 때 해당 컬럼 삭제 후 다시
 ```

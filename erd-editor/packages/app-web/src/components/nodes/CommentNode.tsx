@@ -20,16 +20,6 @@ const NodeContainer = styled.div<{ selected?: boolean }>`
     box-shadow: 0 4px 15px rgba(251, 191, 36, 0.2);
     border-color: #facc15;
   }
-  
-  /* 이 노드에서는 휠 이벤트 완전 차단 */
-  * {
-    overscroll-behavior: contain;
-  }
-  
-  /* 추가 휠 차단 */
-  overflow: hidden;
-  overscroll-behavior-y: none;
-  scroll-behavior: auto;
 `;
 
 const EditInput = styled.textarea`
@@ -48,56 +38,29 @@ const EditInput = styled.textarea`
   
   &:focus {
     background: rgba(255, 255, 255, 1);
-    box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.3);
-  }
-  
-  /* 스크롤바 스타일링 */
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  
-  &::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 3px;
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 3px;
-  }
-  
-  &::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
   }
 `;
 
 const CommentText = styled.div`
-  color: #374151;
   font-size: 14px;
-  line-height: 1.4;
-  font-weight: 400;
-  word-wrap: break-word;
-  min-height: 20px;
+  color: #374151;
   white-space: pre-wrap;
-  
-  &:empty::after {
-    content: '메모를 더블클릭하여 편집하세요';
-    color: #94a3b8;
-    font-style: italic;
-  }
+  word-wrap: break-word;
+  line-height: 1.4;
 `;
 
-const CommentNode = ({ data, id, selected }: any) => {
+const CommentNode = ({ data, selected, id }: any) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(data.label || '');
-  const setNodes = useStore((state) => state.setNodes);
+  const [editValue, setEditValue] = useState(data.label);
   const nodes = useStore((state) => state.nodes);
+  const setNodes = useStore((state) => state.setNodes);
 
   const handleDoubleClick = useCallback((e: any) => {
-    e.stopPropagation(); // 이벤트 전파 중단으로 하단 메뉴바 안 뜨게 함
+    e.stopPropagation();
+    e.preventDefault();
     setIsEditing(true);
-    setEditValue(data.label || '');
-  }, [data.label]);
+  }, []);
 
   const handleInputChange = useCallback((e: any) => {
     setEditValue(e.target.value);
@@ -105,81 +68,75 @@ const CommentNode = ({ data, id, selected }: any) => {
 
   const handleInputKeyPress = useCallback((e: any) => {
     if (e.key === 'Enter' && e.ctrlKey) {
-      // Ctrl+Enter로 줄바꿈 추가
-      const textarea = e.target;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const newValue = editValue.substring(0, start) + '\n' + editValue.substring(end);
-      setEditValue(newValue);
-      
-      // 커서 위치를 새 줄로 이동
-      setTimeout(() => {
-        textarea.selectionStart = textarea.selectionEnd = start + 1;
-      }, 0);
-    } else if (e.key === 'Enter' && !e.ctrlKey) {
-      // Enter로 편집 완료
-      const updatedNodes = nodes.map(node => 
-        node.id === id 
-          ? { ...node, data: { ...node.data, label: editValue } }
-          : node
-      );
-      setNodes(updatedNodes);
-      setIsEditing(false);
-    } else if (e.key === 'Escape') {
-      setIsEditing(false);
-      setEditValue(data.label || '');
+      handleInputBlur();
     }
-  }, [editValue, nodes, id, setNodes, data.label]);
+    if (e.key === 'Escape') {
+      setEditValue(data.label);
+      setIsEditing(false);
+    }
+  }, [data.label]);
 
   const handleInputBlur = useCallback(() => {
-    // 노드 업데이트
-    const updatedNodes = nodes.map(node => 
-      node.id === id 
-        ? { ...node, data: { ...node.data, label: editValue } }
-        : node
+    const updatedNodes = nodes.map((node) =>
+      node.id === id ? { ...node, data: { ...node.data, label: editValue } } : node
     );
     setNodes(updatedNodes);
     setIsEditing(false);
   }, [editValue, nodes, id, setNodes]);
 
-  const handleWheel = useCallback((e: any) => {
-    // 모든 휠 이벤트를 완전히 차단
+  const handleTextAreaWheel = useCallback((e: any) => {
+    // textarea 내부에서 휠 이벤트가 위로 전파되지 않도록 차단
     e.stopPropagation();
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    
-    // 편집 모드일 때만 수동으로 textarea 스크롤 처리
-    if (isEditing) {
-      const textarea = e.currentTarget.querySelector('textarea') || e.target;
-      if (textarea && textarea.scrollHeight > textarea.clientHeight) {
-        const scrollAmount = e.deltaY > 0 ? 30 : -30;
-        textarea.scrollTop = Math.max(0, Math.min(textarea.scrollHeight - textarea.clientHeight, textarea.scrollTop + scrollAmount));
-      }
-    }
-    
-    // 이벤트를 완전히 중단
-    return false;
-  }, [isEditing]);
+  }, []);
+
+  const handleNodeWheel = useCallback((e: any) => {
+    // 모든 휠 이벤트를 차단
+    e.stopPropagation();
+  }, []);
 
   return (
     <NodeContainer 
       selected={selected} 
-      onDoubleClick={handleDoubleClick} 
-      onWheel={handleWheel}
-      onWheelCapture={handleWheel}
+      onDoubleClick={handleDoubleClick}
+      onWheel={handleNodeWheel}
     >
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="top"
+        style={{ background: 'transparent', border: 'none' }}
+      />
+      <Handle
+        type="target"
+        position={Position.Right}
+        id="right"
+        style={{ background: 'transparent', border: 'none' }}
+      />
+      <Handle
+        type="target"
+        position={Position.Bottom}
+        id="bottom"
+        style={{ background: 'transparent', border: 'none' }}
+      />
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="left"
+        style={{ background: 'transparent', border: 'none' }}
+      />
+      
       {isEditing ? (
         <EditInput
           value={editValue}
           onChange={handleInputChange}
           onKeyDown={handleInputKeyPress}
           onBlur={handleInputBlur}
-          onWheel={handleWheel}
-          onWheelCapture={handleWheel}
+          onWheel={handleTextAreaWheel}
+          onWheelCapture={handleTextAreaWheel}
           autoFocus
         />
       ) : (
-        <CommentText onWheel={handleWheel} onWheelCapture={handleWheel}>
+        <CommentText>
           {data.label}
         </CommentText>
       )}

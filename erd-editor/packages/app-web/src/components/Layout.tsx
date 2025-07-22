@@ -1,11 +1,11 @@
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import Header from './Header';
-import Canvas from './Canvas';
 import Toolbox from './Toolbox';
+import Canvas from './Canvas';
+import Properties from './Properties';
 import BottomPanel from './BottomPanel';
 import useStore from '../store/useStore';
-import { ResizableBox } from 'react-resizable';
-import 'react-resizable/css/styles.css';
 
 const Container = styled.div`
   display: flex;
@@ -39,14 +39,24 @@ const CanvasContainer = styled.main`
   background-color: #ffffff;
 `;
 
-import Properties from './Properties';
-
-const BottomPanelContainer = styled.footer`
+const PropertiesContainer = styled.aside`
+  grid-area: properties;
+  background-color: #f8f9fa;
+  border-left: 1px solid #ddd;
+  overflow-y: auto;
+`;
+const BottomPanelContainer = styled.footer<{ $height: number }>`
   background-color: #f0f0f0;
+  height: ${props => props.$height}px;
+  min-height: 100px;
+  max-height: 500px;
+  position: relative;
+  border-top: 1px solid #ddd;
 `;
 
 const Layout = () => {
   const { isBottomPanelOpen, setBottomPanelOpen } = useStore();
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(200);
 
   return (
     <Container>
@@ -58,21 +68,15 @@ const Layout = () => {
         <CanvasContainer>
           <Canvas />
         </CanvasContainer>
-        <Properties />
+        <PropertiesContainer>
+          <Properties />
+        </PropertiesContainer>
       </TopContainer>
       {isBottomPanelOpen && (
-        <ResizableBox
-          height={200}
-          minConstraints={[Infinity, 100]}
-          maxConstraints={[Infinity, 500]}
-          axis="y"
-          resizeHandles={['n']}
-        >
-          <BottomPanelContainer>
-            <button onClick={() => setBottomPanelOpen(false)}>Close</button>
-            <BottomPanel />
-          </BottomPanelContainer>
-        </ResizableBox>
+        <BottomPanelContainer $height={bottomPanelHeight}>
+          <button onClick={() => setBottomPanelOpen(false)}>Close</button>
+          <BottomPanel />
+        </BottomPanelContainer>
       )}
     </Container>
   );

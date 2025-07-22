@@ -17,7 +17,7 @@ const Container = styled.div`
 const TopContainer = styled.div`
   display: grid;
   flex-grow: 1;
-  grid-template-columns: 200px 1fr 250px;
+  grid-template-columns: 80px 1fr 250px;
   grid-template-rows: 50px 1fr;
   grid-template-areas:
     'header header header'
@@ -26,7 +26,12 @@ const TopContainer = styled.div`
 
 const ToolboxContainer = styled.aside`
   grid-area: toolbox;
-  background-color: #e0e0e0;
+  background-color: #f8f9fa;
+  border-right: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
 `;
 
 const CanvasContainer = styled.main`
@@ -46,7 +51,7 @@ const Layout = () => {
   return (
     <Container>
       <TopContainer>
-        <Header>Header</Header>
+        <Header />
         <ToolboxContainer>
           <Toolbox />
         </ToolboxContainer>

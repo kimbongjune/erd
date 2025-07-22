@@ -63,17 +63,12 @@ const Canvas = () => {
   const setConnectingNodeId = useStore((state) => state.setConnectingNodeId);
   const finishConnection = useStore((state) => state.finishConnection);
   const cancelConnection = useStore((state) => state.cancelConnection);
+  const createMode = useStore((state) => state.createMode);
+  const addNode = useStore((state) => state.addNode);
 
   const { screenToFlowPosition, flowToScreenPosition } = useReactFlow();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [temporaryEdge, setTemporaryEdge] = useState<Edge | null>(null);
-
-  // Debug log for edges
-  useEffect(() => {
-    if (temporaryEdge) {
-      console.log('TemporaryEdge active with data:', temporaryEdge.data);
-    }
-  }, [temporaryEdge]);
 
   // Listen for temporary edge creation events
   React.useEffect(() => {
@@ -108,7 +103,6 @@ const Canvas = () => {
             style: { strokeWidth: 2, stroke: '#007bff', strokeDasharray: '5, 5' }
           };
           setTemporaryEdge(newTemporaryEdge);
-          console.log('Created temporary edge via event:', newTemporaryEdge);
         }
       }
     };
@@ -151,18 +145,44 @@ const Canvas = () => {
           style: { strokeWidth: 2, stroke: '#007bff', strokeDasharray: '5, 5' }
         };
         setTemporaryEdge(newTemporaryEdge);
-        console.log('Created temporary edge with click position:', { 
-          clientX, 
-          clientY, 
-          flowX: flowPosition.x, 
-          flowY: flowPosition.y 
-        });
       }
     }
     // Don't prevent default if not in connection mode - allow double click to work
   }, [connectionMode, setConnectingNodeId, nodes, screenToFlowPosition]);
 
   const defaultEdgeOptions = {};
+
+  const handlePaneClick = useCallback((event: any) => {
+    if (createMode) {
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      
+      if (createMode === 'entity') {
+        const newNode = {
+          id: `entity_${Date.now()}`,
+          type: 'entity',
+          position,
+          data: {
+            label: 'New Entity',
+            columns: [
+              { name: 'id', type: 'INT', pk: true }
+            ],
+          },
+        };
+        useStore.getState().setNodes([...nodes, newNode]);
+      } else if (createMode === 'comment') {
+        const newNode = {
+          id: `comment_${Date.now()}`,
+          type: 'comment',
+          position,
+          data: { label: 'New Comment' },
+        };
+        useStore.getState().setNodes([...nodes, newNode]);
+      }
+    }
+  }, [createMode, nodes, screenToFlowPosition]);
 
   const handleNodeDoubleClick = useCallback((_: MouseEvent, node: Node) => {
     if (node.type === 'text') return;
@@ -193,12 +213,6 @@ const Canvas = () => {
         // This ensures both coordinates are in the same coordinate system
         const mouseFlowPos = screenToFlowPosition({ x: event.clientX, y: event.clientY });
         const targetScreenPos = flowToScreenPosition(mouseFlowPos);
-        
-        console.log('Coords:', { 
-          sourceScreen: sourceScreenPos, 
-          targetScreen: targetScreenPos,
-          mouseClient: { x: event.clientX, y: event.clientY }
-        });
         
         setTemporaryEdge(prev => prev ? { 
           ...prev, 
@@ -346,18 +360,13 @@ const Canvas = () => {
         edgeTypes={edgeTypes}
         onNodeDoubleClick={handleNodeDoubleClick}
         onEdgeClick={handleEdgeClick}
+        onPaneClick={handlePaneClick}
         defaultEdgeOptions={{}}
-        panOnDrag={!connectionMode}
-        selectionOnDrag={!connectionMode}
+        panOnDrag={!connectionMode && !createMode}
+        selectionOnDrag={!connectionMode && !createMode}
         nodesDraggable={!connectionMode}
         connectionLineComponent={connectionMode ? CustomConnectionLine : undefined}
       />
-      
-      {temporaryEdge && (
-        <div style={{ position: 'absolute', top: 10, left: 10, background: 'yellow', padding: '5px', zIndex: 1000 }}>
-          Temporary Edge Active: {temporaryEdge.id}, Type: {temporaryEdge.type}, Edges Count: {edges.length}
-        </div>
-      )}
     </div>
   );
 };

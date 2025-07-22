@@ -25,12 +25,24 @@ const Toolbox = () => {
   const addNode = useStore((state) => state.addNode);
   const setConnectionMode = useStore((state) => state.setConnectionMode);
   const connectionMode = useStore((state) => state.connectionMode);
+  const selectedEdgeId = useStore((state) => state.selectedEdgeId);
+  const updateSelectedEdgeType = useStore((state) => state.updateSelectedEdgeType);
 
   const handleConnectionModeClick = (mode: string) => {
+    // If we have a selected edge, update its type
+    if (selectedEdgeId) {
+      updateSelectedEdgeType(mode);
+      console.log('Updated edge type to:', mode);
+      return;
+    }
+    
+    // Otherwise, set connection mode for new connections
     if (connectionMode === mode) {
       setConnectionMode(null); // Toggle off if the same button is clicked
+      console.log('Connection mode turned off');
     } else {
       setConnectionMode(mode);
+      console.log('Connection mode set to:', mode);
     }
   };
 

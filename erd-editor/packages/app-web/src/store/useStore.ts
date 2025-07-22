@@ -5,6 +5,7 @@ type RFState = {
   nodes: Node[];
   edges: Edge[];
   selectedNodeId: string | null;
+  selectedEdgeId: string | null;
   isBottomPanelOpen: boolean;
   connectionMode: string | null;
   connectingNodeId: string | null;
@@ -13,6 +14,7 @@ type RFState = {
   onEdgesChange: OnEdgesChange;
   addNode: (type: string) => void;
   setSelectedNodeId: (id: string | null) => void;
+  setSelectedEdgeId: (id: string | null) => void;
   setBottomPanelOpen: (isOpen: boolean) => void;
   deleteNode: (id: string) => void;
   setNodes: (nodes: Node[]) => void;
@@ -22,6 +24,7 @@ type RFState = {
   setConnectingNodeId: (id: string | null) => void;
   finishConnection: (targetNodeId: string | null) => void;
   cancelConnection: () => void;
+  updateSelectedEdgeType: (newType: string) => void;
 };
 
 const useStore = create<RFState>((set, get) => ({
@@ -59,10 +62,11 @@ const useStore = create<RFState>((set, get) => ({
     sourceHandle: 'right',
     targetHandle: 'left',
     type: 'one-to-many-non-identifying', // Example type
-    markerStart: { type: MarkerType.Custom, id: 'marker-one' },
-    markerEnd: { type: MarkerType.Custom, id: 'marker-crow-many' },
+    markerStart: { type: MarkerType.ArrowClosed, id: 'marker-one' },
+    markerEnd: { type: MarkerType.ArrowClosed, id: 'marker-crow-many' },
   }],
   selectedNodeId: null,
+  selectedEdgeId: null,
   isBottomPanelOpen: false,
   connectionMode: null,
   connectingNodeId: null,
@@ -114,6 +118,7 @@ const useStore = create<RFState>((set, get) => ({
     set({ nodes: [...get().nodes, newNode] });
   },
   setSelectedNodeId: (id) => set({ selectedNodeId: id }),
+  setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
   setBottomPanelOpen: (isOpen) => set({ isBottomPanelOpen: isOpen }),
   deleteNode: (id) => {
     set({
@@ -129,18 +134,24 @@ const useStore = create<RFState>((set, get) => ({
       const sourceNode = state.nodes.find((node) => node.id === connection.source);
       const targetNode = state.nodes.find((node) => node.id === connection.target);
 
-      let sourceMarker = { type: MarkerType.Custom, id: 'marker-one' };
-      let targetMarker = { type: MarkerType.Custom, id: 'marker-one' };
+      // Check if there's already an edge between these nodes
+      const existingEdge = state.edges.find(edge => 
+        (edge.source === connection.source && edge.target === connection.target) ||
+        (edge.source === connection.target && edge.target === connection.source)
+      );
+
+      let sourceMarker = { type: MarkerType.ArrowClosed, id: 'marker-one' };
+      let targetMarker = { type: MarkerType.ArrowClosed, id: 'marker-one' };
 
       // Determine markers based on connectionMode
       if (state.connectionMode?.includes('one-to-many')) {
-        targetMarker = { type: MarkerType.Custom, id: 'marker-crow-many' };
+        targetMarker = { type: MarkerType.ArrowClosed, id: 'marker-crow-many' };
       } else if (state.connectionMode?.includes('one-to-one')) {
         // Default to one-to-one markers (already set as marker-one)
       }
 
       if (sourceNode && targetNode && sourceNode.type === 'entity' && targetNode.type === 'entity') {
-        const sourcePkColumn = sourceNode.data.columns?.find((col) => col.pk);
+        const sourcePkColumn = sourceNode.data.columns?.find((col: any) => col.pk);
 
         if (sourcePkColumn) {
           let newTargetColumns = [...(targetNode.data.columns || [])];
@@ -171,20 +182,40 @@ const useStore = create<RFState>((set, get) => ({
         }
       }
 
-      const sourceX = sourceNode.position.x + (sourceNode.width ?? 0) / 2;
-      const targetX = targetNode.position.x + (targetNode.width ?? 0) / 2;
+      const sourceX = sourceNode?.position.x ? sourceNode.position.x + (sourceNode.width ?? 0) / 2 : 0;
+      const targetX = targetNode?.position.x ? targetNode.position.x + (targetNode.width ?? 0) / 2 : 0;
 
-      const newEdge = {
-        ...connection,
-        sourceHandle: sourceX < targetX ? 'right' : 'left',
-        targetHandle: sourceX < targetX ? 'left' : 'right',
-        type: state.connectionMode || 'one-to-many-non-identifying', // Default type
-        markerStart: sourceMarker,
-        markerEnd: targetMarker,
-      };
-      const updatedEdges = addEdge(newEdge, state.edges);
+      let updatedEdges;
 
-      console.log('[Store] New Edge created:', newEdge);
+      if (existingEdge) {
+        // Update existing edge
+        updatedEdges = state.edges.map(edge => {
+          if (edge.id === existingEdge.id) {
+            return {
+              ...edge,
+              type: state.connectionMode || 'one-to-many-non-identifying',
+              markerStart: sourceMarker,
+              markerEnd: targetMarker,
+              sourceHandle: sourceX < targetX ? 'right' : 'left',
+              targetHandle: sourceX < targetX ? 'left' : 'right',
+            };
+          }
+          return edge;
+        });
+      } else {
+        // Create new edge
+        const newEdge = {
+          ...connection,
+          sourceHandle: sourceX < targetX ? 'right' : 'left',
+          targetHandle: sourceX < targetX ? 'left' : 'right',
+          type: state.connectionMode || 'one-to-many-non-identifying',
+          markerStart: sourceMarker,
+          markerEnd: targetMarker,
+        };
+        updatedEdges = addEdge(newEdge, state.edges);
+      }
+
+      console.log('[Store] Edge updated/created');
 
       return { nodes: updatedNodes, edges: updatedEdges };
     });
@@ -199,12 +230,41 @@ const useStore = create<RFState>((set, get) => ({
       onConnect({
         source: connectingNodeId,
         target: targetNodeId,
+        sourceHandle: null,
+        targetHandle: null,
       });
     }
     set({ connectingNodeId: null, connectionMode: null });
   },
   cancelConnection: () => {
     set({ connectingNodeId: null, connectionMode: null });
+  },
+  updateSelectedEdgeType: (newType: string) => {
+    set((state) => {
+      if (!state.selectedEdgeId) return state;
+      
+      const updatedEdges = state.edges.map(edge => {
+        if (edge.id === state.selectedEdgeId) {
+          // Update markers based on new type
+          let sourceMarker = { type: MarkerType.ArrowClosed, id: 'marker-one' };
+          let targetMarker = { type: MarkerType.ArrowClosed, id: 'marker-one' };
+
+          if (newType.includes('one-to-many')) {
+            targetMarker = { type: MarkerType.ArrowClosed, id: 'marker-crow-many' };
+          }
+
+          return {
+            ...edge,
+            type: newType,
+            markerStart: sourceMarker,
+            markerEnd: targetMarker,
+          };
+        }
+        return edge;
+      });
+
+      return { edges: updatedEdges };
+    });
   },
 }));
 

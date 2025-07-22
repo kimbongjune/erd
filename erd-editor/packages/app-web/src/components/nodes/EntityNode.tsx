@@ -1,5 +1,6 @@
 import { Handle, Position } from 'reactflow';
 import styled from 'styled-components';
+import useStore from '../../store/useStore';
 
 const NodeContainer = styled.div`
   border: 1px solid #000;
@@ -23,21 +24,34 @@ const Column = styled.div`
   gap: 5px;
 `;
 
-const StyledHandle = styled(Handle)`
-  opacity: 0;
+const StyledHandle = styled(Handle)<{ $isVisible: boolean }>`
+  opacity: ${props => props.$isVisible ? 0.5 : 0};
   width: 10px;
   height: 10px;
-  pointer-events: none; /* Ensure handles don't block mouse events on the node */
+  pointer-events: ${props => props.$isVisible ? 'all' : 'none'};
 `;
 
-const EntityNode = ({ data, onMouseDown }) => {
+const EntityNode = ({ data, onMouseDown }: any) => {
+  const connectionMode = useStore((state) => state.connectionMode);
+  const selectedEdgeId = useStore((state) => state.selectedEdgeId);
+  
+  // Handle 절대 표시하지 않음
+  const shouldShowHandles = false;
+  
+  const handleMouseDown = (e: any) => {
+    // Only call onMouseDown for connection mode, let double click pass through
+    if (onMouseDown) {
+      onMouseDown(e);
+    }
+  };
+
   return (
-    <NodeContainer color={data.color} onMouseDown={onMouseDown}>
-      <StyledHandle type="target" position={Position.Left} id="left" />
-      <StyledHandle type="target" position={Position.Right} id="right" />
+    <NodeContainer color={data.color} onMouseDown={handleMouseDown}>
+      <StyledHandle type="target" position={Position.Left} id="left" $isVisible={shouldShowHandles} />
+      <StyledHandle type="target" position={Position.Right} id="right" $isVisible={shouldShowHandles} />
       <Header>{data.label}</Header>
       <Columns>
-        {data.columns?.map((col, i) => (
+        {data.columns?.map((col: any, i: number) => (
           <Column key={i}>
             <span>{col.pk && '🔑'}</span>
             <span>{col.fk && '🔗'}</span>
@@ -46,8 +60,8 @@ const EntityNode = ({ data, onMouseDown }) => {
           </Column>
         ))}
       </Columns>
-      <StyledHandle type="source" position={Position.Left} id="left" />
-      <StyledHandle type="source" position={Position.Right} id="right" />
+      <StyledHandle type="source" position={Position.Left} id="left" $isVisible={shouldShowHandles} />
+      <StyledHandle type="source" position={Position.Right} id="right" $isVisible={shouldShowHandles} />
     </NodeContainer>
   );
 };

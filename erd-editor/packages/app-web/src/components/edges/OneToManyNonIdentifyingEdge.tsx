@@ -22,7 +22,7 @@ const OneToManyNonIdentifyingEdge: React.FC<OneToManyNonIdentifyingEdgeProps> = 
   targetY,
   sourcePosition,
   targetPosition,
-  style = { strokeWidth: 1.5, stroke: 'black' },
+  style = { strokeWidth: 1.5, stroke: 'black', strokeDasharray: '5, 5' }, // Add dashed style for non-identifying
   data,
 }) => {
   const markerStart = undefined;

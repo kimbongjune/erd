@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import Header from './Header';
 import Toolbox from './Toolbox';
@@ -12,11 +12,13 @@ const Container = styled.div`
   flex-direction: column;
   height: 100vh;
   width: 100vw;
+  overflow: hidden;
 `;
 
 const TopContainer = styled.div`
   display: grid;
-  flex-grow: 1;
+  flex: 1;
+  min-height: 0;
   grid-template-columns: 80px 1fr 250px;
   grid-template-rows: 50px 1fr;
   grid-template-areas:
@@ -45,18 +47,483 @@ const PropertiesContainer = styled.aside`
   border-left: 1px solid #ddd;
   overflow-y: auto;
 `;
-const BottomPanelContainer = styled.footer<{ $height: number }>`
-  background-color: #f0f0f0;
+const BottomPanelContainer = styled.div<{ $height: number }>`
+  background-color: #ffffff;
   height: ${props => props.$height}px;
-  min-height: 100px;
-  max-height: 500px;
+  border-top: 1px solid #d0d0d0;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
   position: relative;
-  border-top: 1px solid #ddd;
+`;
+
+const ResizeHandle = styled.div`
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background-color: #d0d0d0;
+  cursor: ns-resize;
+  z-index: 1001;
+  border: 1px solid #b0b0b0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    background-color: #007acc;
+    border-color: #005a9e;
+  }
+  
+  &:before {
+    content: '⋯';
+    color: #666;
+    font-size: 14px;
+    font-weight: bold;
+  }
+  
+  &:hover:before {
+    color: white;
+  }
+`;
+
+const BottomPanelHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: #f5f5f5;
+  border-bottom: 1px solid #d0d0d0;
+  font-size: 12px;
+  font-weight: normal;
+  color: #333;
+  min-height: 32px;
+  flex-shrink: 0;
+`;
+
+const TableTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+`;
+
+const TableIcon = styled.div`
+  width: 16px;
+  height: 16px;
+  background-color: #4a90e2;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:after {
+    content: "T";
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+  }
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #666;
+  font-size: 14px;
+  
+  &:hover {
+    background-color: #e0e0e0;
+    color: #333;
+  }
+`;
+
+const TableContainer = styled.div`
+  flex: 1;
+  overflow: auto;
+  background-color: #ffffff;
+`;
+
+const Table = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+`;
+
+const TableHeader = styled.thead`
+  background-color: #f8f8f8;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+`;
+
+const HeaderRow = styled.tr`
+  border-bottom: 1px solid #d0d0d0;
+`;
+
+const HeaderCell = styled.th`
+  padding: 6px 8px;
+  text-align: left;
+  font-weight: normal;
+  color: #666;
+  border-right: 1px solid #e0e0e0;
+  font-size: 11px;
+  white-space: nowrap;
+`;
+
+const TableBody = styled.tbody``;
+
+const TableRow = styled.tr<{ $selected?: boolean }>`
+  border-bottom: 1px solid #f0f0f0;
+  background-color: ${props => props.$selected ? '#e6f3ff' : 'transparent'};
+  cursor: pointer;
+  
+  &:hover {
+    background-color: ${props => props.$selected ? '#e6f3ff' : '#f8f8ff'};
+  }
+`;
+
+const TableCell = styled.td`
+  padding: 4px 8px;
+  border-right: 1px solid #e0e0e0;
+  font-size: 11px;
+  position: relative;
+  cursor: pointer;
+`;
+
+const EditableCell = styled.input`
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 2px;
+  pointer-events: none;
+  cursor: default;
+  
+  &.editing {
+    pointer-events: auto;
+    cursor: text;
+    border-color: #ccc;
+    background-color: #fafafa;
+    
+    &:focus {
+      background-color: white;
+      border: 1px solid #007acc;
+      outline: none;
+      box-shadow: 0 0 2px rgba(0,122,204,0.3);
+    }
+  }
+`;
+
+const CheckboxCell = styled(TableCell)`
+  text-align: center;
+  width: 30px;
+`;
+
+const Checkbox = styled.input`
+  width: 12px;
+  height: 12px;
+`;
+
+const AddColumnRow = styled.tr`
+  background-color: #f8f8f8;
+`;
+
+const AddColumnCell = styled.td`
+  padding: 8px;
+  text-align: center;
+  border-right: 1px solid #e0e0e0;
+  cursor: pointer;
+  color: #007acc;
+  font-size: 11px;
+  
+  &:hover {
+    background-color: #e6f3ff;
+  }
+`;
+
+const DeleteButton = styled.button`
+  background: none;
+  border: none;
+  color: #dc3545;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  
+  &:hover {
+    background-color: #f5c6cb;
+  }
+`;
+
+const BottomSection = styled.div`
+  padding: 12px 16px 16px 16px;
+  background-color: #f8f8f8;
+  border-top: 1px solid #d0d0d0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  font-size: 11px;
+  flex-shrink: 0;
+  margin-bottom: 8px;
+`;
+
+const BottomField = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const BottomLabel = styled.label`
+  color: #666;
+  min-width: 100px;
+`;
+
+const BottomInput = styled.input`
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid #d0d0d0;
+  font-size: 11px;
+  height: 22px;
+  border-radius: 2px;
+  
+  &:hover {
+    border-color: #999;
+  }
+  
+  &:focus {
+    border-color: #007acc;
+    outline: none;
+    box-shadow: 0 0 2px rgba(0,122,204,0.3);
+  }
+`;
+
+const TableNameInput = styled.input`
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: normal;
+  color: #333;
+  padding: 2px 4px;
+  border-radius: 2px;
+  
+  &:hover {
+    border-color: #ccc;
+    background-color: #fafafa;
+  }
+  
+  &:focus {
+    background-color: white;
+    border: 1px solid #007acc;
+    outline: none;
+    box-shadow: 0 0 2px rgba(0,122,204,0.3);
+  }
 `;
 
 const Layout = () => {
-  const { isBottomPanelOpen, setBottomPanelOpen } = useStore();
-  const [bottomPanelHeight, setBottomPanelHeight] = useState(200);
+  const { 
+    isBottomPanelOpen, 
+    setBottomPanelOpen, 
+    selectedNodeId, 
+    nodes,
+    setNodes,
+    updateNodeData
+  } = useStore();
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(250);
+  const [isDragging, setIsDragging] = useState(false);
+  const [tableName, setTableName] = useState('');
+  const [columns, setColumns] = useState<any[]>([]);
+  const [selectedColumn, setSelectedColumn] = useState<any>(null);
+  const [editingCell, setEditingCell] = useState<string | null>(null);
+  const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  // 선택된 엔티티의 데이터를 가져오기
+  React.useEffect(() => {
+    if (selectedNodeId && isBottomPanelOpen) {
+      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+      if (selectedNode && selectedNode.type === 'entity') {
+        setTableName(selectedNode.data.label || 'table1');
+        const nodeColumns = selectedNode.data.columns || [
+          { id: 'default-1', name: 'id', dataType: 'INT', pk: true, nn: true, uq: false, ai: true, defaultValue: '' },
+        ];
+        // id가 없는 컬럼에 고유 id 부여하고 dataType과 type 동기화
+        const columnsWithIds = nodeColumns.map((col: any, index: number) => ({
+          ...col,
+          id: col.id || `col-${selectedNodeId}-${index}-${Date.now()}`,
+          dataType: col.dataType || col.type || 'VARCHAR', // dataType이 없으면 type으로 설정
+          type: col.type || col.dataType || 'VARCHAR' // type이 없으면 dataType으로 설정
+        }));
+        setColumns(columnsWithIds);
+        setSelectedColumn(columnsWithIds[0] || null);
+      }
+    }
+  }, [selectedNodeId, isBottomPanelOpen]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Resize started'); // 디버깅용
+    setIsDragging(true);
+    dragRef.current = {
+      startY: e.clientY,
+      startHeight: bottomPanelHeight
+    };
+    
+    // 전역 스타일 적용
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'ns-resize';
+  }, [bottomPanelHeight]);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDragging || !dragRef.current) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    const deltaY = dragRef.current.startY - e.clientY;
+    const newHeight = Math.max(150, Math.min(600, dragRef.current.startHeight + deltaY));
+    console.log('Resizing to:', newHeight); // 디버깅용
+    setBottomPanelHeight(newHeight);
+  }, [isDragging]);
+
+  const handleMouseUp = useCallback((e?: MouseEvent) => {
+    console.log('Resize ended'); // 디버깅용
+    setIsDragging(false);
+    dragRef.current = null;
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  }, []);
+
+  React.useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+      };
+    }
+  }, [isDragging, handleMouseMove, handleMouseUp]);
+
+  const addColumn = () => {
+    const newColumn = {
+      id: Date.now().toString(),
+      name: 'new_column',
+      dataType: 'VARCHAR(45)',
+      type: 'VARCHAR(45)', // EntityNode에서 사용
+      pk: false,
+      nn: false,
+      uq: false,
+      ai: false,
+      defaultValue: ''
+    };
+    const newColumns = [...columns, newColumn];
+    setColumns(newColumns);
+    updateNodeColumns(newColumns);
+  };
+
+  const deleteColumn = (columnId: string) => {
+    const newColumns = columns.filter(col => col.id !== columnId);
+    setColumns(newColumns);
+    updateNodeColumns(newColumns);
+    if (selectedColumn?.id === columnId) {
+      setSelectedColumn(newColumns[0] || null);
+    }
+  };
+
+  const updateNodeColumns = (newColumns: any[]) => {
+    if (selectedNodeId) {
+      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+      if (selectedNode) {
+        updateNodeData(selectedNodeId, {
+          ...selectedNode.data,
+          columns: newColumns,
+          label: tableName
+        });
+      }
+    }
+  };
+
+  const updateColumnField = (columnId: string, field: string, value: any) => {
+    const newColumns = columns.map(col => {
+      if (col.id === columnId) {
+        const updatedCol = { ...col, [field]: value };
+        // dataType이 변경되면 type도 함께 업데이트 (EntityNode에서 사용)
+        if (field === 'dataType') {
+          updatedCol.type = value;
+        }
+        return updatedCol;
+      }
+      return col;
+    });
+    setColumns(newColumns);
+    
+    // 선택된 컬럼도 업데이트
+    if (selectedColumn?.id === columnId) {
+      const updatedSelectedColumn = { ...selectedColumn, [field]: value };
+      if (field === 'dataType') {
+        updatedSelectedColumn.type = value;
+      }
+      setSelectedColumn(updatedSelectedColumn);
+    }
+    
+    // 엔티티 노드의 데이터 업데이트
+    if (selectedNodeId) {
+      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+      if (selectedNode && selectedNode.type === 'entity') {
+        updateNodeData(selectedNodeId, {
+          ...selectedNode.data,
+          columns: newColumns,
+          label: tableName
+        });
+      }
+    }
+  };
+
+  const updateTableName = (newName: string) => {
+    setTableName(newName);
+    if (selectedNodeId) {
+      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+      if (selectedNode) {
+        updateNodeData(selectedNodeId, {
+          ...selectedNode.data,
+          label: newName
+        });
+      }
+    }
+  };
+
+  const handleCellDoubleClick = (columnId: string, field: string) => {
+    setEditingCell(`${columnId}-${field}`);
+    // 다음 프레임에서 포커스와 커서 위치 설정
+    setTimeout(() => {
+      const input = document.querySelector(`input[data-editing="${columnId}-${field}"]`) as HTMLInputElement;
+      if (input) {
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length); // 커서를 끝으로
+      }
+    }, 0);
+  };
+
+  const handleCellBlur = () => {
+    setEditingCell(null);
+  };
+
+  const handleRowClick = (column: any, e: React.MouseEvent) => {
+    // 더블클릭이나 input 클릭이 아닌 경우에만 행 선택
+    if ((e.target as HTMLElement).tagName !== 'INPUT') {
+      setSelectedColumn(column);
+    }
+  };
 
   return (
     <Container>
@@ -74,8 +541,159 @@ const Layout = () => {
       </TopContainer>
       {isBottomPanelOpen && (
         <BottomPanelContainer $height={bottomPanelHeight}>
-          <button onClick={() => setBottomPanelOpen(false)}>Close</button>
-          <BottomPanel />
+          <ResizeHandle onMouseDown={handleMouseDown} />
+          <BottomPanelHeader>
+            <TableTitle>
+              <TableIcon />
+              <TableNameInput 
+                value={tableName} 
+                onChange={(e) => updateTableName(e.target.value)}
+                placeholder="table name"
+              />
+              <span> - Table</span>
+            </TableTitle>
+            <CloseButton onClick={() => setBottomPanelOpen(false)}>
+              ×
+            </CloseButton>
+          </BottomPanelHeader>
+          <TableContainer>
+            <Table>
+              <TableHeader>
+                <HeaderRow>
+                  <HeaderCell key="column-name">Column Name</HeaderCell>
+                  <HeaderCell key="datatype">Datatype</HeaderCell>
+                  <HeaderCell key="pk">PK</HeaderCell>
+                  <HeaderCell key="nn">NN</HeaderCell>
+                  <HeaderCell key="uq">UQ</HeaderCell>
+                  <HeaderCell key="un">UN</HeaderCell>
+                  <HeaderCell key="ai">AI</HeaderCell>
+                  <HeaderCell key="default">Default/Expression</HeaderCell>
+                  <HeaderCell key="delete">Delete</HeaderCell>
+                </HeaderRow>
+              </TableHeader>
+              <TableBody>
+                {columns.map((column) => (
+                  <TableRow 
+                    key={`row-${column.id}`} 
+                    $selected={selectedColumn?.id === column.id}
+                    onClick={(e) => handleRowClick(column, e)}
+                  >
+                    <TableCell key={`${column.id}-name`} onDoubleClick={() => handleCellDoubleClick(column.id, 'name')}>
+                      <EditableCell 
+                        className={editingCell === `${column.id}-name` ? 'editing' : ''}
+                        data-editing={editingCell === `${column.id}-name` ? `${column.id}-name` : ''}
+                        value={column.name || ''}
+                        onChange={(e) => updateColumnField(column.id, 'name', e.target.value)}
+                        onBlur={handleCellBlur}
+                        readOnly={editingCell !== `${column.id}-name`}
+                      />
+                    </TableCell>
+                    <TableCell key={`${column.id}-datatype`} onDoubleClick={() => handleCellDoubleClick(column.id, 'dataType')}>
+                      <EditableCell 
+                        className={editingCell === `${column.id}-dataType` ? 'editing' : ''}
+                        data-editing={editingCell === `${column.id}-dataType` ? `${column.id}-dataType` : ''}
+                        value={column.dataType || ''}
+                        onChange={(e) => updateColumnField(column.id, 'dataType', e.target.value)}
+                        onBlur={handleCellBlur}
+                        readOnly={editingCell !== `${column.id}-dataType`}
+                      />
+                    </TableCell>
+                    <CheckboxCell key={`${column.id}-pk`}>
+                      <Checkbox 
+                        type="checkbox" 
+                        checked={column.pk || false} 
+                        onChange={(e) => updateColumnField(column.id, 'pk', e.target.checked)}
+                      />
+                    </CheckboxCell>
+                    <CheckboxCell key={`${column.id}-nn`}>
+                      <Checkbox 
+                        type="checkbox" 
+                        checked={column.nn || false} 
+                        onChange={(e) => updateColumnField(column.id, 'nn', e.target.checked)}
+                      />
+                    </CheckboxCell>
+                    <CheckboxCell key={`${column.id}-uq`}>
+                      <Checkbox 
+                        type="checkbox" 
+                        checked={column.uq || false} 
+                        onChange={(e) => updateColumnField(column.id, 'uq', e.target.checked)}
+                      />
+                    </CheckboxCell>
+                    <CheckboxCell key={`${column.id}-un`}>
+                      <Checkbox 
+                        type="checkbox" 
+                        checked={column.un || false} 
+                        onChange={(e) => updateColumnField(column.id, 'un', e.target.checked)}
+                      />
+                    </CheckboxCell>
+                    <CheckboxCell key={`${column.id}-ai`}>
+                      <Checkbox 
+                        type="checkbox" 
+                        checked={column.ai || false} 
+                        onChange={(e) => updateColumnField(column.id, 'ai', e.target.checked)}
+                      />
+                    </CheckboxCell>
+                    <TableCell key={`${column.id}-default`} onDoubleClick={() => handleCellDoubleClick(column.id, 'defaultValue')}>
+                      <EditableCell 
+                        className={editingCell === `${column.id}-defaultValue` ? 'editing' : ''}
+                        data-editing={editingCell === `${column.id}-defaultValue` ? `${column.id}-defaultValue` : ''}
+                        value={column.defaultValue || ''}
+                        onChange={(e) => updateColumnField(column.id, 'defaultValue', e.target.value)}
+                        onBlur={handleCellBlur}
+                        readOnly={editingCell !== `${column.id}-defaultValue`}
+                        placeholder="Default value"
+                      />
+                    </TableCell>
+                    <TableCell key={`${column.id}-delete`}>
+                      <DeleteButton onClick={() => deleteColumn(column.id)}>
+                        Delete
+                      </DeleteButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                <AddColumnRow key="add-column">
+                  <AddColumnCell colSpan={9} onClick={addColumn}>
+                    + Add Column
+                  </AddColumnCell>
+                </AddColumnRow>
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <BottomSection>
+            <BottomField>
+              <BottomLabel>Column Name:</BottomLabel>
+              <BottomInput 
+                type="text" 
+                value={selectedColumn?.name || ''} 
+                onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'name', e.target.value)}
+              />
+            </BottomField>
+            <BottomField>
+              <BottomLabel>Data Type:</BottomLabel>
+              <BottomInput 
+                type="text" 
+                value={selectedColumn?.dataType || ''} 
+                onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'dataType', e.target.value)}
+              />
+            </BottomField>
+            <BottomField>
+              <BottomLabel>Default:</BottomLabel>
+              <BottomInput 
+                type="text" 
+                value={selectedColumn?.defaultValue || ''} 
+                onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'defaultValue', e.target.value)}
+                placeholder="Default value"
+              />
+            </BottomField>
+            <BottomField>
+              <BottomLabel>Comments:</BottomLabel>
+              <BottomInput 
+                type="text" 
+                value={selectedColumn?.comment || ''} 
+                onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'comment', e.target.value)}
+              />
+            </BottomField>
+          </BottomSection>
         </BottomPanelContainer>
       )}
     </Container>

@@ -27,6 +27,7 @@ type RFState = {
   finishConnection: (targetNodeId: string | null) => void;
   cancelConnection: () => void;
   updateSelectedEdgeType: (newType: string) => void;
+  updateNodeData: (nodeId: string, newData: any) => void;
   setCreateMode: (mode: string | null) => void;
   setSelectMode: (mode: boolean) => void;
 };
@@ -286,6 +287,18 @@ const useStore = create<RFState>((set, get) => ({
 
   setCreateMode: (mode: string | null) => set({ createMode: mode }),
   setSelectMode: (mode: boolean) => set({ selectMode: mode }),
+  
+  updateNodeData: (nodeId: string, newData: any) => {
+    set((state) => {
+      const updatedNodes = state.nodes.map(node => {
+        if (node.id === nodeId) {
+          return { ...node, data: newData };
+        }
+        return node;
+      });
+      return { nodes: updatedNodes };
+    });
+  },
 }));
 
 export default useStore;

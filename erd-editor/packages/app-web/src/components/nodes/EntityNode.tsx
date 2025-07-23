@@ -16,9 +16,9 @@ interface Column {
 }
 
 const NodeContainer = styled.div<{ $isSelected: boolean }>`
-  min-width: 200px;
+  min-width: 280px;
   width: auto;
-  min-height: 100px;
+  min-height: 120px;
   height: auto;
   border: 3px solid ${props => props.$isSelected ? '#007acc' : '#ddd'};
   background-color: ${props => props.$isSelected ? '#f0f8ff' : '#fff'};
@@ -62,10 +62,45 @@ const Header = styled.div`
   color: white;
   font-weight: 600;
   font-size: 16px;
-  text-align: center;
   border-radius: 5px 5px 0 0;
   border-bottom: 2px solid #e0e0e0;
   position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+`;
+
+const EntityName = styled.div`
+  flex: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+`;
+
+const EntityLogicalName = styled.div`
+  flex: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 14px;
+  opacity: 0.9;
+  text-align: right;
+`;
+
+const EditInput = styled.input`
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: inherit;
+  font-weight: inherit;
+  color: #333;
+  outline: none;
+  width: 100%;
+  
+  &:focus {
+    background: white;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+  }
 `;
 
 const ColumnsContainer = styled.div`
@@ -73,7 +108,7 @@ const ColumnsContainer = styled.div`
   background: #fff;
 `;
 
-const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean }>`
+const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean; $isUniqueKey?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -83,6 +118,7 @@ const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean }>`
   background: ${props => {
     if (props.$isPrimaryKey) return '#fff8e7';
     if (props.$isForeignKey) return '#e3f2fd';
+    if (props.$isUniqueKey) return '#f3e5f5';
     return '#fff';
   }};
   position: relative;
@@ -95,6 +131,7 @@ const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean }>`
     background: ${props => {
       if (props.$isPrimaryKey) return '#fff4d6';
       if (props.$isForeignKey) return '#d1e7dd';
+      if (props.$isUniqueKey) return '#e1bee7';
       return '#f8f9fa';
     }};
   }
@@ -290,11 +327,7 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
     }
   };
 
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault(); // 우클릭 메뉴 비활성화
-    e.stopPropagation(); // 이벤트 전파 방지
-    return false;
-  };
+  // handleContextMenu 제거 - ReactFlow의 onNodeContextMenu가 처리하도록
 
   // 툴팁 핸들러 - 엔티티 오른쪽에 정확히 붙이기
   const handleMouseEnter = (e: React.MouseEvent, type: 'entity' | 'column', item?: Column) => {
@@ -350,7 +383,6 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
         <NodeContainer 
           $isSelected={isSelected} 
           onMouseDown={handleMouseDown}
-          onContextMenu={handleContextMenu}
         >
           {/* 보이지 않는 연결 핸들들 - 모든 핸들을 source와 target 둘 다 지원 */}
           <InvisibleHandle type="target" position={Position.Left} id="left" />
@@ -368,7 +400,12 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
             onClick={handleTooltipClick}
             onMouseDown={handleTooltipMouseDown}
           >
-            {data.label}
+            <EntityName>
+              {data.physicalName || data.label || 'NewTable'}
+            </EntityName>
+            <EntityLogicalName>
+              {data.logicalName || 'Table'}
+            </EntityLogicalName>
           </Header>
           
           <ColumnsContainer>
@@ -380,6 +417,7 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
                   key={i} 
                   $isPrimaryKey={col.pk} 
                   $isForeignKey={col.fk}
+                  $isUniqueKey={col.uq}
                   onMouseEnter={(e) => handleMouseEnter(e, 'column', col)}
                   onMouseLeave={handleMouseLeave}
                   onClick={handleTooltipClick}

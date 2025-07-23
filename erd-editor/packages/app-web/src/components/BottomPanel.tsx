@@ -1,11 +1,64 @@
 import styled from 'styled-components';
 import useStore from '../store/useStore';
 import { toast } from 'react-toastify';
+import { useState } from 'react';
 
 const PanelContainer = styled.div`
   width: 100%;
   height: 100%;
   padding: 10px;
+`;
+
+const TableHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: linear-gradient(135deg, #007acc 0%, #005999 100%);
+  color: white;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 600;
+`;
+
+const EditableTableName = styled.input`
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  outline: none;
+  min-width: 150px;
+  
+  &:focus {
+    background: white;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+  }
+`;
+
+const TableSeparator = styled.span`
+  font-size: 16px;
+  opacity: 0.8;
+`;
+
+const EditableLogicalName = styled.input`
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+  outline: none;
+  min-width: 120px;
+  
+  &:focus {
+    background: white;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+  }
 `;
 
 const BottomPanel = () => {

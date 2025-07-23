@@ -45,7 +45,6 @@ export const GlobalStyle = createGlobalStyle`
   table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 10px;
   }
 
   th, td {

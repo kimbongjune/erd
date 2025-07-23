@@ -11,6 +11,7 @@ import OneToManyIdentifyingEdge from './edges/OneToManyIdentifyingEdge';
 import OneToManyNonIdentifyingEdge from './edges/OneToManyNonIdentifyingEdge';
 import TemporaryEdge from './edges/TemporaryEdge';
 import CustomConnectionLine from './CustomConnectionLine';
+import ContextMenu from './ContextMenu';
 
 const edgeTypes = {
   'one-to-one-identifying': OneToOneIdentifyingEdge,
@@ -65,13 +66,29 @@ const Canvas = () => {
   const cancelConnection = useStore((state) => state.cancelConnection);
   const createMode = useStore((state) => state.createMode);
   const addNode = useStore((state) => state.addNode);
+  const deleteSelected = useStore((state) => state.deleteSelected);
 
   const { screenToFlowPosition, flowToScreenPosition } = useReactFlow();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [temporaryEdge, setTemporaryEdge] = useState<Edge | null>(null);
+  
+  // 컨텍스트 메뉴 상태
+  const [contextMenu, setContextMenu] = useState({
+    visible: false,
+    x: 0,
+    y: 0,
+    type: 'node' as 'node' | 'edge',
+    targetId: ''
+  });
 
-  // ESC 키 이벤트 핸들러
+  // 키보드 이벤트 핸들러  
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    // input, textarea 등에서 입력 중일 때는 무시
+    const target = event.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      return;
+    }
+
     if (event.key === 'Escape') {
       // 모든 동작 취소하고 선택 모드로 돌아가기
       cancelConnection();
@@ -80,8 +97,12 @@ const Canvas = () => {
       useStore.getState().setConnectionMode(null);
       useStore.getState().setConnectingNodeId(null);
       useStore.getState().setSelectMode(true);
+    } else if (event.key === 'Delete' || event.key === 'Backspace') {
+      // 선택된 노드나 엣지 삭제
+      event.preventDefault();
+      deleteSelected();
     }
-  }, [cancelConnection]);
+  }, [cancelConnection, deleteSelected]);
 
   // 키보드 이벤트 리스너 등록
   useEffect(() => {
@@ -173,11 +194,7 @@ const Canvas = () => {
 
   const defaultEdgeOptions = {};
 
-  const handleContextMenu = useCallback((event: React.MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    return false;
-  }, []);
+  // 기존 handleContextMenu 제거 (새로운 컨텍스트 메뉴 핸들러들로 대체)
 
   const handlePaneClick = useCallback((event: any) => {
     if (createMode) {
@@ -228,7 +245,45 @@ const Canvas = () => {
     setBottomPanelOpen(false); // Close bottom panel when edge is selected
   }, [setSelectedEdgeId, setSelectedNodeId, setBottomPanelOpen]);
 
-  // 노드 클릭 시 선택 처리
+    // 컨텍스트 메뉴 핸들러들
+  const handleNodeContextMenu = useCallback((event: MouseEvent, node: Node) => {
+    event.preventDefault();
+    setContextMenu({
+      visible: true,
+      x: event.clientX,
+      y: event.clientY,
+      type: 'node',
+      targetId: node.id
+    });
+    setSelectedNodeId(node.id);
+  }, [setSelectedNodeId]);
+
+  const handleEdgeContextMenu = useCallback((event: MouseEvent, edge: Edge) => {
+    console.log('Edge context menu triggered:', edge.id);
+    event.preventDefault();
+    setContextMenu({
+      visible: true,
+      x: event.clientX,
+      y: event.clientY,
+      type: 'edge',
+      targetId: edge.id
+    });
+    setSelectedEdgeId(edge.id);
+  }, [setSelectedEdgeId]);
+
+  const handleContextMenuDelete = useCallback(() => {
+    if (contextMenu.type === 'node') {
+      useStore.getState().deleteNode(contextMenu.targetId);
+    } else if (contextMenu.type === 'edge') {
+      useStore.getState().deleteEdge(contextMenu.targetId);
+    }
+  }, [contextMenu]);
+
+  const handleContextMenuClose = useCallback(() => {
+    setContextMenu(prev => ({ ...prev, visible: false }));
+  }, []);
+
+  // 노드 클릭 핸들러 (기존)
   const handleNodeClick = useCallback((event: any, node: any) => {
     event.stopPropagation();
     setSelectedNodeId(node.id);
@@ -397,10 +452,11 @@ const Canvas = () => {
         edgeTypes={edgeTypes}
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
-        onNodeContextMenu={handleContextMenu}
+        onNodeContextMenu={handleNodeContextMenu}
         onEdgeClick={handleEdgeClick}
+        onEdgeContextMenu={handleEdgeContextMenu}
         onPaneClick={handlePaneClick}
-        onPaneContextMenu={handleContextMenu}
+        onPaneContextMenu={handleContextMenuClose}
         defaultEdgeOptions={{}}
         panOnDrag={!connectionMode && !createMode}
         selectionOnDrag={!connectionMode && !createMode}
@@ -408,8 +464,8 @@ const Canvas = () => {
         connectionLineComponent={connectionMode ? CustomConnectionLine : undefined}
       >
         <MiniMap 
-          nodeColor="#e2e8f0"
-          nodeStrokeColor="#64748b"
+          nodeColor={(node) => node.type === 'comment' ? 'transparent' : '#e2e8f0'}
+          nodeStrokeColor={(node) => node.type === 'comment' ? 'transparent' : '#64748b'}
           nodeStrokeWidth={2}
           maskColor="rgba(0, 0, 0, 0.2)"
           pannable={true}
@@ -422,6 +478,16 @@ const Canvas = () => {
           }}
         />
       </ReactFlow>
+      
+      {/* 컨텍스트 메뉴 */}
+      <ContextMenu
+        visible={contextMenu.visible}
+        x={contextMenu.x}
+        y={contextMenu.y}
+        type={contextMenu.type}
+        onDelete={handleContextMenuDelete}
+        onClose={handleContextMenuClose}
+      />
     </div>
   );
 };

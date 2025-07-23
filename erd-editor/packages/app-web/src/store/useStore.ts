@@ -20,6 +20,8 @@ type RFState = {
   setSelectedEdgeId: (id: string | null) => void;
   setBottomPanelOpen: (isOpen: boolean) => void;
   deleteNode: (id: string) => void;
+  deleteEdge: (id: string) => void;
+  deleteSelected: () => void;
   setNodes: (nodes: Node[]) => void;
   setEdges: (edges: Edge[]) => void;
   onConnect: (connection: Connection) => void;
@@ -122,10 +124,109 @@ const useStore = create<RFState>((set, get) => ({
   setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
   setBottomPanelOpen: (isOpen) => set({ isBottomPanelOpen: isOpen }),
   deleteNode: (id) => {
-    set({
-      nodes: get().nodes.filter((node) => node.id !== id),
-      selectedNodeId: get().selectedNodeId === id ? null : get().selectedNodeId,
+    set((state) => {
+      const nodeToDelete = state.nodes.find(node => node.id === id);
+      if (!nodeToDelete) return state;
+
+      // 삭제할 노드가 엔티티인 경우 관련 처리
+      if (nodeToDelete.type === 'entity') {
+        // 1. 이 엔티티와 연결된 모든 관계선 찾기
+        const relatedEdges = state.edges.filter(edge => 
+          edge.source === id || edge.target === id
+        );
+        
+        // 2. 관련된 다른 엔티티들에서 FK 제거
+        let updatedNodes = state.nodes.filter(node => node.id !== id);
+        
+        relatedEdges.forEach(edge => {
+          if (edge.source === id) {
+            // 삭제되는 엔티티가 부모(source)인 경우, 자식의 FK 제거
+            const childNodeId = edge.target;
+            updatedNodes = updatedNodes.map(node => {
+              if (node.id === childNodeId && node.type === 'entity') {
+                const filteredColumns = (node.data.columns || []).filter((col: any) => 
+                  !(col.fk && col.name.startsWith(`${nodeToDelete.data.label.toLowerCase()}_`))
+                );
+                return { ...node, data: { ...node.data, columns: filteredColumns } };
+              }
+              return node;
+            });
+            toast.info(`${nodeToDelete.data.label} 삭제로 인해 ${state.nodes.find(n => n.id === childNodeId)?.data.label}에서 관련 FK가 제거되었습니다.`);
+          }
+        });
+
+        // 3. 관련 관계선들 제거
+        const updatedEdges = state.edges.filter(edge => 
+          edge.source !== id && edge.target !== id
+        );
+
+        toast.info(`엔티티 ${nodeToDelete.data.label}이 삭제되었습니다.`);
+
+        return {
+          nodes: updatedNodes,
+          edges: updatedEdges,
+          selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
+        };
+      } else {
+        // 엔티티가 아닌 경우 (코멘트 등) 단순 삭제
+        toast.info(`${nodeToDelete.type === 'comment' ? '코멘트' : '노드'}가 삭제되었습니다.`);
+        return {
+          nodes: state.nodes.filter(node => node.id !== id),
+          selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
+        };
+      }
     });
+  },
+
+  deleteEdge: (id) => {
+    set((state) => {
+      const edgeToDelete = state.edges.find(edge => edge.id === id);
+      if (!edgeToDelete) return state;
+
+      // 관계선 삭제 시 자식 엔티티의 FK만 제거 (부모 PK는 유지)
+      const sourceNode = state.nodes.find(node => node.id === edgeToDelete.source);
+      const targetNode = state.nodes.find(node => node.id === edgeToDelete.target);
+
+      if (sourceNode && targetNode && sourceNode.type === 'entity' && targetNode.type === 'entity') {
+        const updatedNodes = state.nodes.map(node => {
+          if (node.id === edgeToDelete.target) {
+            // 부모 엔티티의 모든 PK에 대응하는 FK 제거
+            const sourcePks = sourceNode.data.columns?.filter((col: any) => col.pk) || [];
+            let filteredColumns = [...(node.data.columns || [])];
+            
+            sourcePks.forEach((pk: any) => {
+              const fkName = `${sourceNode.data.label.toLowerCase()}_${pk.name}`;
+              filteredColumns = filteredColumns.filter(col => col.name !== fkName);
+            });
+
+            return { ...node, data: { ...node.data, columns: filteredColumns } };
+          }
+          return node;
+        });
+
+        toast.info(`${sourceNode.data.label}과 ${targetNode.data.label} 간의 관계가 제거되었습니다.`);
+
+        return {
+          nodes: updatedNodes,
+          edges: state.edges.filter(edge => edge.id !== id),
+          selectedEdgeId: state.selectedEdgeId === id ? null : state.selectedEdgeId,
+        };
+      }
+
+      return {
+        edges: state.edges.filter(edge => edge.id !== id),
+        selectedEdgeId: state.selectedEdgeId === id ? null : state.selectedEdgeId,
+      };
+    });
+  },
+
+  deleteSelected: () => {
+    const state = get();
+    if (state.selectedNodeId) {
+      get().deleteNode(state.selectedNodeId);
+    } else if (state.selectedEdgeId) {
+      get().deleteEdge(state.selectedEdgeId);
+    }
   },
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
@@ -348,66 +449,71 @@ const useStore = create<RFState>((set, get) => ({
         return node;
       });
 
-      // PK 변경 감지 및 FK 자동 반영
+      // 컬럼 변경 분석
       const oldColumns = oldNode.data.columns || [];
       const newColumns = newData.columns || [];
       
-      // PK가 변경된 컬럼들 찾기
+      // 컬럼 이름을 기반으로 변경사항 감지
+      const oldColumnMap = new Map(oldColumns.map((col: any) => [col.name, col]));
+      const newColumnMap = new Map(newColumns.map((col: any) => [col.name, col]));
+      
+      // PK 변경사항 분석
       const pkChanges: Array<{type: 'added' | 'removed', column: any, entityName: string}> = [];
       
-      // 기존 PK가 제거된 경우
-      oldColumns.forEach((oldCol: any, index: number) => {
-        const newCol = newColumns[index];
-        if (oldCol.pk && (!newCol || !newCol.pk)) {
+      // 제거된 PK 찾기
+      for (const [colName, oldCol] of oldColumnMap) {
+        const newCol = newColumnMap.get(colName);
+        if ((oldCol as any).pk && (!newCol || !(newCol as any).pk)) {
           pkChanges.push({ type: 'removed', column: oldCol, entityName: oldNode.data.label });
         }
-      });
+      }
       
-      // 새로운 PK가 추가된 경우
-      newColumns.forEach((newCol: any, index: number) => {
-        const oldCol = oldColumns[index];
-        if (newCol.pk && (!oldCol || !oldCol.pk)) {
+      // 추가된 PK 찾기  
+      for (const [colName, newCol] of newColumnMap) {
+        const oldCol = oldColumnMap.get(colName);
+        if ((newCol as any).pk && (!oldCol || !(oldCol as any).pk)) {
           pkChanges.push({ type: 'added', column: newCol, entityName: oldNode.data.label });
         }
-      });
+      }
+
+      // FK 변경사항 분석 (자식 엔티티에서 FK 삭제 시)
+      const fkChanges: Array<{type: 'removed', column: any, entityName: string}> = [];
+      
+      // 제거된 FK 찾기
+      for (const [colName, oldCol] of oldColumnMap) {
+        const newCol = newColumnMap.get(colName);
+        if ((oldCol as any).fk && (!newCol || !(newCol as any).fk)) {
+          fkChanges.push({ type: 'removed', column: oldCol, entityName: oldNode.data.label });
+        }
+      }
 
       let finalNodes = updatedNodes;
+      let finalEdges = state.edges;
 
-      // PK 변경이 있는 경우 관련 FK 업데이트
+      // PK 변경 처리 (부모 엔티티에서)
       if (pkChanges.length > 0) {
         // 현재 엔티티를 참조하는 모든 관계선 찾기
         const relatedEdges = state.edges.filter(edge => edge.source === nodeId);
-        const edgesToRemove: string[] = [];
         
         relatedEdges.forEach(edge => {
           const targetNodeId = edge.target;
-          let shouldRemoveEdge = false;
           
           finalNodes = finalNodes.map(node => {
             if (node.id === targetNodeId && node.type === 'entity') {
               let targetColumns = [...(node.data.columns || [])];
+              let hasRemainingFKs = false;
               
               pkChanges.forEach(change => {
                 const fkColumnName = `${change.entityName.toLowerCase()}_${change.column.name}`;
                 const existingFkIndex = targetColumns.findIndex(col => col.name === fkColumnName);
                 
                 if (change.type === 'removed' && existingFkIndex !== -1) {
-                  // PK가 제거된 경우 해당 FK도 제거
+                  // 특정 PK에 대응하는 FK만 제거
                   targetColumns.splice(existingFkIndex, 1);
-                  toast.info(`${change.entityName}의 PK 변경으로 인해 ${node.data.label}에서 ${fkColumnName} FK가 제거되었습니다.`);
-                  
-                  // 이 엔티티에 더 이상 FK가 없으면 관계선도 제거
-                  const remainingFks = targetColumns.filter(col => 
-                    col.fk && col.name.startsWith(`${change.entityName.toLowerCase()}_`)
-                  );
-                  if (remainingFks.length === 0) {
-                    shouldRemoveEdge = true;
-                  }
+                  toast.info(`${change.entityName}의 PK 삭제로 인해 ${node.data.label}에서 ${fkColumnName} FK가 제거되었습니다.`);
                 } else if (change.type === 'added') {
-                  // 새로운 PK가 추가된 경우 FK 추가 (중복 방지)
+                  // 새로운 PK에 대응하는 FK 추가
                   if (existingFkIndex === -1) {
-                    // 관계 타입에 따라 FK 속성 결정
-                    const relatedEdgeData = edge.data || {};
                     const isIdentifying = edge.type?.includes('identifying') || false;
                     
                     targetColumns.push({
@@ -415,7 +521,7 @@ const useStore = create<RFState>((set, get) => ({
                       type: change.column.type,
                       pk: isIdentifying,
                       fk: true,
-                      uk: false,
+                      uq: false,
                       comment: `Foreign key from ${change.entityName}.${change.column.name}`
                     });
                     toast.info(`${change.entityName}의 PK 추가로 인해 ${node.data.label}에 ${fkColumnName} FK가 추가되었습니다.`);
@@ -423,24 +529,58 @@ const useStore = create<RFState>((set, get) => ({
                 }
               });
               
+              // 이 관계에서 남은 FK가 있는지 확인
+              hasRemainingFKs = targetColumns.some(col => 
+                col.fk && col.name.startsWith(`${oldNode.data.label.toLowerCase()}_`)
+              );
+              
+              // 남은 FK가 없으면 관계선 제거 표시
+              if (!hasRemainingFKs) {
+                finalEdges = finalEdges.filter(e => e.id !== edge.id);
+                toast.info(`${oldNode.data.label}과 ${node.data.label} 간의 관계가 제거되었습니다.`);
+              }
+              
               return { ...node, data: { ...node.data, columns: targetColumns } };
             }
             return node;
           });
-          
-          if (shouldRemoveEdge) {
-            edgesToRemove.push(edge.id);
-          }
         });
-        
-        // 제거할 관계선이 있으면 edges에서도 제거
-        if (edgesToRemove.length > 0) {
-          const updatedEdges = state.edges.filter(edge => !edgesToRemove.includes(edge.id));
-          return { nodes: finalNodes, edges: updatedEdges };
-        }
       }
 
-      return { nodes: finalNodes };
+      // FK 변경 처리 (자식 엔티티에서 FK 삭제 시)
+      if (fkChanges.length > 0) {
+        fkChanges.forEach(change => {
+          // FK 이름에서 부모 엔티티 추출
+          const fkName = change.column.name;
+          const parts = fkName.split('_');
+          if (parts.length >= 2) {
+            const parentEntityName = parts[0];
+            
+            // 해당 부모 엔티티와의 관계선 찾기
+            const relatedEdge = state.edges.find(edge => {
+              const sourceNode = state.nodes.find(n => n.id === edge.source);
+              return edge.target === nodeId && 
+                     sourceNode?.data.label.toLowerCase() === parentEntityName;
+            });
+            
+            if (relatedEdge) {
+              // 이 관계에서 남은 FK가 있는지 확인
+              const remainingFKs = newColumns.filter((col: any) => 
+                col.fk && col.name.startsWith(`${parentEntityName}_`)
+              );
+              
+              if (remainingFKs.length === 0) {
+                // 남은 FK가 없으면 관계선 제거
+                finalEdges = finalEdges.filter(e => e.id !== relatedEdge.id);
+                const parentNode = state.nodes.find(n => n.id === relatedEdge.source);
+                toast.info(`${oldNode.data.label}에서 FK 삭제로 인해 ${parentNode?.data.label}과의 관계가 제거되었습니다.`);
+              }
+            }
+          }
+        });
+      }
+
+      return { nodes: finalNodes, edges: finalEdges };
     });
   },
 }));

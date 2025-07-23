@@ -309,15 +309,77 @@ const BottomInput = styled.input`
 const TableNameInput = styled.input`
   background: transparent;
   border: 1px solid transparent;
-  font-size: 12px;
-  font-weight: normal;
+  font-size: 14px;
+  font-weight: 500;
   color: #333;
-  padding: 2px 4px;
-  border-radius: 2px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  width: 120px;
+  max-width: 120px;
   
   &:hover {
     border-color: #ccc;
     background-color: #fafafa;
+  }
+  
+  &:focus {
+    border-color: #007acc;
+    outline: none;
+    box-shadow: 0 0 2px rgba(0,122,204,0.3);
+    background-color: white;
+  }
+`;
+
+const LogicalNameInput = styled.input`
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 400;
+  color: #666;
+  padding: 4px 8px;
+  border-radius: 3px;
+  width: 100px;
+  max-width: 100px;
+  
+  &:hover {
+    border-color: #ccc;
+    background-color: #fafafa;
+  }
+  
+  &:focus {
+    border-color: #007acc;
+    outline: none;
+    box-shadow: 0 0 2px rgba(0,122,204,0.3);
+    background-color: white;
+  }
+`;
+
+const TableNameDisplay = styled.div`
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  padding: 4px 8px;
+  border-radius: 3px;
+  min-width: 120px;
+  cursor: pointer;
+  
+  &:hover {
+    background-color: #f0f0f0;
+  }
+`;
+
+const LogicalNameDisplay = styled.div`
+  font-size: 13px;
+  font-weight: 400;
+  color: #666;
+  padding: 4px 8px;
+  border-radius: 3px;
+  min-width: 100px;
+  cursor: pointer;
+  
+  &:hover {
+    background-color: #f0f0f0;
+  }
   }
   
   &:focus {
@@ -340,6 +402,9 @@ const Layout = () => {
   const [bottomPanelHeight, setBottomPanelHeight] = useState(250);
   const [isDragging, setIsDragging] = useState(false);
   const [tableName, setTableName] = useState('');
+  const [tableLogicalName, setTableLogicalName] = useState('');
+  const [isEditingTableName, setIsEditingTableName] = useState(false);
+  const [isEditingLogicalName, setIsEditingLogicalName] = useState(false);
   const [columns, setColumns] = useState<any[]>([]);
   const [selectedColumn, setSelectedColumn] = useState<any>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
@@ -350,7 +415,8 @@ const Layout = () => {
     if (selectedNodeId && isBottomPanelOpen) {
       const selectedNode = nodes.find(node => node.id === selectedNodeId);
       if (selectedNode && selectedNode.type === 'entity') {
-        setTableName(selectedNode.data.label || 'table1');
+        setTableName(selectedNode.data.physicalName || selectedNode.data.label || 'table1');
+        setTableLogicalName(selectedNode.data.logicalName || 'Table');
         const nodeColumns = selectedNode.data.columns || [
           { id: 'default-1', name: 'id', dataType: 'INT', pk: true, nn: true, uq: false, ai: true, defaultValue: '' },
         ];
@@ -515,9 +581,57 @@ const Layout = () => {
       if (selectedNode) {
         updateNodeData(selectedNodeId, {
           ...selectedNode.data,
-          label: newName
+          label: newName,
+          physicalName: newName
         });
       }
+    }
+  };
+
+  const updateTableLogicalName = (newName: string) => {
+    setTableLogicalName(newName);
+    if (selectedNodeId) {
+      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+      if (selectedNode) {
+        updateNodeData(selectedNodeId, {
+          ...selectedNode.data,
+          logicalName: newName
+        });
+      }
+    }
+  };
+
+  const handleTableNameDoubleClick = () => {
+    setIsEditingTableName(true);
+  };
+
+  const handleLogicalNameDoubleClick = () => {
+    setIsEditingLogicalName(true);
+  };
+
+  const handleTableNameBlur = () => {
+    setIsEditingTableName(false);
+  };
+
+  const handleLogicalNameBlur = () => {
+    setIsEditingLogicalName(false);
+  };
+
+  const handleTableNameKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      setIsEditingTableName(false);
+    }
+    if (e.key === 'Escape') {
+      setIsEditingTableName(false);
+    }
+  };
+
+  const handleLogicalNameKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      setIsEditingLogicalName(false);
+    }
+    if (e.key === 'Escape') {
+      setIsEditingLogicalName(false);
     }
   };
 
@@ -564,12 +678,37 @@ const Layout = () => {
           <BottomPanelHeader>
             <TableTitle>
               <TableIcon />
-              <TableNameInput 
-                value={tableName} 
-                onChange={(e) => updateTableName(e.target.value)}
-                placeholder="table name"
-              />
-              <span> - Table</span>
+              <span style={{ fontSize: '10px', color: '#666', marginRight: '4px' }}>물리명:</span>
+              {isEditingTableName ? (
+                <TableNameInput 
+                  value={tableName} 
+                  onChange={(e) => updateTableName(e.target.value)}
+                  onBlur={handleTableNameBlur}
+                  onKeyDown={handleTableNameKeyPress}
+                  autoFocus
+                  placeholder="물리명"
+                />
+              ) : (
+                <TableNameDisplay onDoubleClick={handleTableNameDoubleClick}>
+                  {tableName || '물리명'}
+                </TableNameDisplay>
+              )}
+              <span style={{ margin: '0 8px', color: '#ccc' }}>/</span>
+              <span style={{ fontSize: '10px', color: '#666', marginRight: '4px' }}>논리명:</span>
+              {isEditingLogicalName ? (
+                <LogicalNameInput
+                  value={tableLogicalName}
+                  onChange={(e) => updateTableLogicalName(e.target.value)}
+                  onBlur={handleLogicalNameBlur}
+                  onKeyDown={handleLogicalNameKeyPress}
+                  autoFocus
+                  placeholder="논리명"
+                />
+              ) : (
+                <LogicalNameDisplay onDoubleClick={handleLogicalNameDoubleClick}>
+                  {tableLogicalName || '논리명'}
+                </LogicalNameDisplay>
+              )}
             </TableTitle>
             <CloseButton onClick={() => setBottomPanelOpen(false)}>
               ×
@@ -579,7 +718,8 @@ const Layout = () => {
             <Table>
               <TableHeader>
                 <HeaderRow>
-                  <HeaderCell key="column-name">Column Name</HeaderCell>
+                  <HeaderCell key="column-name">Column Name (물리명)</HeaderCell>
+                  <HeaderCell key="logical-name">Logical Name (논리명)</HeaderCell>
                   <HeaderCell key="datatype">Datatype</HeaderCell>
                   <HeaderCell key="pk">PK</HeaderCell>
                   <HeaderCell key="nn">NN</HeaderCell>
@@ -605,6 +745,16 @@ const Layout = () => {
                         onChange={(e) => updateColumnField(column.id, 'name', e.target.value)}
                         onBlur={handleCellBlur}
                         readOnly={editingCell !== `${column.id}-name`}
+                      />
+                    </TableCell>
+                    <TableCell key={`${column.id}-logical`} onDoubleClick={() => handleCellDoubleClick(column.id, 'logicalName')}>
+                      <EditableCell 
+                        className={editingCell === `${column.id}-logicalName` ? 'editing' : ''}
+                        data-editing={editingCell === `${column.id}-logicalName` ? `${column.id}-logicalName` : ''}
+                        value={column.logicalName || ''}
+                        onChange={(e) => updateColumnField(column.id, 'logicalName', e.target.value)}
+                        onBlur={handleCellBlur}
+                        readOnly={editingCell !== `${column.id}-logicalName`}
                       />
                     </TableCell>
                     <TableCell key={`${column.id}-datatype`} onDoubleClick={() => handleCellDoubleClick(column.id, 'dataType')}>
@@ -671,7 +821,7 @@ const Layout = () => {
                   </TableRow>
                 ))}
                 <AddColumnRow key="add-column">
-                  <AddColumnCell colSpan={9} onClick={addColumn}>
+                  <AddColumnCell colSpan={10} onClick={addColumn}>
                     + Add Column
                   </AddColumnCell>
                 </AddColumnRow>

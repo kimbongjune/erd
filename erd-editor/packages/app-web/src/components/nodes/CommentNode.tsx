@@ -1,6 +1,6 @@
 import { Handle, Position } from 'reactflow';
 import styled from 'styled-components';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import useStore from '../../store/useStore';
 
 const NodeContainer = styled.div<{ selected?: boolean }>`
@@ -8,17 +8,21 @@ const NodeContainer = styled.div<{ selected?: boolean }>`
   border: 2px solid ${props => props.selected ? '#facc15' : '#fbbf24'};
   border-radius: 8px;
   padding: 12px;
-  min-width: 200px;
-  min-height: 80px;
+  width: fit-content;
+  min-width: 100px;
+  max-width: 400px;
+  min-height: 40px;
   box-shadow: ${props => props.selected 
-    ? '0 4px 12px rgba(251, 191, 36, 0.3)' 
+    ? '0 6px 20px rgba(251, 191, 36, 0.5), 0 0 0 3px rgba(251, 191, 36, 0.3)' 
     : '0 2px 8px rgba(0, 0, 0, 0.1)'};
   transition: all 0.2s ease;
   cursor: pointer;
+  transform: ${props => props.selected ? 'scale(1.02)' : 'scale(1)'};
   
   &:hover {
     box-shadow: 0 4px 15px rgba(251, 191, 36, 0.2);
     border-color: #facc15;
+    transform: scale(1.01);
   }
 `;
 
@@ -33,8 +37,9 @@ const EditInput = styled.textarea`
   outline: none;
   color: #374151;
   resize: none;
-  min-height: 60px;
-  overflow-y: auto;
+  min-height: 20px;
+  height: auto;
+  overflow: hidden;
   
   &:focus {
     background: rgba(255, 255, 255, 1);
@@ -53,18 +58,58 @@ const CommentText = styled.div`
 const CommentNode = ({ data, selected, id }: any) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.label);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const nodes = useStore((state) => state.nodes);
   const setNodes = useStore((state) => state.setNodes);
+  const selectedNodeId = useStore((state) => state.selectedNodeId);
+  const setSelectedNodeId = useStore((state) => state.setSelectedNodeId);
+  
+  // ReactFlow의 selected 상태와 useStore의 selectedNodeId 모두 확인
+  const isSelected = selected || selectedNodeId === id;
+
+  // 텍스트 영역 높이 자동 조정
+  const adjustTextareaHeight = useCallback(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isEditing) {
+      adjustTextareaHeight();
+    }
+  }, [isEditing, editValue, adjustTextareaHeight]);
+
+  const handleClick = useCallback((e: any) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    // 편집 중이 아닐 때만 선택 상태 변경 (하단 패널은 열지 않음)
+    if (!isEditing) {
+      setSelectedNodeId(id);
+      // setBottomPanelOpen(true); // 코멘트는 하단 패널 열지 않음
+    }
+  }, [id, setSelectedNodeId, isEditing]);
 
   const handleDoubleClick = useCallback((e: any) => {
     e.stopPropagation();
     e.preventDefault();
+    
+    // "New Comment"인 경우 빈 문자열로 시작
+    if (data.label === 'New Comment') {
+      setEditValue('');
+    } else {
+      setEditValue(data.label);
+    }
+    
     setIsEditing(true);
-  }, []);
+  }, [data.label]);
 
   const handleInputChange = useCallback((e: any) => {
     setEditValue(e.target.value);
-  }, []);
+    adjustTextareaHeight();
+  }, [adjustTextareaHeight]);
 
   const handleInputKeyPress = useCallback((e: any) => {
     if (e.key === 'Enter' && e.ctrlKey) {
@@ -77,12 +122,15 @@ const CommentNode = ({ data, selected, id }: any) => {
   }, [data.label]);
 
   const handleInputBlur = useCallback(() => {
+    // 빈 값이면 원래 라벨 유지, 아니면 새 값으로 업데이트
+    const finalValue = editValue.trim() === '' ? data.label : editValue;
+    
     const updatedNodes = nodes.map((node) =>
-      node.id === id ? { ...node, data: { ...node.data, label: editValue } } : node
+      node.id === id ? { ...node, data: { ...node.data, label: finalValue } } : node
     );
     setNodes(updatedNodes);
     setIsEditing(false);
-  }, [editValue, nodes, id, setNodes]);
+  }, [editValue, data.label, nodes, id, setNodes]);
 
   const handleTextAreaWheel = useCallback((e: any) => {
     // textarea 내부에서 휠 이벤트가 위로 전파되지 않도록 차단
@@ -96,37 +144,16 @@ const CommentNode = ({ data, selected, id }: any) => {
 
   return (
     <NodeContainer 
-      selected={selected} 
+      selected={isSelected} 
+      onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onWheel={handleNodeWheel}
     >
-      <Handle
-        type="target"
-        position={Position.Top}
-        id="top"
-        style={{ background: 'transparent', border: 'none' }}
-      />
-      <Handle
-        type="target"
-        position={Position.Right}
-        id="right"
-        style={{ background: 'transparent', border: 'none' }}
-      />
-      <Handle
-        type="target"
-        position={Position.Bottom}
-        id="bottom"
-        style={{ background: 'transparent', border: 'none' }}
-      />
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="left"
-        style={{ background: 'transparent', border: 'none' }}
-      />
+      {/* 커멘트는 관계에 참여하지 않으므로 Handle 제거 */}
       
       {isEditing ? (
         <EditInput
+          ref={textareaRef}
           value={editValue}
           onChange={handleInputChange}
           onKeyDown={handleInputKeyPress}

@@ -1,8 +1,9 @@
 import styled from 'styled-components';
-import { Handle, Position } from 'reactflow';
+import { Handle, Position, useReactFlow } from 'reactflow';
 import { FaKey } from 'react-icons/fa';
 import useStore from '../../store/useStore';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 interface Column {
   name: string;
@@ -141,18 +142,19 @@ const Tooltip = styled.div<{ $visible: boolean; $x: number; $y: number }>`
   position: fixed;
   left: ${props => props.$x}px;
   top: ${props => props.$y}px;
+  transform: translate(16px, -25%);
   background: rgba(45, 45, 45, 0.95);
   color: white;
   padding: 12px 16px;
   border-radius: 8px;
   font-size: 13px;
   pointer-events: none;
-  z-index: 10000;
+  z-index: 99999;
   opacity: ${props => props.$visible ? 1 : 0};
   visibility: ${props => props.$visible ? 'visible' : 'hidden'};
-  transition: all 0.15s ease;
-  min-width: 250px;
-  max-width: 400px;
+  transition: all 0.1s ease;
+  min-width: 200px;
+  max-width: 350px;
   white-space: nowrap;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -160,14 +162,14 @@ const Tooltip = styled.div<{ $visible: boolean; $x: number; $y: number }>`
   &::before {
     content: '';
     position: absolute;
-    left: -10px;
-    top: 50%;
+    left: -8px;
+    top: 25%;
     transform: translateY(-50%);
     width: 0;
     height: 0;
-    border-top: 10px solid transparent;
-    border-bottom: 10px solid transparent;
-    border-right: 10px solid rgba(45, 45, 45, 0.95);
+    border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent;
+    border-right: 8px solid rgba(45, 45, 45, 0.95);
   }
 `;
 
@@ -200,6 +202,10 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
   const selectedNodeId = useStore((state) => state.selectedNodeId);
   const setSelectedNodeId = useStore((state) => state.setSelectedNodeId);
   const setBottomPanelOpen = useStore((state) => state.setBottomPanelOpen);
+  const nodes = useStore((state) => state.nodes);
+  
+  // ReactFlow 좌표 변환 함수
+  const { flowToScreenPosition, getViewport } = useReactFlow();
   
   // 툴팁 상태 관리
   const [tooltip, setTooltip] = useState({
@@ -211,11 +217,52 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
     dataType: '',
     comment: ''
   });
+
+  // 드래그나 클릭 시 툴팁 숨기기 위한 전역 이벤트
+  useEffect(() => {
+    const handleGlobalMouseDown = (e: MouseEvent) => {
+      if (tooltip.visible) {
+        console.log('Global mouse down - hiding tooltip');
+        setTooltip(prev => ({ ...prev, visible: false }));
+      }
+    };
+
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (tooltip.visible && e.buttons > 0) { // 마우스 버튼이 눌린 상태로 움직이면
+        console.log('Drag detected - hiding tooltip');
+        setTooltip(prev => ({ ...prev, visible: false }));
+      }
+    };
+
+    const handleGlobalDragStart = () => {
+      if (tooltip.visible) {
+        console.log('Drag start - hiding tooltip');
+        setTooltip(prev => ({ ...prev, visible: false }));
+      }
+    };
+
+    if (tooltip.visible) {
+      document.addEventListener('mousedown', handleGlobalMouseDown, true); // capture phase
+      document.addEventListener('mousemove', handleGlobalMouseMove, true);
+      document.addEventListener('dragstart', handleGlobalDragStart, true);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleGlobalMouseDown, true);
+      document.removeEventListener('mousemove', handleGlobalMouseMove, true);
+      document.removeEventListener('dragstart', handleGlobalDragStart, true);
+    };
+  }, [tooltip.visible]);
   
   // 현재 노드가 선택되었는지 확인 (id 사용)
   const isSelected = selectedNodeId === id;
   
   const handleMouseDown = (e: any) => {
+    // 툴팁이 보이면 바로 숨기기
+    if (tooltip.visible) {
+      setTooltip(prev => ({ ...prev, visible: false }));
+    }
+    
     // 우클릭인 경우 아무것도 하지 않음
     if (e.button === 2) {
       return;
@@ -249,17 +296,25 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
     return false;
   };
 
-  // 툴팁 핸들러
+  // 툴팁 핸들러 - 엔티티 오른쪽에 정확히 붙이기
   const handleMouseEnter = (e: React.MouseEvent, type: 'entity' | 'column', item?: Column) => {
     const target = e.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();
+    
+    // 엔티티 오른쪽 경계에서 바로 옆에 배치
+    const tooltipX = rect.right;  // 엔티티 오른쪽 끝
+    const tooltipY = rect.top + rect.height / 2;  // 엔티티 세로 중앙
+    
+    console.log('=== 엔티티 오른쪽 붙임 ===');
+    console.log('엔티티 rect:', rect);
+    console.log('툴팁 X:', tooltipX, '툴팁 Y:', tooltipY);
     
     if (type === 'entity') {
       setTooltip({
         visible: true,
         type: 'entity',
-        x: rect.right - 3,
-        y: rect.top + rect.height / 2 - 25,
+        x: tooltipX,
+        y: tooltipY,
         title: data.label,
         dataType: '',
         comment: data.comment || '테이블 설명 없음'
@@ -268,8 +323,8 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
       setTooltip({
         visible: true,
         type: 'column',
-        x: rect.right - 3,
-        y: rect.top + rect.height / 2 - 25,
+        x: tooltipX,
+        y: tooltipY,
         title: item.name,
         dataType: (item.dataType || item.type || ''),
         comment: item.comment || '컬럼 설명 없음'
@@ -278,6 +333,14 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
   };
 
   const handleMouseLeave = () => {
+    setTooltip(prev => ({ ...prev, visible: false }));
+  };
+
+  const handleTooltipClick = () => {
+    setTooltip(prev => ({ ...prev, visible: false }));
+  };
+
+  const handleTooltipMouseDown = () => {
     setTooltip(prev => ({ ...prev, visible: false }));
   };
 
@@ -302,6 +365,8 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
           <Header
             onMouseEnter={(e) => handleMouseEnter(e, 'entity')}
             onMouseLeave={handleMouseLeave}
+            onClick={handleTooltipClick}
+            onMouseDown={handleTooltipMouseDown}
           >
             {data.label}
           </Header>
@@ -317,6 +382,8 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
                   $isForeignKey={col.fk}
                   onMouseEnter={(e) => handleMouseEnter(e, 'column', col)}
                   onMouseLeave={handleMouseLeave}
+                  onClick={handleTooltipClick}
+                  onMouseDown={handleTooltipMouseDown}
                 >
                   <ColumnLeft>
                     {/* 모든 키 타입을 조합으로 표시 */}
@@ -333,28 +400,31 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
         </NodeContainer>
       </div>
       
-      {/* 툴팁 */}
-      <Tooltip 
-        $visible={tooltip.visible}
-        $x={tooltip.x}
-        $y={tooltip.y}
-      >
-        {tooltip.type === 'entity' ? (
-          <>
-            <TooltipHeader>Table: {tooltip.title}</TooltipHeader>
-            <TooltipDivider />
-            <TooltipDescription>{tooltip.comment}</TooltipDescription>
-          </>
-        ) : (
-          <>
-            <TooltipHeader>
-              {tooltip.title} : <ColumnTypeText>{tooltip.dataType}</ColumnTypeText>
-            </TooltipHeader>
-            <TooltipDivider />
-            <TooltipDescription>{tooltip.comment}</TooltipDescription>
-          </>
-        )}
-      </Tooltip>
+      {/* 툴팁을 Portal로 document.body에 렌더링 */}
+      {tooltip.visible && createPortal(
+        <Tooltip 
+          $visible={tooltip.visible}
+          $x={tooltip.x}
+          $y={tooltip.y}
+        >
+          {tooltip.type === 'entity' ? (
+            <>
+              <TooltipHeader>Table: {tooltip.title}</TooltipHeader>
+              <TooltipDivider />
+              <TooltipDescription>{tooltip.comment}</TooltipDescription>
+            </>
+          ) : (
+            <>
+              <TooltipHeader>
+                {tooltip.title} : <ColumnTypeText>{tooltip.dataType}</ColumnTypeText>
+              </TooltipHeader>
+              <TooltipDivider />
+              <TooltipDescription>{tooltip.comment}</TooltipDescription>
+            </>
+          )}
+        </Tooltip>,
+        document.body
+      )}
     </>
   );
 };

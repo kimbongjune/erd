@@ -6,6 +6,7 @@ import Canvas from './Canvas';
 import Properties from './Properties';
 import BottomPanel from './BottomPanel';
 import useStore from '../store/useStore';
+import { toast } from 'react-toastify';
 
 const Container = styled.div`
   display: flex;
@@ -456,7 +457,17 @@ const Layout = () => {
   const updateColumnField = (columnId: string, field: string, value: any) => {
     const newColumns = columns.map(col => {
       if (col.id === columnId) {
-        const updatedCol = { ...col, [field]: value };
+        let updatedCol = { ...col, [field]: value };
+        
+        // PK-UQ 상호 제약 로직
+        if (field === 'pk' && value === true && col.uq === true) {
+          updatedCol.uq = false; // PK 체크하면 UQ 해제
+          toast.info('UQ가 해제되었습니다 (PK와 중복 불가)');
+        } else if (field === 'uq' && value === true && col.pk === true) {
+          updatedCol.pk = false; // UQ 체크하면 PK 해제
+          toast.info('PK가 해제되었습니다 (UQ와 중복 불가)');
+        }
+        
         // dataType이 변경되면 type도 함께 업데이트 (EntityNode에서 사용)
         if (field === 'dataType') {
           updatedCol.type = value;
@@ -470,6 +481,14 @@ const Layout = () => {
     // 선택된 컬럼도 업데이트
     if (selectedColumn?.id === columnId) {
       const updatedSelectedColumn = { ...selectedColumn, [field]: value };
+      
+      // PK-UQ 상호 제약을 선택된 컬럼에도 적용
+      if (field === 'pk' && value === true) {
+        updatedSelectedColumn.uq = false;
+      } else if (field === 'uq' && value === true) {
+        updatedSelectedColumn.pk = false;
+      }
+      
       if (field === 'dataType') {
         updatedSelectedColumn.type = value;
       }
@@ -659,6 +678,51 @@ const Layout = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          
+          {/* 테이블 커멘트 입력 영역 */}
+          <div style={{ 
+            padding: '15px', 
+            borderTop: '1px solid #ddd',
+            backgroundColor: '#f8f9fa'
+          }}>
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '5px', 
+                fontSize: '12px',
+                fontWeight: 'bold',
+                color: '#333'
+              }}>
+                Table Comment:
+              </label>
+              <textarea
+                value={nodes.find(n => n.id === selectedNodeId)?.data?.comment || ''}
+                onChange={(e) => {
+                  if (selectedNodeId) {
+                    const selectedNode = nodes.find(n => n.id === selectedNodeId);
+                    if (selectedNode) {
+                      updateNodeData(selectedNodeId, { 
+                        ...selectedNode.data, 
+                        comment: e.target.value 
+                      });
+                    }
+                  }
+                }}
+                style={{ 
+                  width: '100%', 
+                  height: '60px',
+                  padding: '8px', 
+                  border: '1px solid #ccc', 
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  resize: 'vertical',
+                  fontFamily: 'inherit'
+                }}
+                placeholder="테이블에 대한 설명을 입력하세요..."
+              />
+            </div>
+          </div>
+          
           <BottomSection>
             <BottomField>
               <BottomLabel>Column Name:</BottomLabel>

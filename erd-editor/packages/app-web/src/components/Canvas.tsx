@@ -173,6 +173,12 @@ const Canvas = () => {
 
   const defaultEdgeOptions = {};
 
+  const handleContextMenu = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    return false;
+  }, []);
+
   const handlePaneClick = useCallback((event: any) => {
     if (createMode) {
       const position = screenToFlowPosition({
@@ -391,8 +397,10 @@ const Canvas = () => {
         edgeTypes={edgeTypes}
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
+        onNodeContextMenu={handleContextMenu}
         onEdgeClick={handleEdgeClick}
         onPaneClick={handlePaneClick}
+        onPaneContextMenu={handleContextMenu}
         defaultEdgeOptions={{}}
         panOnDrag={!connectionMode && !createMode}
         selectionOnDrag={!connectionMode && !createMode}

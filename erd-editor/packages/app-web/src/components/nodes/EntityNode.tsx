@@ -2,6 +2,17 @@ import styled from 'styled-components';
 import { Handle, Position } from 'reactflow';
 import { FaKey } from 'react-icons/fa';
 import useStore from '../../store/useStore';
+import React, { useState } from 'react';
+
+interface Column {
+  name: string;
+  dataType?: string;
+  type?: string;
+  pk: boolean;
+  fk: boolean;
+  uq: boolean;
+  comment: string;
+}
 
 const NodeContainer = styled.div<{ $isSelected: boolean }>`
   min-width: 200px;
@@ -45,13 +56,15 @@ const NodeContainer = styled.div<{ $isSelected: boolean }>`
 `;
 
 const Header = styled.div`
-  background: linear-gradient(135deg, #4472c4 0%, #3056a0 100%);
-  color: white;
   padding: 12px 16px;
+  background: linear-gradient(135deg, #007acc 0%, #005999 100%);
+  color: white;
   font-weight: 600;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
+  font-size: 16px;
+  text-align: center;
+  border-radius: 5px 5px 0 0;
+  border-bottom: 2px solid #e0e0e0;
+  position: relative;
 `;
 
 const ColumnsContainer = styled.div`
@@ -71,6 +84,7 @@ const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean }>`
     if (props.$isForeignKey) return '#e3f2fd';
     return '#fff';
   }};
+  position: relative;
   
   &:last-child {
     border-bottom: none;
@@ -104,14 +118,14 @@ const ColumnType = styled.span`
   text-transform: uppercase;
 `;
 
-const IconWrapper = styled.span<{ $type?: 'pk' | 'fk' | 'uk' }>`
+const IconWrapper = styled.span<{ $type?: 'pk' | 'fk' | 'uq' }>`
   font-size: 14px;
   display: flex;
   align-items: center;
   color: ${props => {
     if (props.$type === 'pk') return '#f1c40f';
     if (props.$type === 'fk') return '#2196f3';
-    if (props.$type === 'uk') return '#f44336';
+    if (props.$type === 'uq') return '#f44336';
     return '#666';
   }};
 `;
@@ -123,15 +137,90 @@ const InvisibleHandle = styled(Handle)`
   height: 1px;
 `;
 
+const Tooltip = styled.div<{ $visible: boolean; $x: number; $y: number }>`
+  position: fixed;
+  left: ${props => props.$x}px;
+  top: ${props => props.$y}px;
+  background: rgba(45, 45, 45, 0.95);
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 10000;
+  opacity: ${props => props.$visible ? 1 : 0};
+  visibility: ${props => props.$visible ? 'visible' : 'hidden'};
+  transition: all 0.15s ease;
+  min-width: 250px;
+  max-width: 400px;
+  white-space: nowrap;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  
+  &::before {
+    content: '';
+    position: absolute;
+    left: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-top: 10px solid transparent;
+    border-bottom: 10px solid transparent;
+    border-right: 10px solid rgba(45, 45, 45, 0.95);
+  }
+`;
+
+const TooltipHeader = styled.div`
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #ffffff;
+  font-size: 14px;
+`;
+
+const TooltipDivider = styled.div`
+  height: 1px;
+  background: rgba(255, 255, 255, 0.3);
+  margin: 8px 0;
+`;
+
+const TooltipDescription = styled.div`
+  color: #e0e0e0;
+  line-height: 1.4;
+  font-size: 13px;
+  white-space: normal;
+`;
+
+const ColumnTypeText = styled.span`
+  color: #88c999;
+  font-weight: 500;
+`;
+
 const EntityNode = ({ data, id, onMouseDown }: any) => {
   const selectedNodeId = useStore((state) => state.selectedNodeId);
   const setSelectedNodeId = useStore((state) => state.setSelectedNodeId);
   const setBottomPanelOpen = useStore((state) => state.setBottomPanelOpen);
   
+  // 툴팁 상태 관리
+  const [tooltip, setTooltip] = useState({
+    visible: false,
+    x: 0,
+    y: 0,
+    type: 'entity' as 'entity' | 'column',
+    title: '',
+    dataType: '',
+    comment: ''
+  });
+  
   // 현재 노드가 선택되었는지 확인 (id 사용)
   const isSelected = selectedNodeId === id;
   
   const handleMouseDown = (e: any) => {
+    // 우클릭인 경우 아무것도 하지 않음
+    if (e.button === 2) {
+      return;
+    }
+    
     const connectionMode = useStore.getState().connectionMode;
     const isBottomPanelOpen = useStore.getState().isBottomPanelOpen;
     
@@ -154,42 +243,119 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault(); // 우클릭 메뉴 비활성화
+    e.stopPropagation(); // 이벤트 전파 방지
+    return false;
+  };
+
+  // 툴팁 핸들러
+  const handleMouseEnter = (e: React.MouseEvent, type: 'entity' | 'column', item?: Column) => {
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    
+    if (type === 'entity') {
+      setTooltip({
+        visible: true,
+        type: 'entity',
+        x: rect.right - 3,
+        y: rect.top + rect.height / 2 - 25,
+        title: data.label,
+        dataType: '',
+        comment: data.comment || '테이블 설명 없음'
+      });
+    } else if (item) {
+      setTooltip({
+        visible: true,
+        type: 'column',
+        x: rect.right - 3,
+        y: rect.top + rect.height / 2 - 25,
+        title: item.name,
+        dataType: (item.dataType || item.type || ''),
+        comment: item.comment || '컬럼 설명 없음'
+      });
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setTooltip(prev => ({ ...prev, visible: false }));
+  };
+
   return (
-    <NodeContainer $isSelected={isSelected} onMouseDown={handleMouseDown}>
-      {/* 보이지 않는 연결 핸들들 - 모든 핸들을 source와 target 둘 다 지원 */}
-      <InvisibleHandle type="target" position={Position.Left} id="left" />
-      <InvisibleHandle type="source" position={Position.Left} id="left" />
-      <InvisibleHandle type="target" position={Position.Right} id="right" />
-      <InvisibleHandle type="source" position={Position.Right} id="right" />
-      <InvisibleHandle type="target" position={Position.Top} id="top" />
-      <InvisibleHandle type="source" position={Position.Top} id="top" />
-      <InvisibleHandle type="target" position={Position.Bottom} id="bottom" />
-      <InvisibleHandle type="source" position={Position.Bottom} id="bottom" />
+    <>
+      <div className="entity-wrapper">
+        <NodeContainer 
+          $isSelected={isSelected} 
+          onMouseDown={handleMouseDown}
+          onContextMenu={handleContextMenu}
+        >
+          {/* 보이지 않는 연결 핸들들 - 모든 핸들을 source와 target 둘 다 지원 */}
+          <InvisibleHandle type="target" position={Position.Left} id="left" />
+          <InvisibleHandle type="source" position={Position.Left} id="left" />
+          <InvisibleHandle type="target" position={Position.Right} id="right" />
+          <InvisibleHandle type="source" position={Position.Right} id="right" />
+          <InvisibleHandle type="target" position={Position.Top} id="top" />
+          <InvisibleHandle type="source" position={Position.Top} id="top" />
+          <InvisibleHandle type="target" position={Position.Bottom} id="bottom" />
+          <InvisibleHandle type="source" position={Position.Bottom} id="bottom" />
+          
+          <Header
+            onMouseEnter={(e) => handleMouseEnter(e, 'entity')}
+            onMouseLeave={handleMouseLeave}
+          >
+            {data.label}
+          </Header>
+          
+          <ColumnsContainer>
+            {data.columns?.map((col: any, i: number) => {
+              console.log(`Column ${col.name}: pk=${col.pk}, fk=${col.fk}, uq=${col.uq}`);
+              
+              return (
+                <Column 
+                  key={i} 
+                  $isPrimaryKey={col.pk} 
+                  $isForeignKey={col.fk}
+                  onMouseEnter={(e) => handleMouseEnter(e, 'column', col)}
+                  onMouseLeave={handleMouseLeave}
+                >
+                  <ColumnLeft>
+                    {/* 모든 키 타입을 조합으로 표시 */}
+                    {col.pk && <IconWrapper $type="pk"><FaKey /></IconWrapper>}
+                    {col.fk && <IconWrapper $type="fk"><FaKey /></IconWrapper>}
+                    {col.uq && <IconWrapper $type="uq"><FaKey /></IconWrapper>}
+                    <ColumnName $isPrimaryKey={col.pk}>{col.name}</ColumnName>
+                  </ColumnLeft>
+                  <ColumnType>{col.type} {col.nullable === false ? 'NN' : ''}</ColumnType>
+                </Column>
+              );
+            })}
+          </ColumnsContainer>
+        </NodeContainer>
+      </div>
       
-      <Header>
-        {data.label}
-      </Header>
-      
-      <ColumnsContainer>
-        {data.columns?.map((col: any, i: number) => (
-          <Column key={i} $isPrimaryKey={col.pk} $isForeignKey={col.fk}>
-            <ColumnLeft>
-              {col.pk && col.fk ? (
-                <IconWrapper $type="pk"><FaKey /></IconWrapper>
-              ) : col.pk ? (
-                <IconWrapper $type="pk"><FaKey /></IconWrapper>
-              ) : col.fk ? (
-                <IconWrapper $type="fk"><FaKey /></IconWrapper>
-              ) : col.uk ? (
-                <IconWrapper $type="uk"><FaKey /></IconWrapper>
-              ) : null}
-              <ColumnName $isPrimaryKey={col.pk}>{col.name}</ColumnName>
-            </ColumnLeft>
-            <ColumnType>{col.type} {col.nullable === false ? 'NN' : ''}</ColumnType>
-          </Column>
-        ))}
-      </ColumnsContainer>
-    </NodeContainer>
+      {/* 툴팁 */}
+      <Tooltip 
+        $visible={tooltip.visible}
+        $x={tooltip.x}
+        $y={tooltip.y}
+      >
+        {tooltip.type === 'entity' ? (
+          <>
+            <TooltipHeader>Table: {tooltip.title}</TooltipHeader>
+            <TooltipDivider />
+            <TooltipDescription>{tooltip.comment}</TooltipDescription>
+          </>
+        ) : (
+          <>
+            <TooltipHeader>
+              {tooltip.title} : <ColumnTypeText>{tooltip.dataType}</ColumnTypeText>
+            </TooltipHeader>
+            <TooltipDivider />
+            <TooltipDescription>{tooltip.comment}</TooltipDescription>
+          </>
+        )}
+      </Tooltip>
+    </>
   );
 };
 

@@ -1,4 +1,4 @@
-import ReactFlow, { Node, useReactFlow, Edge, MarkerType, MiniMap } from 'reactflow';
+import ReactFlow, { Node, useReactFlow, Edge, MarkerType, MiniMap, useViewport } from 'reactflow';
 import React, { useCallback, useRef, useState, MouseEvent, useEffect } from 'react';
 import 'reactflow/dist/style.css';
 import useStore from '../store/useStore';
@@ -12,6 +12,7 @@ import OneToManyNonIdentifyingEdge from './edges/OneToManyNonIdentifyingEdge';
 import TemporaryEdge from './edges/TemporaryEdge';
 import CustomConnectionLine from './CustomConnectionLine';
 import ContextMenu from './ContextMenu';
+import CanvasToolbar from './CanvasToolbar';
 
 const edgeTypes = {
   'one-to-one-identifying': OneToOneIdentifyingEdge,
@@ -69,6 +70,7 @@ const Canvas = () => {
   const deleteSelected = useStore((state) => state.deleteSelected);
 
   const { screenToFlowPosition, flowToScreenPosition } = useReactFlow();
+  const { zoom } = useViewport();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [temporaryEdge, setTemporaryEdge] = useState<Edge | null>(null);
   
@@ -478,6 +480,16 @@ const Canvas = () => {
           }}
         />
       </ReactFlow>
+      
+      {/* 캔버스 툴바 */}
+      <CanvasToolbar
+        zoom={zoom}
+        onSearch={() => console.log('검색')}
+        onZoomToFit={() => console.log('Zoom to Fit')}
+        onAlign={() => console.log('정렬')}
+        onToggleRelations={() => console.log('관계선 토글')}
+        onToggleGrid={() => console.log('격자 토글')}
+      />
       
       {/* 컨텍스트 메뉴 */}
       <ContextMenu

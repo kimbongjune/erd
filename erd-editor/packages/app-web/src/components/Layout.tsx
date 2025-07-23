@@ -40,6 +40,7 @@ const ToolboxContainer = styled.aside`
 const CanvasContainer = styled.main`
   grid-area: canvas;
   background-color: #ffffff;
+  position: relative;
 `;
 
 const PropertiesContainer = styled.aside`
@@ -310,7 +311,7 @@ const TableNameInput = styled.input`
   background: transparent;
   border: 1px solid transparent;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: #333;
   padding: 4px 8px;
   border-radius: 3px;
@@ -356,8 +357,8 @@ const LogicalNameInput = styled.input`
 
 const TableNameDisplay = styled.div`
   font-size: 14px;
-  font-weight: 500;
-  color: #333;
+  font-weight: 600;
+  color: #666;
   padding: 4px 8px;
   border-radius: 3px;
   min-width: 120px;
@@ -369,8 +370,8 @@ const TableNameDisplay = styled.div`
 `;
 
 const LogicalNameDisplay = styled.div`
-  font-size: 13px;
-  font-weight: 400;
+  font-size: 14px;
+  font-weight: 600;
   color: #666;
   padding: 4px 8px;
   border-radius: 3px;
@@ -379,14 +380,6 @@ const LogicalNameDisplay = styled.div`
   
   &:hover {
     background-color: #f0f0f0;
-  }
-  }
-  
-  &:focus {
-    background-color: white;
-    border: 1px solid #007acc;
-    outline: none;
-    box-shadow: 0 0 2px rgba(0,122,204,0.3);
   }
 `;
 
@@ -865,7 +858,7 @@ const Layout = () => {
                   border: '1px solid #ccc', 
                   borderRadius: '4px',
                   fontSize: '12px',
-                  resize: 'vertical',
+                  resize: 'none',
                   fontFamily: 'inherit'
                 }}
                 placeholder="테이블에 대한 설명을 입력하세요..."

@@ -6,7 +6,7 @@ const PopupContainer = styled.div`
   position: absolute;
   bottom: 100px;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-130px); /* 정렬 버튼 위치에 맞춤 */
   background: white;
   border: 1px solid #e0e0e0;
   border-radius: 12px;

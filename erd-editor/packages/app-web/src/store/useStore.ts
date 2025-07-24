@@ -9,6 +9,16 @@ type SnapGuide = {
   priority?: number;
 };
 
+type ViewSettings = {
+  entityView: 'logical' | 'physical' | 'both';
+  showKeys: boolean;
+  showPhysicalName: boolean;
+  showLogicalName: boolean;
+  showDataType: boolean;
+  showConstraints: boolean;
+  showDefaults: boolean;
+};
+
 type RFState = {
   nodes: Node[];
   edges: Edge[];
@@ -32,6 +42,9 @@ type RFState = {
   showGrid: boolean;
   showAlignPopup: boolean;
   showViewPopup: boolean;
+  
+  // 뷰 설정
+  viewSettings: ViewSettings;
   
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
@@ -66,6 +79,9 @@ type RFState = {
   setShowGrid: (show: boolean) => void;
   setShowAlignPopup: (show: boolean) => void;
   setShowViewPopup: (show: boolean) => void;
+  
+  // 뷰 설정 함수들
+  updateViewSettings: (settings: Partial<ViewSettings>) => void;
 };
 
 const useStore = create<RFState>((set, get) => ({
@@ -78,9 +94,43 @@ const useStore = create<RFState>((set, get) => ({
         label: 'User',
         comment: '사용자 정보 테이블',
         columns: [
-          { name: 'id', type: 'INT', pk: true, fk: false, uq: false, comment: '사용자 고유 ID' },
-          { name: 'username', type: 'VARCHAR(50)', pk: false, fk: false, uq: true, comment: '사용자명' },
-          { name: 'email', type: 'VARCHAR(100)', pk: false, fk: false, uq: false, comment: '이메일 주소' },
+          { 
+            name: 'id', 
+            type: 'INT', 
+            pk: true, 
+            fk: false, 
+            uq: false,
+            ai: false,
+            comment: '사용자 고유 ID',
+            logicalName: '사용자ID',
+            constraint: null,
+            defaultValue: null,
+            options: 'PRIMARY KEY'
+          },
+          { 
+            name: 'username', 
+            type: 'VARCHAR(50)', 
+            pk: false, 
+            fk: false, 
+            uq: true, 
+            comment: '사용자명',
+            logicalName: '사용자명',
+            constraint: 'UNIQUE',
+            defaultValue: null,
+            options: 'NOT NULL'
+          },
+          { 
+            name: 'email', 
+            type: 'VARCHAR(100)', 
+            pk: false, 
+            fk: false, 
+            uq: false, 
+            comment: '이메일 주소',
+            logicalName: '이메일',
+            constraint: null,
+            defaultValue: null,
+            options: 'NOT NULL'
+          },
         ],
       },
     },
@@ -92,9 +142,43 @@ const useStore = create<RFState>((set, get) => ({
         label: 'Post',
         comment: '게시글 테이블',
         columns: [
-          { name: 'id', type: 'INT', pk: true, fk: false, uk: false, comment: '게시글 고유 ID' },
-          { name: 'title', type: 'VARCHAR(255)', pk: false, fk: false, uk: false, comment: '게시글 제목' },
-          { name: 'content', type: 'TEXT', pk: false, fk: false, uk: false, comment: '게시글 내용' },
+          { 
+            name: 'id', 
+            type: 'INT', 
+            pk: true, 
+            fk: false, 
+            uq: false,
+            ai: false,
+            comment: '게시글 고유 ID',
+            logicalName: '게시글ID',
+            constraint: null,
+            defaultValue: null,
+            options: 'PRIMARY KEY'
+          },
+          { 
+            name: 'title', 
+            type: 'VARCHAR(255)', 
+            pk: false, 
+            fk: false, 
+            uq: false, 
+            comment: '게시글 제목',
+            logicalName: '제목',
+            constraint: null,
+            defaultValue: null,
+            options: 'NOT NULL'
+          },
+          { 
+            name: 'content', 
+            type: 'TEXT', 
+            pk: false, 
+            fk: false, 
+            uq: false, 
+            comment: '게시글 내용',
+            logicalName: '내용',
+            constraint: null,
+            defaultValue: "'내용을 입력하세요'",
+            options: null
+          },
         ],
       },
     },
@@ -149,7 +233,12 @@ const useStore = create<RFState>((set, get) => ({
       id: `node_${Math.random()}`,
       type: type,
       position: { x: 100, y: 100 },
-      data: { label: `New ${type}` },
+      data: type === 'entity' ? {
+        label: `New ${type}`,
+        physicalName: `New ${type}`,
+        logicalName: 'Table',
+        columns: [] // 빈 배열로 시작
+      } : { label: `New ${type}` },
     };
     set({ nodes: [...get().nodes, newNode] });
   },
@@ -483,6 +572,17 @@ const useStore = create<RFState>((set, get) => ({
   showAlignPopup: false,
   showViewPopup: false,
   
+  // 뷰 설정 초기값
+  viewSettings: {
+    entityView: 'logical',
+    showKeys: true,
+    showPhysicalName: true,
+    showLogicalName: false,
+    showDataType: true,
+    showConstraints: false,
+    showDefaults: false,
+  },
+  
   // 스냅 기능 관련 함수들
   setIsDragging: (isDragging: boolean) => set({ isDragging }),
   setDraggingNodeId: (nodeId: string | null) => set({ draggingNodeId: nodeId }),
@@ -605,6 +705,12 @@ const useStore = create<RFState>((set, get) => ({
   setShowGrid: (show: boolean) => set({ showGrid: show }),
   setShowAlignPopup: (show: boolean) => set({ showAlignPopup: show }),
   setShowViewPopup: (show: boolean) => set({ showViewPopup: show }),
+  
+  // 뷰 설정 함수들
+  updateViewSettings: (settings: Partial<ViewSettings>) => 
+    set((state) => ({ 
+      viewSettings: { ...state.viewSettings, ...settings } 
+    })),
   
   updateNodeData: (nodeId: string, newData: any) => {
     set((state) => {

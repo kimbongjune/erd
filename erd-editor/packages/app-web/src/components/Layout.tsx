@@ -409,15 +409,15 @@ const Layout = () => {
       if (selectedNode && selectedNode.type === 'entity') {
         setTableName(selectedNode.data.physicalName || selectedNode.data.label || 'table1');
         setTableLogicalName(selectedNode.data.logicalName || 'Table');
-        const nodeColumns = selectedNode.data.columns || [
-          { id: 'default-1', name: 'id', dataType: 'INT', pk: true, nn: true, uq: false, ai: true, defaultValue: '' },
-        ];
+        const nodeColumns = selectedNode.data.columns || [];
+        // 컬럼이 없으면 빈 배열로 시작
         // id가 없는 컬럼에 고유 id 부여하고 dataType과 type 동기화
         const columnsWithIds = nodeColumns.map((col: any, index: number) => ({
           ...col,
           id: col.id || `col-${selectedNodeId}-${index}-${Date.now()}`,
           dataType: col.dataType || col.type || 'VARCHAR', // dataType이 없으면 type으로 설정
-          type: col.type || col.dataType || 'VARCHAR' // type이 없으면 dataType으로 설정
+          type: col.type || col.dataType || 'VARCHAR', // type이 없으면 dataType으로 설정
+          ai: col.ai || (col.constraint === 'AUTO_INCREMENT') // constraint가 AUTO_INCREMENT면 ai를 true로 설정
         }));
         setColumns(columnsWithIds);
         setSelectedColumn(columnsWithIds[0] || null);
@@ -527,6 +527,19 @@ const Layout = () => {
         if (field === 'dataType') {
           updatedCol.type = value;
         }
+        
+        // AI 체크박스 변경 시 constraint도 함께 업데이트
+        if (field === 'ai') {
+          if (value === true) {
+            updatedCol.constraint = 'AUTO_INCREMENT';
+          } else {
+            // AI 해제 시 constraint에서 AUTO_INCREMENT 제거
+            if (updatedCol.constraint === 'AUTO_INCREMENT') {
+              updatedCol.constraint = null;
+            }
+          }
+        }
+        
         return updatedCol;
       }
       return col;
@@ -547,6 +560,19 @@ const Layout = () => {
       if (field === 'dataType') {
         updatedSelectedColumn.type = value;
       }
+      
+      // AI 체크박스 변경 시 constraint도 함께 업데이트 (선택된 컬럼)
+      if (field === 'ai') {
+        if (value === true) {
+          updatedSelectedColumn.constraint = 'AUTO_INCREMENT';
+        } else {
+          // AI 해제 시 constraint에서 AUTO_INCREMENT 제거
+          if (updatedSelectedColumn.constraint === 'AUTO_INCREMENT') {
+            updatedSelectedColumn.constraint = null;
+          }
+        }
+      }
+      
       setSelectedColumn(updatedSelectedColumn);
     }
     
@@ -713,7 +739,6 @@ const Layout = () => {
                   <HeaderCell key="pk">PK</HeaderCell>
                   <HeaderCell key="nn">NN</HeaderCell>
                   <HeaderCell key="uq">UQ</HeaderCell>
-                  <HeaderCell key="un">UN</HeaderCell>
                   <HeaderCell key="ai">AI</HeaderCell>
                   <HeaderCell key="default">Default/Expression</HeaderCell>
                   <HeaderCell key="delete">Delete</HeaderCell>
@@ -775,13 +800,6 @@ const Layout = () => {
                         type="checkbox" 
                         checked={column.uq || false} 
                         onChange={(e) => updateColumnField(column.id, 'uq', e.target.checked)}
-                      />
-                    </CheckboxCell>
-                    <CheckboxCell key={`${column.id}-un`}>
-                      <Checkbox 
-                        type="checkbox" 
-                        checked={column.un || false} 
-                        onChange={(e) => updateColumnField(column.id, 'un', e.target.checked)}
                       />
                     </CheckboxCell>
                     <CheckboxCell key={`${column.id}-ai`}>

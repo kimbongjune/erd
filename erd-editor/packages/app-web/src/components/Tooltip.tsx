@@ -6,7 +6,7 @@ const TooltipContainer = styled.div`
   display: inline-block;
 `;
 
-const TooltipText = styled.div<{ visible: boolean }>`
+const TooltipText = styled.div<{ $visible: boolean }>`
   position: absolute;
   bottom: 110%;
   left: 50%;
@@ -19,8 +19,8 @@ const TooltipText = styled.div<{ visible: boolean }>`
   font-weight: 500;
   white-space: nowrap;
   z-index: 1001;
-  opacity: ${props => props.visible ? 1 : 0};
-  visibility: ${props => props.visible ? 'visible' : 'hidden'};
+  opacity: ${props => props.$visible ? 1 : 0};
+  visibility: ${props => props.$visible ? 'visible' : 'hidden'};
   transition: opacity 0.2s ease, visibility 0.2s ease;
   pointer-events: none;
 
@@ -63,7 +63,7 @@ const Tooltip: React.FC<TooltipProps> = ({ text, children, delay = 500 }) => {
   return (
     <TooltipContainer onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
       {children}
-      <TooltipText visible={visible}>{text}</TooltipText>
+      <TooltipText $visible={visible}>{text}</TooltipText>
     </TooltipContainer>
   );
 };

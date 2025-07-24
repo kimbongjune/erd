@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
-import { FaDatabase, FaKey, FaEye, FaCog } from 'react-icons/fa';
+import { FaDatabase, FaKey } from 'react-icons/fa';
+import useStore from '../store/useStore';
 
 const PopupContainer = styled.div`
   position: absolute;
@@ -95,7 +96,17 @@ interface ViewPopupProps {
 }
 
 const ViewPopup: React.FC<ViewPopupProps> = ({ visible, onClose }) => {
+  const { viewSettings, updateViewSettings } = useStore();
+  
   if (!visible) return null;
+
+  const handleEntityViewChange = (value: 'logical' | 'physical' | 'both') => {
+    updateViewSettings({ entityView: value });
+  };
+
+  const handleColumnOptionChange = (option: string, checked: boolean) => {
+    updateViewSettings({ [option]: checked });
+  };
 
   return (
     <PopupContainer onClick={(e) => e.stopPropagation()}>
@@ -106,15 +117,33 @@ const ViewPopup: React.FC<ViewPopupProps> = ({ visible, onClose }) => {
         </SectionTitle>
         <RadioGroup>
           <RadioOption>
-            <RadioInput type="radio" name="entityView" value="logical" defaultChecked />
+            <RadioInput 
+              type="radio" 
+              name="entityView" 
+              value="logical" 
+              checked={viewSettings.entityView === 'logical'}
+              onChange={() => handleEntityViewChange('logical')}
+            />
             <OptionText>논리</OptionText>
           </RadioOption>
           <RadioOption>
-            <RadioInput type="radio" name="entityView" value="physical" />
+            <RadioInput 
+              type="radio" 
+              name="entityView" 
+              value="physical" 
+              checked={viewSettings.entityView === 'physical'}
+              onChange={() => handleEntityViewChange('physical')}
+            />
             <OptionText>물리</OptionText>
           </RadioOption>
           <RadioOption>
-            <RadioInput type="radio" name="entityView" value="both" />
+            <RadioInput 
+              type="radio" 
+              name="entityView" 
+              value="both" 
+              checked={viewSettings.entityView === 'both'}
+              onChange={() => handleEntityViewChange('both')}
+            />
             <OptionText>같이</OptionText>
           </RadioOption>
         </RadioGroup>
@@ -127,41 +156,52 @@ const ViewPopup: React.FC<ViewPopupProps> = ({ visible, onClose }) => {
         </SectionTitle>
         <OptionGroup>
           <Option>
-            <Checkbox type="checkbox" defaultChecked />
+            <Checkbox 
+              type="checkbox" 
+              checked={viewSettings.showKeys}
+              onChange={(e) => handleColumnOptionChange('showKeys', e.target.checked)}
+            />
             <OptionText>키</OptionText>
           </Option>
           <Option>
-            <Checkbox type="checkbox" defaultChecked />
-            <OptionText>물리</OptionText>
+            <Checkbox 
+              type="checkbox" 
+              checked={viewSettings.showPhysicalName}
+              onChange={(e) => handleColumnOptionChange('showPhysicalName', e.target.checked)}
+            />
+            <OptionText>물리명</OptionText>
           </Option>
           <Option>
-            <Checkbox type="checkbox" />
-            <OptionText>논리</OptionText>
+            <Checkbox 
+              type="checkbox" 
+              checked={viewSettings.showLogicalName}
+              onChange={(e) => handleColumnOptionChange('showLogicalName', e.target.checked)}
+            />
+            <OptionText>논리명</OptionText>
           </Option>
           <Option>
-            <Checkbox type="checkbox" />
-            <OptionText>같이</OptionText>
+            <Checkbox 
+              type="checkbox" 
+              checked={viewSettings.showDataType}
+              onChange={(e) => handleColumnOptionChange('showDataType', e.target.checked)}
+            />
+            <OptionText>타입</OptionText>
           </Option>
           <Option>
-            <Checkbox type="checkbox" />
+            <Checkbox 
+              type="checkbox" 
+              checked={viewSettings.showConstraints}
+              onChange={(e) => handleColumnOptionChange('showConstraints', e.target.checked)}
+            />
             <OptionText>제약조건</OptionText>
           </Option>
           <Option>
-            <Checkbox type="checkbox" />
+            <Checkbox 
+              type="checkbox" 
+              checked={viewSettings.showDefaults}
+              onChange={(e) => handleColumnOptionChange('showDefaults', e.target.checked)}
+            />
             <OptionText>기본값</OptionText>
-          </Option>
-        </OptionGroup>
-      </Section>
-
-      <Section>
-        <SectionTitle>
-          <FaCog size={14} />
-          기타 옵션
-        </SectionTitle>
-        <OptionGroup>
-          <Option>
-            <Checkbox type="checkbox" />
-            <OptionText>AI</OptionText>
           </Option>
         </OptionGroup>
       </Section>

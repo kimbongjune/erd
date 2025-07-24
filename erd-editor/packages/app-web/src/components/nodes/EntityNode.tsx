@@ -12,11 +12,18 @@ interface Column {
   pk: boolean;
   fk: boolean;
   uq: boolean;
+  nn?: boolean;
+  ai?: boolean;
   comment: string;
+  logicalName?: string;
+  constraint?: string | null;
+  defaultValue?: string | null;
+  options?: string | null;
+  nullable?: boolean;
 }
 
 const NodeContainer = styled.div<{ $isSelected: boolean }>`
-  min-width: 280px;
+  min-width: 240px;
   width: auto;
   min-height: 120px;
   height: auto;
@@ -60,7 +67,7 @@ const NodeContainer = styled.div<{ $isSelected: boolean }>`
 `;
 
 const Header = styled.div`
-  padding: 12px 16px;
+  padding: 8px 16px;
   background: linear-gradient(135deg, #007acc 0%, #005999 100%);
   color: white;
   font-weight: 600;
@@ -84,7 +91,6 @@ const EntityLogicalName = styled.div`
   flex: 1;
   padding: 2px 4px;
   border-radius: 3px;
-  font-size: 14px;
   opacity: 0.9;
   text-align: right;
 `;
@@ -107,28 +113,20 @@ const EditInput = styled.input`
 `;
 
 const ColumnsContainer = styled.div`
-  padding: 0;
+  display: table;
+  width: 100%;
+  table-layout: auto;
   background: #fff;
 `;
 
 const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean; $isUniqueKey?: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
-  border-bottom: 1px solid #f0f0f0;
-  font-size: 13px;
+  display: table-row;
   background: ${props => {
     if (props.$isPrimaryKey) return '#fff8e7';
     if (props.$isForeignKey) return '#e3f2fd';
     if (props.$isUniqueKey) return '#f3e5f5';
     return '#fff';
   }};
-  position: relative;
-  
-  &:last-child {
-    border-bottom: none;
-  }
   
   &:hover {
     background: ${props => {
@@ -136,20 +134,74 @@ const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean; $i
       if (props.$isForeignKey) return '#d1e7dd';
       if (props.$isUniqueKey) return '#e1bee7';
       return '#f8f9fa';
-    }};
+    }} !important;
   }
+  
+  &:last-child > * {
+    border-bottom: none;
+  }
+`;
+
+const ColumnKeyAndName = styled.div`
+  display: table-cell;
+  padding: 8px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 13px;
+  vertical-align: middle;
+  gap: 4px;
+  background: transparent !important;
+`;
+
+const ColumnLogicalName = styled.div`
+  display: table-cell;
+  padding: 8px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 13px;
+  vertical-align: middle;
+  background: transparent !important;
+`;
+
+const ColumnConstraints = styled.div`
+  display: table-cell;
+  padding: 8px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 13px;
+  vertical-align: middle;
+  text-align: center;
+  background: transparent !important;
+`;
+
+const ColumnDefaults = styled.div`
+  display: table-cell;
+  padding: 8px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 13px;
+  vertical-align: middle;
+  text-align: center;
+  background: transparent !important;
+`;
+
+const ColumnTypeArea = styled.div`
+  display: table-cell;
+  padding: 8px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 13px;
+  vertical-align: middle;
+  text-align: right;
+  background: transparent !important;
 `;
 
 const ColumnLeft = styled.div`
   display: flex;
   align-items: center;
-  gap: 6px;
   flex: 1;
 `;
 
-const ColumnName = styled.span<{ $isPrimaryKey?: boolean }>`
-  font-weight: ${props => props.$isPrimaryKey ? 600 : 400};
-  color: ${props => props.$isPrimaryKey ? '#d68910' : '#333'};
+const ColumnContent = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
 `;
 
 const ColumnType = styled.span`
@@ -157,6 +209,27 @@ const ColumnType = styled.span`
   font-size: 12px;
   font-weight: 500;
   text-transform: uppercase;
+  white-space: nowrap;
+`;
+
+const ColumnName = styled.span<{ $isPrimaryKey?: boolean }>`
+  font-weight: ${props => props.$isPrimaryKey ? 600 : 400};
+  color: ${props => props.$isPrimaryKey ? '#d68910' : '#333'};
+`;
+
+const ColumnLogicalText = styled.span`
+  color: #666;
+  font-style: italic;
+  font-size: 12px;
+`;
+
+const ColumnDetails = styled.span`
+  font-size: 10px;
+  color: #888;
+  margin-right: 6px;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 4px;
+  border-radius: 3px;
 `;
 
 const IconWrapper = styled.span<{ $type?: 'pk' | 'fk' | 'uq' }>`
@@ -180,9 +253,9 @@ const InvisibleHandle = styled(Handle)`
 
 const Tooltip = styled.div<{ $visible: boolean; $x: number; $y: number }>`
   position: fixed;
-  left: ${props => props.$x}px;
+  left: ${props => props.$x + 8}px;
   top: ${props => props.$y}px;
-  transform: translate(16px, -25%);
+  transform: translateY(-50%);
   background: rgba(45, 45, 45, 0.95);
   color: white;
   padding: 12px 16px;
@@ -203,7 +276,7 @@ const Tooltip = styled.div<{ $visible: boolean; $x: number; $y: number }>`
     content: '';
     position: absolute;
     left: -8px;
-    top: 25%;
+    top: 50%;
     transform: translateY(-50%);
     width: 0;
     height: 0;
@@ -243,6 +316,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   const setSelectedNodeId = useStore((state) => state.setSelectedNodeId);
   const setBottomPanelOpen = useStore((state) => state.setBottomPanelOpen);
   const nodes = useStore((state) => state.nodes);
+  const viewSettings = useStore((state) => state.viewSettings);
   
   // ReactFlow 좌표 변환 함수
   const { flowToScreenPosition, getViewport } = useReactFlow();
@@ -384,18 +458,33 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
           <InvisibleHandle type="target" position={Position.Bottom} id="bottom" />
           <InvisibleHandle type="source" position={Position.Bottom} id="bottom" />
           
-          <Header
+                    <Header 
             onMouseEnter={(e) => handleMouseEnter(e, 'entity')}
             onMouseLeave={handleMouseLeave}
             onClick={handleTooltipClick}
             onMouseDown={handleTooltipMouseDown}
           >
-            <EntityName>
-              {data.physicalName || data.label || 'NewTable'}
-            </EntityName>
-            <EntityLogicalName>
-              {data.logicalName || 'Table'}
-            </EntityLogicalName>
+            {/* 엔티티 보기방식에 따른 조건부 렌더링 */}
+            {viewSettings.entityView === 'physical' && (
+              <EntityName>
+                {data.physicalName || data.label || 'NewTable'}
+              </EntityName>
+            )}
+            {viewSettings.entityView === 'logical' && (
+              <EntityLogicalName>
+                {data.logicalName || 'Table'}
+              </EntityLogicalName>
+            )}
+            {viewSettings.entityView === 'both' && (
+              <>
+                <EntityName>
+                  {data.physicalName || data.label || 'NewTable'}
+                </EntityName>
+                <EntityLogicalName>
+                  {data.logicalName || 'Table'}
+                </EntityLogicalName>
+              </>
+            )}
           </Header>
           
           <ColumnsContainer>
@@ -411,14 +500,51 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
                   onClick={handleTooltipClick}
                   onMouseDown={handleTooltipMouseDown}
                 >
-                  <ColumnLeft>
-                    {/* 모든 키 타입을 조합으로 표시 */}
-                    {col.pk && <IconWrapper $type="pk"><FaKey /></IconWrapper>}
-                    {col.fk && <IconWrapper $type="fk"><FaKey /></IconWrapper>}
-                    {col.uq && <IconWrapper $type="uq"><FaKey /></IconWrapper>}
-                    <ColumnName $isPrimaryKey={col.pk}>{col.name}</ColumnName>
-                  </ColumnLeft>
-                  <ColumnType>{col.type} {col.nullable === false ? 'NN' : ''}</ColumnType>
+                  {/* 첫 번째 컬럼: 키 + 물리명 */}
+                  <ColumnKeyAndName>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {viewSettings.showKeys && col.pk && <IconWrapper $type="pk"><FaKey /></IconWrapper>}
+                      {viewSettings.showKeys && col.fk && <IconWrapper $type="fk"><FaKey /></IconWrapper>}
+                      {viewSettings.showKeys && col.uq && <IconWrapper $type="uq"><FaKey /></IconWrapper>}
+                      {viewSettings.showPhysicalName && (
+                        <ColumnName $isPrimaryKey={col.pk}>{col.name}</ColumnName>
+                      )}
+                    </div>
+                  </ColumnKeyAndName>
+                  
+                  {/* 두 번째 컬럼: 논리명 */}
+                  <ColumnLogicalName style={{ display: viewSettings.showLogicalName ? 'table-cell' : 'none' }}>
+                    <ColumnLogicalText>
+                      {col.logicalName || col.comment || col.name}
+                    </ColumnLogicalText>
+                  </ColumnLogicalName>
+                  
+                  {/* 세 번째 컬럼: 제약조건 */}
+                  <ColumnConstraints style={{ display: viewSettings.showConstraints ? 'table-cell' : 'none' }}>
+                    {col.constraint && col.constraint !== 'AUTO_INCREMENT' && (
+                      <ColumnDetails>{col.constraint}</ColumnDetails>
+                    )}
+                    {(col.nn || col.nullable === false) && (
+                      <ColumnDetails>NN</ColumnDetails>
+                    )}
+                    {col.ai && (
+                      <ColumnDetails>AI</ColumnDetails>
+                    )}
+                  </ColumnConstraints>
+                  
+                  {/* 네 번째 컬럼: 기본값 */}
+                  <ColumnDefaults style={{ display: viewSettings.showDefaults ? 'table-cell' : 'none' }}>
+                    {col.defaultValue && (
+                      <ColumnDetails>{col.defaultValue}</ColumnDetails>
+                    )}
+                  </ColumnDefaults>
+                  
+                  {/* 다섯 번째 컬럼: 데이터 타입 */}
+                  <ColumnTypeArea style={{ display: viewSettings.showDataType ? 'table-cell' : 'none' }}>
+                    <ColumnType>
+                      {col.type}
+                    </ColumnType>
+                  </ColumnTypeArea>
                 </Column>
               );
             })}

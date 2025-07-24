@@ -1,4 +1,4 @@
-import ReactFlow, { Node, useReactFlow, Edge, MiniMap, useViewport, Panel } from 'reactflow';
+import ReactFlow, { Node, useReactFlow, Edge, MiniMap, useViewport, Panel, Background, BackgroundVariant } from 'reactflow';
 import React, { useCallback, useRef, useState, MouseEvent, useEffect } from 'react';
 import 'reactflow/dist/style.css';
 import throttle from 'lodash.throttle';
@@ -76,6 +76,11 @@ const Canvas = () => {
   const setDraggingNodeId = useStore((state) => state.setDraggingNodeId);
   const setSnapGuides = useStore((state) => state.setSnapGuides);
   const calculateSnapGuides = useStore((state) => state.calculateSnapGuides);
+  
+  // 툴바 관련
+  const showGrid = useStore((state) => state.showGrid);
+  const setShowAlignPopup = useStore((state) => state.setShowAlignPopup);
+  const setShowViewPopup = useStore((state) => state.setShowViewPopup);
 
   const { screenToFlowPosition, flowToScreenPosition } = useReactFlow();
   const { zoom } = useViewport();
@@ -215,6 +220,10 @@ const Canvas = () => {
   // 기존 handleContextMenu 제거 (새로운 컨텍스트 메뉴 핸들러들로 대체)
 
   const handlePaneClick = useCallback((event: any) => {
+    // 팝업들 닫기
+    setShowAlignPopup(false);
+    setShowViewPopup(false);
+    
     if (createMode) {
       const position = screenToFlowPosition({
         x: event.clientX,
@@ -253,7 +262,7 @@ const Canvas = () => {
       setSelectedEdgeId(null);
       setBottomPanelOpen(false);
     }
-  }, [createMode, nodes, screenToFlowPosition, setSelectedNodeId, setSelectedEdgeId, setBottomPanelOpen]);
+  }, [createMode, nodes, screenToFlowPosition, setSelectedNodeId, setSelectedEdgeId, setBottomPanelOpen, setShowAlignPopup, setShowViewPopup]);
 
   const handleNodeDoubleClick = useCallback((_: MouseEvent, node: Node) => {
     if (node.type === 'text') return;
@@ -389,8 +398,11 @@ const Canvas = () => {
 
   const handleNodeClick = useCallback((event: any, node: any) => {
     event.stopPropagation();
+    // 팝업들 닫기
+    setShowAlignPopup(false);
+    setShowViewPopup(false);
     setSelectedNodeId(node.id);
-  }, [setSelectedNodeId]);
+  }, [setSelectedNodeId, setShowAlignPopup, setShowViewPopup]);
 
   const handleMouseMove = useCallback(throttle((event: MouseEvent) => {
     if (connectingNodeId && temporaryEdge) {
@@ -597,6 +609,16 @@ const Canvas = () => {
           }}
         />
         
+        {/* 배경 그리드 */}
+        {showGrid && (
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={20}
+            size={2}
+            color="#e0e0e0"
+          />
+        )}
+        
         {/* 스냅 가이드라인을 ReactFlow 내부에 렌더링 */}
         <Panel position="top-left" style={{ pointerEvents: 'none', zIndex: 1000 }}>
           <SnapGuides />
@@ -604,14 +626,7 @@ const Canvas = () => {
       </ReactFlow>
       
       {/* 캔버스 툴바 */}
-      <CanvasToolbar
-        zoom={zoom}
-        onSearch={() => {}}
-        onZoomToFit={() => {}}
-        onAlign={() => {}}
-        onToggleRelations={() => {}}
-        onToggleGrid={() => {}}
-      />
+      <CanvasToolbar zoom={zoom} />
       
       {/* 컨텍스트 메뉴 */}
       <ContextMenu

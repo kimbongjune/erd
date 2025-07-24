@@ -26,6 +26,13 @@ type RFState = {
   snapGuides: SnapGuide[];
   snapThreshold: number;
   
+  // 툴바 관련
+  searchActive: boolean;
+  relationsHighlight: boolean;
+  showGrid: boolean;
+  showAlignPopup: boolean;
+  showViewPopup: boolean;
+  
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   addNode: (type: string) => void;
@@ -52,6 +59,13 @@ type RFState = {
   setDraggingNodeId: (nodeId: string | null) => void;
   setSnapGuides: (guides: SnapGuide[]) => void;
   calculateSnapGuides: (draggedNodeId: string, position: { x: number; y: number }) => SnapGuide[];
+  
+  // 툴바 관련 함수들
+  setSearchActive: (active: boolean) => void;
+  setRelationsHighlight: (active: boolean) => void;
+  setShowGrid: (show: boolean) => void;
+  setShowAlignPopup: (show: boolean) => void;
+  setShowViewPopup: (show: boolean) => void;
 };
 
 const useStore = create<RFState>((set, get) => ({
@@ -462,6 +476,13 @@ const useStore = create<RFState>((set, get) => ({
   snapGuides: [],
   snapThreshold: 5,
   
+  // 툴바 관련 상태 초기값
+  searchActive: false,
+  relationsHighlight: false,
+  showGrid: false,
+  showAlignPopup: false,
+  showViewPopup: false,
+  
   // 스냅 기능 관련 함수들
   setIsDragging: (isDragging: boolean) => set({ isDragging }),
   setDraggingNodeId: (nodeId: string | null) => set({ draggingNodeId: nodeId }),
@@ -577,6 +598,13 @@ const useStore = create<RFState>((set, get) => ({
     
     return result;
   },
+  
+  // 툴바 관련 함수들
+  setSearchActive: (active: boolean) => set({ searchActive: active }),
+  setRelationsHighlight: (active: boolean) => set({ relationsHighlight: active }),
+  setShowGrid: (show: boolean) => set({ showGrid: show }),
+  setShowAlignPopup: (show: boolean) => set({ showAlignPopup: show }),
+  setShowViewPopup: (show: boolean) => set({ showViewPopup: show }),
   
   updateNodeData: (nodeId: string, newData: any) => {
     set((state) => {

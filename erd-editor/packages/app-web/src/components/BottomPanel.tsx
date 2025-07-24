@@ -71,51 +71,37 @@ const BottomPanel = () => {
     return null;
   }
 
-  const handleColumnChange = (index: number, field: string, value: any) => {
-    console.log(`=== handleColumnChange START ===`);
-    console.log(`index: ${index}, field: ${field}, value: ${value}`);
-    
-    if (!selectedNode) {
-      console.log(`No selected node, returning`);
+    const handleColumnChange = (index: number, field: string, value: any) => {
+    if (!selectedNode || !selectedNode.data.columns) {
       return;
     }
     
     const newColumns = [...selectedNode.data.columns];
-    console.log(`Original column:`, newColumns[index]);
     
     // PK가 체크되면 UQ는 강제로 해제
     if (field === 'pk' && value === true) {
-      console.log(`PK being checked, current UQ: ${newColumns[index].uq}`);
       newColumns[index] = { ...newColumns[index], pk: true, uq: false };
       toast.success('Primary Key 설정! Unique Key가 자동 해제됨');
-      console.log(`Set PK=true, UQ=false`);
     }
     // UQ가 체크되면 PK는 강제로 해제  
     else if (field === 'uq' && value === true) {
-      console.log(`UQ being checked, current PK: ${newColumns[index].pk}`);
       newColumns[index] = { ...newColumns[index], uq: true, pk: false };
       toast.success('Unique Key 설정! Primary Key가 자동 해제됨');
-      console.log(`Set UQ=true, PK=false`);
     }
     // PK 해제
     else if (field === 'pk' && value === false) {
       newColumns[index] = { ...newColumns[index], pk: false };
-      console.log(`PK unchecked`);
     }
     // UQ 해제
     else if (field === 'uq' && value === false) {
       newColumns[index] = { ...newColumns[index], uq: false };
-      console.log(`UQ unchecked`);
     }
     // 다른 필드들
     else {
       newColumns[index] = { ...newColumns[index], [field]: value };
-      console.log(`Other field changed`);
     }
     
-    console.log(`Final column:`, newColumns[index]);
     updateNodeData(selectedNode.id, { ...selectedNode.data, columns: newColumns });
-    console.log(`=== handleColumnChange END ===`);
   };
 
   const addColumn = () => {
@@ -237,7 +223,6 @@ const BottomPanel = () => {
               type="text" 
               value={selectedNode.data.label || ''} 
               onChange={(e) => {
-                console.log('테이블명 변경:', e.target.value);
                 handleEntityChange('label', e.target.value);
               }}
               style={{ 
@@ -262,7 +247,6 @@ const BottomPanel = () => {
             <textarea 
               value={selectedNode.data.comment || ''} 
               onChange={(e) => {
-                console.log('테이블 커멘트 변경:', e.target.value);
                 handleEntityChange('comment', e.target.value);
                 toast.success('테이블 커멘트가 수정되었습니다!');
               }}

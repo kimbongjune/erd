@@ -118,35 +118,39 @@ const Canvas = () => {
   React.useEffect(() => {
     const handleCreateTemporaryEdge = (event: any) => {
       const { nodeId, nodes: currentNodes, connectionMode: currentMode } = event.detail;
-      if (currentMode) {
-      // Get source node position
-      const sourceNode = currentNodes.find((n: any) => n.id === nodeId);
-      if (sourceNode) {
-        // Convert ReactFlow coordinates to screen coordinates
-        const nodeCenterFlow = {
-          x: sourceNode.position.x + (sourceNode.width ?? 200) / 2,
-          y: sourceNode.position.y + (sourceNode.height ?? 100) / 2
-        };
-        const projected = flowToScreenPosition(nodeCenterFlow);
-        const sourceX = projected.x;
-        const sourceY = projected.y;
-          
-          const newTemporaryEdge = {
-            id: 'temp-edge',
-            source: nodeId,
-            target: 'temp-target',
-            sourceHandle: 'right',
-            targetHandle: 'left',
-            type: 'temporary',
-            data: {
-              sourceX,
-              sourceY,
-              targetX: sourceX,
-              targetY: sourceY,
-            },
-            style: { strokeWidth: 2, stroke: '#007bff', strokeDasharray: '5, 5' }
-          };
-          setTemporaryEdge(newTemporaryEdge);
+      if (currentMode && reactFlowWrapper.current) {
+        // Get source node position
+        const sourceNode = currentNodes.find((n: any) => n.id === nodeId);
+        if (sourceNode) {
+          // ReactFlow 컨테이너의 bounds 가져오기
+          const reactFlowBounds = reactFlowWrapper.current.querySelector('.react-flow')?.getBoundingClientRect();
+          if (reactFlowBounds) {
+            // Convert ReactFlow coordinates to screen coordinates
+            const nodeCenterFlow = {
+              x: sourceNode.position.x + (sourceNode.width ?? 200) / 2,
+              y: sourceNode.position.y + (sourceNode.height ?? 100) / 2
+            };
+            const projected = flowToScreenPosition(nodeCenterFlow);
+            const sourceX = projected.x - reactFlowBounds.left;
+            const sourceY = projected.y - reactFlowBounds.top;
+              
+            const newTemporaryEdge = {
+              id: 'temp-edge',
+              source: nodeId,
+              target: 'temp-target',
+              sourceHandle: 'right',
+              targetHandle: 'left',
+              type: 'temporary',
+              data: {
+                sourceX,
+                sourceY,
+                targetX: sourceX,
+                targetY: sourceY,
+              },
+              style: { strokeWidth: 2, stroke: '#007bff', strokeDasharray: '5, 5' }
+            };
+            setTemporaryEdge(newTemporaryEdge);
+          }
         }
       }
     };
@@ -163,15 +167,19 @@ const Canvas = () => {
       event.stopPropagation();
       setConnectingNodeId(node.id);
 
-      // ReactFlow의 screenToFlowPosition 함수를 사용해서 정확한 좌표 계산
+      // ReactFlow 컨테이너의 bounds 가져오기
       const reactFlowBounds = reactFlowWrapper.current?.querySelector('.react-flow')?.getBoundingClientRect();
       if (reactFlowBounds) {
-        // 화면 좌표를 ReactFlow Canvas 좌표로 변환
-        const clientX = event.clientX - reactFlowBounds.left;
-        const clientY = event.clientY - reactFlowBounds.top;
+        // 소스 노드의 중앙 좌표를 계산
+        const nodeCenterFlow = {
+          x: node.position.x + (node.width ?? 200) / 2,
+          y: node.position.y + (node.height ?? 100) / 2
+        };
+        const sourceScreenPos = flowToScreenPosition(nodeCenterFlow);
         
-        // ReactFlow의 screenToFlowPosition 함수로 변환된 좌표 계산 (zoom, pan 고려)
-        const flowPosition = screenToFlowPosition({ x: clientX, y: clientY });
+        // ReactFlow 컨테이너 기준으로 좌표 조정
+        const sourceX = sourceScreenPos.x - reactFlowBounds.left;
+        const sourceY = sourceScreenPos.y - reactFlowBounds.top;
         
         const newTemporaryEdge = {
           id: 'temp-edge',
@@ -181,10 +189,10 @@ const Canvas = () => {
           targetHandle: 'left',
           type: 'temporary',
           data: {
-            sourceX: flowPosition.x,
-            sourceY: flowPosition.y,
-            targetX: flowPosition.x,
-            targetY: flowPosition.y,
+            sourceX: sourceX,
+            sourceY: sourceY,
+            targetX: sourceX,
+            targetY: sourceY,
           },
           style: { strokeWidth: 2, stroke: '#007bff', strokeDasharray: '5, 5' }
         };
@@ -261,7 +269,6 @@ const Canvas = () => {
   }, [setSelectedNodeId]);
 
   const handleEdgeContextMenu = useCallback((event: MouseEvent, edge: Edge) => {
-    console.log('Edge context menu triggered:', edge.id);
     event.preventDefault();
     setContextMenu({
       visible: true,
@@ -286,6 +293,17 @@ const Canvas = () => {
   }, []);
 
   // 노드 클릭 핸들러 (기존)
+  // 노드 드래그 이벤트 핸들러들
+  const handleNodeDragStart = useCallback(() => {
+    // 모든 EntityNode에 드래그 시작 이벤트 전파
+    window.dispatchEvent(new CustomEvent('nodeDragStart'));
+  }, []);
+
+  const handleNodeDragStop = useCallback(() => {
+    // 모든 EntityNode에 드래그 종료 이벤트 전파
+    window.dispatchEvent(new CustomEvent('nodeDragStop'));
+  }, []);
+
   const handleNodeClick = useCallback((event: any, node: any) => {
     event.stopPropagation();
     setSelectedNodeId(node.id);
@@ -293,34 +311,37 @@ const Canvas = () => {
 
   const handleMouseMove = useCallback((event: MouseEvent) => {
     if (connectingNodeId && temporaryEdge) {
-      // Get source node position using flowToScreenPosition 
+      // Get source node position 
       const sourceNode = nodes.find(n => n.id === connectingNodeId);
-      if (sourceNode) {
-        // Convert ReactFlow coordinates to screen coordinates for both source and target
-        const nodeCenterFlow = {
-          x: sourceNode.position.x + (sourceNode.width ?? 200) / 2,
-          y: sourceNode.position.y + (sourceNode.height ?? 100) / 2
-        };
-        const sourceScreenPos = flowToScreenPosition(nodeCenterFlow);
-        
-        // Convert mouse position to flow coordinates first, then back to screen coordinates
-        // This ensures both coordinates are in the same coordinate system
-        const mouseFlowPos = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-        const targetScreenPos = flowToScreenPosition(mouseFlowPos);
-        
-        setTemporaryEdge(prev => prev ? { 
-          ...prev, 
-          data: {
-            ...prev.data,
-            sourceX: sourceScreenPos.x,
-            sourceY: sourceScreenPos.y,
-            targetX: targetScreenPos.x,
-            targetY: targetScreenPos.y,
-          }
-        } : null);
+      if (sourceNode && reactFlowWrapper.current) {
+        // ReactFlow 컨테이너의 bounds 가져오기
+        const reactFlowBounds = reactFlowWrapper.current.querySelector('.react-flow')?.getBoundingClientRect();
+        if (reactFlowBounds) {
+          // 소스 노드의 중앙 좌표를 스크린 좌표로 변환
+          const nodeCenterFlow = {
+            x: sourceNode.position.x + (sourceNode.width ?? 200) / 2,
+            y: sourceNode.position.y + (sourceNode.height ?? 100) / 2
+          };
+          const sourceScreenPos = flowToScreenPosition(nodeCenterFlow);
+          
+          // 마우스 위치를 ReactFlow 컨테이너 기준으로 계산
+          const targetX = event.clientX - reactFlowBounds.left;
+          const targetY = event.clientY - reactFlowBounds.top;
+          
+          setTemporaryEdge(prev => prev ? { 
+            ...prev, 
+            data: {
+              ...prev.data,
+              sourceX: sourceScreenPos.x - reactFlowBounds.left,
+              sourceY: sourceScreenPos.y - reactFlowBounds.top,
+              targetX: targetX,
+              targetY: targetY,
+            }
+          } : null);
+        }
       }
     }
-  }, [connectingNodeId, temporaryEdge, flowToScreenPosition, screenToFlowPosition, nodes]);
+  }, [connectingNodeId, temporaryEdge, flowToScreenPosition, nodes, reactFlowWrapper]);
 
   const handleMouseUp = useCallback((event: MouseEvent) => {
     if (connectingNodeId && temporaryEdge) {
@@ -447,7 +468,7 @@ const Canvas = () => {
       
       <ReactFlow
         nodes={nodes}
-        edges={edges} // temporaryEdge 제거
+        edges={temporaryEdge ? [...edges, temporaryEdge] : edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
@@ -455,6 +476,8 @@ const Canvas = () => {
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
         onNodeContextMenu={handleNodeContextMenu}
+        onNodeDragStart={handleNodeDragStart}
+        onNodeDragStop={handleNodeDragStop}
         onEdgeClick={handleEdgeClick}
         onEdgeContextMenu={handleEdgeContextMenu}
         onPaneClick={handlePaneClick}
@@ -484,11 +507,11 @@ const Canvas = () => {
       {/* 캔버스 툴바 */}
       <CanvasToolbar
         zoom={zoom}
-        onSearch={() => console.log('검색')}
-        onZoomToFit={() => console.log('Zoom to Fit')}
-        onAlign={() => console.log('정렬')}
-        onToggleRelations={() => console.log('관계선 토글')}
-        onToggleGrid={() => console.log('격자 토글')}
+        onSearch={() => {}}
+        onZoomToFit={() => {}}
+        onAlign={() => {}}
+        onToggleRelations={() => {}}
+        onToggleGrid={() => {}}
       />
       
       {/* 컨텍스트 메뉴 */}

@@ -244,6 +244,9 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
   // ReactFlow 좌표 변환 함수
   const { flowToScreenPosition, getViewport } = useReactFlow();
   
+  // 드래그 상태 추적
+  const [isDragging, setIsDragging] = useState(false);
+  
   // 툴팁 상태 관리
   const [tooltip, setTooltip] = useState({
     visible: false,
@@ -255,38 +258,70 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
     comment: ''
   });
 
-  // 드래그나 클릭 시 툴팁 숨기기 위한 전역 이벤트
+  // ReactFlow 드래그 이벤트와 연동
+  useEffect(() => {
+    const handleNodeDragStart = () => {
+      setIsDragging(true);
+      setTooltip({ visible: false, x: 0, y: 0, type: 'entity', title: '', dataType: '', comment: '' });
+    };
+
+    const handleNodeDragStop = () => {
+      // 드래그 종료 후 잠시 후에 상태 해제
+      setTimeout(() => {
+        setIsDragging(false);
+      }, 100);
+    };
+
+    window.addEventListener('nodeDragStart', handleNodeDragStart);
+    window.addEventListener('nodeDragStop', handleNodeDragStop);
+
+    return () => {
+      window.removeEventListener('nodeDragStart', handleNodeDragStart);
+      window.removeEventListener('nodeDragStop', handleNodeDragStop);
+    };
+  }, []);
+
+  // 기존 전역 이벤트 리스너는 백업용으로 유지
   useEffect(() => {
     const handleGlobalMouseDown = (e: MouseEvent) => {
+      setIsDragging(true);
       if (tooltip.visible) {
-        console.log('Global mouse down - hiding tooltip');
         setTooltip(prev => ({ ...prev, visible: false }));
       }
     };
 
     const handleGlobalMouseMove = (e: MouseEvent) => {
-      if (tooltip.visible && e.buttons > 0) { // 마우스 버튼이 눌린 상태로 움직이면
-        console.log('Drag detected - hiding tooltip');
-        setTooltip(prev => ({ ...prev, visible: false }));
+      if (e.buttons > 0) { // 마우스 버튼이 눌린 상태로 움직이면
+        setIsDragging(true);
+        if (tooltip.visible) {
+          setTooltip(prev => ({ ...prev, visible: false }));
+        }
       }
+    };
+
+    const handleGlobalMouseUp = () => {
+      // 마우스 업 후 잠시 후에 드래그 상태 해제 (툴팁 재활성화)
+      setTimeout(() => {
+        setIsDragging(false);
+      }, 100);
     };
 
     const handleGlobalDragStart = () => {
+      setIsDragging(true);
       if (tooltip.visible) {
-        console.log('Drag start - hiding tooltip');
         setTooltip(prev => ({ ...prev, visible: false }));
       }
     };
 
-    if (tooltip.visible) {
-      document.addEventListener('mousedown', handleGlobalMouseDown, true); // capture phase
-      document.addEventListener('mousemove', handleGlobalMouseMove, true);
-      document.addEventListener('dragstart', handleGlobalDragStart, true);
-    }
+    document.addEventListener('mousedown', handleGlobalMouseDown, true);
+    document.addEventListener('mousemove', handleGlobalMouseMove, true);
+    document.addEventListener('mouseup', handleGlobalMouseUp, true);
+    document.addEventListener('dragstart', handleGlobalDragStart, true);
 
     return () => {
       document.removeEventListener('mousedown', handleGlobalMouseDown, true);
       document.removeEventListener('mousemove', handleGlobalMouseMove, true);
+      document.removeEventListener('mouseup', handleGlobalMouseUp, true);
       document.removeEventListener('dragstart', handleGlobalDragStart, true);
     };
   }, [tooltip.visible]);
@@ -295,10 +330,9 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
   const isSelected = selectedNodeId === id;
   
   const handleMouseDown = (e: any) => {
-    // 툴팁이 보이면 바로 숨기기
-    if (tooltip.visible) {
-      setTooltip(prev => ({ ...prev, visible: false }));
-    }
+    // 드래그 시작 - 툴팁 확실히 숨기기
+    setIsDragging(true);
+    setTooltip({ visible: false, x: 0, y: 0, type: 'entity', title: '', dataType: '', comment: '' });
     
     // 우클릭인 경우 아무것도 하지 않음
     if (e.button === 2) {
@@ -331,16 +365,17 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
 
   // 툴팁 핸들러 - 엔티티 오른쪽에 정확히 붙이기
   const handleMouseEnter = (e: React.MouseEvent, type: 'entity' | 'column', item?: Column) => {
+    // 드래그 중이면 툴팁 표시하지 않음
+    if (isDragging) {
+      return;
+    }
+    
     const target = e.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();
     
     // 엔티티 오른쪽 경계에서 바로 옆에 배치
     const tooltipX = rect.right;  // 엔티티 오른쪽 끝
     const tooltipY = rect.top + rect.height / 2;  // 엔티티 세로 중앙
-    
-    console.log('=== 엔티티 오른쪽 붙임 ===');
-    console.log('엔티티 rect:', rect);
-    console.log('툴팁 X:', tooltipX, '툴팁 Y:', tooltipY);
     
     if (type === 'entity') {
       setTooltip({
@@ -410,8 +445,6 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
           
           <ColumnsContainer>
             {data.columns?.map((col: any, i: number) => {
-              console.log(`Column ${col.name}: pk=${col.pk}, fk=${col.fk}, uq=${col.uq}`);
-              
               return (
                 <Column 
                   key={i} 

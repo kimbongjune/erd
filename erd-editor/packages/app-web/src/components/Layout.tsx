@@ -429,7 +429,6 @@ const Layout = () => {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('Resize started'); // 디버깅용
     setIsDragging(true);
     dragRef.current = {
       startY: e.clientY,
@@ -448,12 +447,10 @@ const Layout = () => {
     e.stopPropagation();
     const deltaY = dragRef.current.startY - e.clientY;
     const newHeight = Math.max(150, Math.min(600, dragRef.current.startHeight + deltaY));
-    console.log('Resizing to:', newHeight); // 디버깅용
     setBottomPanelHeight(newHeight);
   }, [isDragging]);
 
   const handleMouseUp = useCallback((e?: MouseEvent) => {
-    console.log('Resize ended'); // 디버깅용
     setIsDragging(false);
     dragRef.current = null;
     document.body.style.userSelect = '';

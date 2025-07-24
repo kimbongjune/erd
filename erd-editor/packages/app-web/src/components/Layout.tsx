@@ -471,9 +471,17 @@ const Layout = () => {
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
   const addColumn = () => {
+    // 고유한 컬럼명 생성
+    let newColumnName = 'new_column';
+    let counter = 1;
+    while (columns.some(col => col.name === newColumnName)) {
+      newColumnName = `new_column_${counter}`;
+      counter++;
+    }
+    
     const newColumn = {
       id: Date.now().toString(),
-      name: 'new_column',
+      name: newColumnName,
       dataType: 'VARCHAR(45)',
       type: 'VARCHAR(45)', // EntityNode에서 사용
       pk: false,
@@ -510,17 +518,50 @@ const Layout = () => {
   };
 
   const updateColumnField = (columnId: string, field: string, value: any) => {
+    // 컬럼명 중복 체크
+    if (field === 'name' && value && value.trim() !== '') {
+      const existingColumn = columns.find(col => col.id !== columnId && col.name === value.trim());
+      if (existingColumn) {
+        toast.error(`컬럼명 "${value}"은(는) 이미 존재합니다.`);
+        return;
+      }
+    }
+
     const newColumns = columns.map(col => {
       if (col.id === columnId) {
         let updatedCol = { ...col, [field]: value };
         
-        // PK-UQ 상호 제약 로직
-        if (field === 'pk' && value === true && col.uq === true) {
+        // PK 설정 시 NN도 자동으로 체크
+        if (field === 'pk' && value === true) {
+          updatedCol.nn = true;
           updatedCol.uq = false; // PK 체크하면 UQ 해제
-          toast.info('UQ가 해제되었습니다 (PK와 중복 불가)');
+          toast.info('PK 설정으로 NN이 자동 체크되었습니다.');
         } else if (field === 'uq' && value === true && col.pk === true) {
           updatedCol.pk = false; // UQ 체크하면 PK 해제
-          toast.info('PK가 해제되었습니다 (UQ와 중복 불가)');
+          updatedCol.nn = false; // PK 해제 시 NN도 해제 가능하게
+          toast.info('UQ 설정으로 PK가 해제되었습니다.');
+          
+          // PK를 UQ로 변경했을 때 관계 해제
+          const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
+          if (currentEntity?.type === 'entity') {
+            // 현재 엔티티를 소스로 하는 모든 관계선 찾기
+            const relatedEdges = useStore.getState().edges.filter(edge => edge.source === selectedNodeId);
+            
+            if (relatedEdges.length > 0) {
+              relatedEdges.forEach(edge => {
+                useStore.getState().deleteEdge(edge.id);
+              });
+              toast.warning(`PK를 UQ로 변경하여 ${relatedEdges.length}개의 관계가 해제되었습니다.`);
+            }
+          }
+        }
+        
+        // AI 설정 시 체크 (PK이면서 INT 타입인지 확인)
+        if (field === 'ai' && value === true) {
+          if (!updatedCol.pk || !updatedCol.dataType?.toUpperCase().includes('INT')) {
+            toast.error('AI는 PK이면서 INT 타입인 컬럼에만 설정할 수 있습니다.');
+            return col; // 변경하지 않음
+          }
         }
         
         // dataType이 변경되면 type도 함께 업데이트 (EntityNode에서 사용)
@@ -552,9 +593,11 @@ const Layout = () => {
       
       // PK-UQ 상호 제약을 선택된 컬럼에도 적용
       if (field === 'pk' && value === true) {
+        updatedSelectedColumn.nn = true;
         updatedSelectedColumn.uq = false;
       } else if (field === 'uq' && value === true) {
         updatedSelectedColumn.pk = false;
+        updatedSelectedColumn.nn = false;
       }
       
       if (field === 'dataType') {
@@ -776,7 +819,7 @@ const Layout = () => {
                         className={editingCell === `${column.id}-dataType` ? 'editing' : ''}
                         data-editing={editingCell === `${column.id}-dataType` ? `${column.id}-dataType` : ''}
                         value={column.dataType || ''}
-                        onChange={(e) => updateColumnField(column.id, 'dataType', e.target.value)}
+                        onChange={(e) => updateColumnField(column.id, 'dataType', e.target.value.toUpperCase())}
                         onBlur={handleCellBlur}
                         readOnly={editingCell !== `${column.id}-dataType`}
                       />
@@ -791,7 +834,8 @@ const Layout = () => {
                     <CheckboxCell key={`${column.id}-nn`}>
                       <Checkbox 
                         type="checkbox" 
-                        checked={column.nn || false} 
+                        checked={column.nn || column.pk || false} 
+                        disabled={column.pk}
                         onChange={(e) => updateColumnField(column.id, 'nn', e.target.checked)}
                       />
                     </CheckboxCell>
@@ -806,6 +850,7 @@ const Layout = () => {
                       <Checkbox 
                         type="checkbox" 
                         checked={column.ai || false} 
+                        disabled={!column.pk || !column.dataType?.toUpperCase().includes('INT')}
                         onChange={(e) => updateColumnField(column.id, 'ai', e.target.checked)}
                       />
                     </CheckboxCell>

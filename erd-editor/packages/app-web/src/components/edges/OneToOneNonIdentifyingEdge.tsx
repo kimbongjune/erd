@@ -45,22 +45,6 @@ const OneToOneNonIdentifyingEdge: React.FC<OneToOneNonIdentifyingEdgeProps> = ({
   return (
     <>
       <BaseEdge id={id} path={edgePath} style={edgeStyle} markerStart={markerStart} markerEnd={markerEnd} />
-      <EdgeLabelRenderer>
-        <div
-          style={{
-            position: 'absolute',
-            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-            background: '#fff',
-            padding: 5,
-            borderRadius: 5,
-            fontSize: 12,
-            fontWeight: 700,
-          }}
-          className="nodrag nopan"
-        >
-          1:1 Non-Identifying
-        </div>
-      </EdgeLabelRenderer>
     </>
   );
 };

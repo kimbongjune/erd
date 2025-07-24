@@ -26,7 +26,7 @@ const NodeContainer = styled.div<{ $isSelected: boolean }>`
   min-width: 240px;
   width: auto;
   min-height: 120px;
-  height: auto;
+  height: fit-content;
   border: 3px solid ${props => props.$isSelected ? '#007acc' : '#ddd'};
   background-color: ${props => props.$isSelected ? '#f0f8ff' : '#fff'};
   border-radius: 8px;

@@ -70,6 +70,7 @@ const Canvas = () => {
   const createMode = useStore((state) => state.createMode);
   const addNode = useStore((state) => state.addNode);
   const deleteSelected = useStore((state) => state.deleteSelected);
+  const theme = useStore((state) => state.theme);
   
   // 스냅 기능 관련
   const setIsDragging = useStore((state) => state.setIsDragging);
@@ -88,6 +89,8 @@ const Canvas = () => {
   const { zoom } = useViewport();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [temporaryEdge, setTemporaryEdge] = useState<Edge | null>(null);
+  
+  const isDarkMode = theme === 'dark';
   
   // 컨텍스트 메뉴 상태
   const [contextMenu, setContextMenu] = useState({
@@ -503,7 +506,7 @@ const Canvas = () => {
             markerUnits="strokeWidth"
             orient="auto"
           >
-            <path d="M 0 5 L 10 0 M 0 5 L 10 5 M 0 5 L 10 10" stroke="#000" strokeWidth="1" fill="none" />
+            <path d="M 0 5 L 10 0 M 0 5 L 10 5 M 0 5 L 10 10" stroke={isDarkMode ? "#e2e8f0" : "#333333"} strokeWidth="1" fill="none" />
           </marker>
           <marker
             id="marker-parent"
@@ -515,7 +518,7 @@ const Canvas = () => {
             markerUnits="strokeWidth"
             orient="auto"
           >
-            <path d="M-2,-6 L-2,6" stroke="#000" strokeWidth="1" fill="none" />
+            <path d="M-2,-6 L-2,6" stroke={isDarkMode ? "#e2e8f0" : "#333333"} strokeWidth="1" fill="none" />
           </marker>
         </defs>
       </svg>
@@ -553,7 +556,7 @@ const Canvas = () => {
                 markerUnits="strokeWidth"
                 orient="auto"
               >
-                <path d="M 0 0 L 8 4 L 0 8 z" fill="#87CEEB" opacity="0.4" />
+                <path d="M 0 0 L 8 4 L 0 8 z" fill={isDarkMode ? "#5dade2" : "#87CEEB"} opacity="0.4" />
               </marker>
             </defs>
             {(() => {
@@ -609,9 +612,10 @@ const Canvas = () => {
         elevateNodesOnSelect={false}
         elevateEdgesOnSelect={true}
         selectNodesOnDrag={false}
-        panOnScroll={true}
+        panOnScroll={false}
         zoomOnScroll={true}
-        preventScrolling={false}
+        preventScrolling={true}
+        zoomOnPinch={true}
         disableKeyboardA11y={false}
         nodeOrigin={[0.5, 0.5]}
         maxZoom={2}
@@ -623,16 +627,16 @@ const Canvas = () => {
         multiSelectionKeyCode={null}
       >
         <MiniMap 
-          nodeColor={(node) => node.type === 'comment' ? 'transparent' : '#e2e8f0'}
-          nodeStrokeColor={(node) => node.type === 'comment' ? 'transparent' : '#64748b'}
+          nodeColor={(node) => node.type === 'comment' ? 'transparent' : (isDarkMode ? '#4a5568' : '#e2e8f0')}
+          nodeStrokeColor={(node) => node.type === 'comment' ? 'transparent' : (isDarkMode ? '#cbd5e0' : '#64748b')}
           nodeStrokeWidth={2}
-          maskColor="rgba(0, 0, 0, 0.2)"
+          maskColor={isDarkMode ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.2)"}
           pannable={true}
           zoomable={true}
           ariaLabel="Mini map"
           style={{ 
-            backgroundColor: '#f8fafc',
-            border: '2px solid #e2e8f0',
+            backgroundColor: isDarkMode ? '#2d3748' : '#f8fafc',
+            border: `2px solid ${isDarkMode ? '#4a5568' : '#e2e8f0'}`,
             borderRadius: '8px'
           }}
         />
@@ -643,7 +647,7 @@ const Canvas = () => {
             variant={BackgroundVariant.Dots}
             gap={20}
             size={2}
-            color="#e0e0e0"
+            color={isDarkMode ? '#4a5568' : '#e0e0e0'}
           />
         )}
         

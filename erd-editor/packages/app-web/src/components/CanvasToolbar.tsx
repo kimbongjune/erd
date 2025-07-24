@@ -8,15 +8,15 @@ import AlignPopup from './AlignPopup';
 import ViewPopup from './ViewPopup';
 import Tooltip from './Tooltip';
 
-const ToolbarContainer = styled.div`
+const ToolbarContainer = styled.div<{ $darkMode?: boolean }>`
   position: absolute;
   bottom: 30px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid #e0e0e0;
+  background: ${props => props.$darkMode ? 'rgba(45, 55, 72, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
+  border: 1px solid ${props => props.$darkMode ? '#404040' : '#e0e0e0'};
   border-radius: 12px;
   box-shadow: 0 6px 25px rgba(0, 0, 0, 0.15);
   padding: 12px;
@@ -25,31 +25,31 @@ const ToolbarContainer = styled.div`
   backdrop-filter: blur(10px);
 `;
 
-const ZoomDisplay = styled.div`
+const ZoomDisplay = styled.div<{ $darkMode?: boolean }>`
   font-size: 14px;
-  color: #666;
+  color: ${props => props.$darkMode ? '#e2e8f0' : '#666'};
   min-width: 40px;
   text-align: center;
   padding: 0 6px;
   font-weight: 500;
 `;
 
-const ToolbarButton = styled.button<{ $active?: boolean }>`
+const ToolbarButton = styled.button<{ $active?: boolean; $darkMode?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
   width: 40px;
   height: 40px;
   border: none;
-  background: ${props => props.$active ? 'rgba(0, 122, 204, 0.15)' : 'transparent'};
+  background: ${props => props.$active ? (props.$darkMode ? 'rgba(96, 165, 250, 0.25)' : 'rgba(0, 122, 204, 0.15)') : 'transparent'};
   border-radius: 6px;
   cursor: pointer;
-  color: ${props => props.$active ? '#007acc' : '#666'};
+  color: ${props => props.$active ? (props.$darkMode ? '#60a5fa' : '#007acc') : (props.$darkMode ? '#cbd5e0' : '#666')};
   transition: all 0.2s ease;
   
   &:hover {
-    background: rgba(0, 122, 204, 0.1);
-    color: #007acc;
+    background: ${props => props.$darkMode ? 'rgba(96, 165, 250, 0.15)' : 'rgba(0, 122, 204, 0.1)'};
+    color: ${props => props.$darkMode ? '#60a5fa' : '#007acc'};
   }
   
   &:active {
@@ -57,14 +57,14 @@ const ToolbarButton = styled.button<{ $active?: boolean }>`
   }
 `;
 
-const Divider = styled.div`
+const Divider = styled.div<{ $darkMode?: boolean }>`
   width: 1px;
   height: 24px;
-  background: #e0e0e0;
+  background: ${props => props.$darkMode ? '#404040' : '#e0e0e0'};
   margin: 0 6px;
 `;
 
-const ShowSection = styled.div<{ $active?: boolean }>`
+const ShowSection = styled.div<{ $active?: boolean; $darkMode?: boolean }>`
   display: flex;
   align-items: center;
   gap: 4px;
@@ -79,16 +79,16 @@ const ShowSection = styled.div<{ $active?: boolean }>`
   }
 `;
 
-const ShowLabel = styled.span<{ $active?: boolean }>`
+const ShowLabel = styled.span<{ $active?: boolean; $darkMode?: boolean }>`
   font-size: 11px;
-  color: ${props => props.$active ? '#007acc' : '#666'};
-  font-weight: 500;
+  color: ${props => props.$active ? (props.$darkMode ? '#60a5fa' : '#007acc') : (props.$darkMode ? '#cbd5e0' : '#666')};
+  font-weight: ${props => props.$active ? '600' : '500'};
 `;
 
-const ShowIcon = styled.div<{ $active?: boolean }>`
+const ShowIcon = styled.div<{ $active?: boolean; $darkMode?: boolean }>`
   width: 16px;
   height: 16px;
-  color: ${props => props.$active ? '#007acc' : '#666'};
+  color: ${props => props.$active ? (props.$darkMode ? '#60a5fa' : '#007acc') : (props.$darkMode ? '#cbd5e0' : '#666')};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -107,6 +107,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   const showGrid = useStore((state) => state.showGrid);
   const showAlignPopup = useStore((state) => state.showAlignPopup);
   const showViewPopup = useStore((state) => state.showViewPopup);
+  const theme = useStore((state) => state.theme);
   
   // Store 액션들
   const setSearchActive = useStore((state) => state.setSearchActive);
@@ -147,6 +148,8 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
     setShowViewPopup(!showViewPopup);
   };
 
+  const isDarkMode = theme === 'dark';
+
   const handleAlignSelect = (type: 'left-right' | 'snowflake' | 'compact') => {
     console.log('정렬 방식 선택:', type);
     setShowAlignPopup(false);
@@ -155,62 +158,63 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
 
   return (
     <>
-      <ToolbarContainer>
+      <ToolbarContainer $darkMode={isDarkMode}>
         <Tooltip text="줌 아웃">
-          <ToolbarButton onClick={handleZoomOut}>
+          <ToolbarButton onClick={handleZoomOut} $darkMode={isDarkMode}>
             <FaMinus size={14} />
           </ToolbarButton>
         </Tooltip>
         
-        <ZoomDisplay>{Math.round(zoom * 100)}%</ZoomDisplay>
+        <ZoomDisplay $darkMode={isDarkMode}>{Math.round(zoom * 100)}%</ZoomDisplay>
         
         <Tooltip text="줌 인">
-          <ToolbarButton onClick={handleZoomIn}>
+          <ToolbarButton onClick={handleZoomIn} $darkMode={isDarkMode}>
             <FaPlus size={14} />
           </ToolbarButton>
         </Tooltip>
         
-        <Divider />
+        <Divider $darkMode={isDarkMode} />
         
         <Tooltip text="검색">
-          <ToolbarButton onClick={handleSearch} $active={searchActive}>
+          <ToolbarButton onClick={handleSearch} $active={searchActive} $darkMode={isDarkMode}>
             <FaSearch size={16} />
           </ToolbarButton>
         </Tooltip>
         
         <Tooltip text="한눈에보기">
-          <ToolbarButton onClick={handleZoomToFit}>
+          <ToolbarButton onClick={handleZoomToFit} $darkMode={isDarkMode}>
             <FaExpand size={16} />
           </ToolbarButton>
         </Tooltip>
         
         <Tooltip text="정렬">
-          <ToolbarButton onClick={handleAlign} $active={showAlignPopup}>
+          <ToolbarButton onClick={handleAlign} $active={showAlignPopup} $darkMode={isDarkMode}>
             <FaTh size={16} />
           </ToolbarButton>
         </Tooltip>
         
         <Tooltip text="관계선 하이라이트">
-          <ToolbarButton onClick={handleRelations} $active={relationsHighlight}>
+          <ToolbarButton onClick={handleRelations} $active={relationsHighlight} $darkMode={isDarkMode}>
             <FaProjectDiagram size={16} />
           </ToolbarButton>
         </Tooltip>
         
         <Tooltip text="그리드">
-          <ToolbarButton onClick={handleGrid} $active={showGrid}>
+          <ToolbarButton onClick={handleGrid} $active={showGrid} $darkMode={isDarkMode}>
             <MdGridOn size={16} />
           </ToolbarButton>
         </Tooltip>
         
-        <Divider />
+        <Divider $darkMode={isDarkMode} />
         
         <Tooltip text="보기 항목">
           <ShowSection 
             onClick={handleShow}
             $active={showViewPopup}
+            $darkMode={isDarkMode}
           >
-            <ShowLabel $active={showViewPopup}>Show:</ShowLabel>
-            <ShowIcon $active={showViewPopup}>
+            <ShowLabel $active={showViewPopup} $darkMode={isDarkMode}>Show:</ShowLabel>
+            <ShowIcon $active={showViewPopup} $darkMode={isDarkMode}>
               <FaTable size={12} />
             </ShowIcon>
           </ShowSection>

@@ -48,7 +48,7 @@ const OneToManyNonIdentifyingIcon = () => (
   </svg>
 );
 
-const ToolboxContainer = styled.div`
+const ToolboxContainer = styled.div<{ $darkMode?: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -56,26 +56,27 @@ const ToolboxContainer = styled.div`
   width: 100%;
   height: 100%;
   padding: 20px 10px;
+  background-color: ${props => props.$darkMode ? '#2d3748' : 'transparent'};
 `;
 
-const ToolButton = styled.button<{ $isActive?: boolean }>`
+const ToolButton = styled.button<{ $isActive?: boolean; $darkMode?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
   width: 50px;
   height: 50px;
-  border: 2px solid ${props => props.$isActive ? '#007acc' : '#e2e8f0'};
-  background-color: ${props => props.$isActive ? '#e8f2ff' : '#ffffff'};
+  border: 2px solid ${props => props.$isActive ? '#007acc' : (props.$darkMode ? '#404040' : '#e2e8f0')};
+  background-color: ${props => props.$isActive ? (props.$darkMode ? '#1a365d' : '#e8f2ff') : (props.$darkMode ? '#374151' : '#ffffff')};
   border-radius: 8px;
   cursor: pointer;
-  color: ${props => props.$isActive ? '#007acc' : '#64748b'};
+  color: ${props => props.$isActive ? '#007acc' : (props.$darkMode ? '#e2e8f0' : '#64748b')};
   font-size: 20px;
   transition: all 0.2s ease-in-out;
   position: relative;
 
   &:hover {
     border-color: #007acc;
-    background-color: #f0f8ff;
+    background-color: ${props => props.$darkMode ? '#4a5568' : '#f0f8ff'};
     color: #007acc;
   }
 
@@ -110,6 +111,9 @@ const Toolbox = () => {
   const setConnectionMode = useStore((state) => state.setConnectionMode);
   const setCreateMode = useStore((state) => state.setCreateMode);
   const setSelectMode = useStore((state) => state.setSelectMode);
+  const theme = useStore((state) => state.theme);
+
+  const isDarkMode = theme === 'dark';
 
   const handleToolClick = (tool: string) => {
     if (tool === 'select') {
@@ -128,9 +132,10 @@ const Toolbox = () => {
   };
 
   return (
-    <ToolboxContainer>
+    <ToolboxContainer $darkMode={isDarkMode}>
       <ToolButton
         $isActive={selectMode}
+        $darkMode={isDarkMode}
         onClick={() => handleToolClick('select')}
         title="선택 도구"
       >
@@ -139,6 +144,7 @@ const Toolbox = () => {
 
       <ToolButton
         $isActive={createMode === 'entity'}
+        $darkMode={isDarkMode}
         onClick={() => handleToolClick('entity')}
         title="엔터티 생성"
       >
@@ -147,6 +153,7 @@ const Toolbox = () => {
 
       <ToolButton
         $isActive={createMode === 'comment'}
+        $darkMode={isDarkMode}
         onClick={() => handleToolClick('comment')}
         title="코멘트 생성"
       >
@@ -155,6 +162,7 @@ const Toolbox = () => {
 
       <ToolButton
         $isActive={connectionMode === 'oneToOneIdentifying'}
+        $darkMode={isDarkMode}
         onClick={() => handleToolClick('oneToOneIdentifying')}
         title="1:1 식별 관계"
       >
@@ -163,6 +171,7 @@ const Toolbox = () => {
 
       <ToolButton
         $isActive={connectionMode === 'oneToOneNonIdentifying'}
+        $darkMode={isDarkMode}
         onClick={() => handleToolClick('oneToOneNonIdentifying')}
         title="1:1 비식별 관계"
       >
@@ -171,6 +180,7 @@ const Toolbox = () => {
 
       <ToolButton
         $isActive={connectionMode === 'oneToManyIdentifying'}
+        $darkMode={isDarkMode}
         onClick={() => handleToolClick('oneToManyIdentifying')}
         title="1:N 식별 관계"
       >
@@ -179,6 +189,7 @@ const Toolbox = () => {
 
       <ToolButton
         $isActive={connectionMode === 'oneToManyNonIdentifying'}
+        $darkMode={isDarkMode}
         onClick={() => handleToolClick('oneToManyNonIdentifying')}
         title="1:N 비식별 관계"
       >

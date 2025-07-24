@@ -22,15 +22,15 @@ interface Column {
   nullable?: boolean;
 }
 
-const NodeContainer = styled.div<{ $isSelected: boolean }>`
+const NodeContainer = styled.div<{ $isSelected: boolean; $darkMode?: boolean }>`
   min-width: 240px;
   width: auto;
   min-height: 60px;
   height: fit-content;
-  border: 3px solid ${props => props.$isSelected ? '#007acc' : '#ddd'};
-  background-color: ${props => props.$isSelected ? '#f0f8ff' : '#fff'};
+  border: 3px solid ${props => props.$isSelected ? '#007acc' : (props.$darkMode ? '#404040' : '#ddd')};
+  background-color: ${props => props.$isSelected ? (props.$darkMode ? '#1a2332' : '#f0f8ff') : (props.$darkMode ? '#2d3748' : '#fff')};
   border-radius: 8px;
-  box-shadow: ${props => props.$isSelected ? '0 8px 25px rgba(0, 122, 204, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.6)' : '0 2px 8px rgba(0, 0, 0, 0.1)'};
+  box-shadow: ${props => props.$isSelected ? '0 8px 25px rgba(0, 122, 204, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.6)' : (props.$darkMode ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.1)')};
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   cursor: pointer;
@@ -43,7 +43,7 @@ const NodeContainer = styled.div<{ $isSelected: boolean }>`
     border-color: ${props => props.$isSelected ? '#005999' : '#60a5fa'};
     box-shadow: ${props => props.$isSelected 
       ? '0 12px 35px rgba(0, 122, 204, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.8)' 
-      : '0 4px 15px rgba(96, 165, 250, 0.2)'};
+      : (props.$darkMode ? '0 4px 15px rgba(96, 165, 250, 0.3)' : '0 4px 15px rgba(96, 165, 250, 0.2)')};
     transform: ${props => props.$isSelected ? 'scale(1.03) translateZ(0)' : 'scale(1.01) translateZ(0)'};
   }
   
@@ -66,14 +66,14 @@ const NodeContainer = styled.div<{ $isSelected: boolean }>`
   }
 `;
 
-const Header = styled.div`
+const Header = styled.div<{ $darkMode?: boolean }>`
   padding: 8px 12px;
   background: linear-gradient(135deg, #007acc 0%, #005999 100%);
   color: white;
   font-weight: 600;
   font-size: 16px;
   border-radius: 5px 5px 0 0;
-  border-bottom: 2px solid #e0e0e0;
+  border-bottom: 2px solid ${props => props.$darkMode ? '#404040' : '#e0e0e0'};
   position: relative;
   display: flex;
   justify-content: space-between;
@@ -114,29 +114,43 @@ const EditInput = styled.input`
   }
 `;
 
-const ColumnsContainer = styled.div`
+const ColumnsContainer = styled.div<{ $darkMode?: boolean }>`
   display: table;
   width: 100%;
   table-layout: auto;
-  background: #fff;
+  background: ${props => props.$darkMode ? '#2d3748' : '#fff'};
 `;
 
-const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean; $isUniqueKey?: boolean }>`
+const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean; $isUniqueKey?: boolean; $darkMode?: boolean }>`
   display: table-row;
   position: relative;
   background: ${props => {
-    if (props.$isPrimaryKey) return '#fff8e7';
-    if (props.$isForeignKey) return '#e3f2fd';
-    if (props.$isUniqueKey) return '#f3e5f5';
-    return '#fff';
+    if (props.$darkMode) {
+      if (props.$isPrimaryKey) return '#3d2914';
+      if (props.$isForeignKey) return '#1e2832';
+      if (props.$isUniqueKey) return '#2d1b33';
+      return '#2d3748';
+    } else {
+      if (props.$isPrimaryKey) return '#fff8e7';
+      if (props.$isForeignKey) return '#e3f2fd';
+      if (props.$isUniqueKey) return '#f3e5f5';
+      return '#fff';
+    }
   }};
   
   &:hover {
     background: ${props => {
-      if (props.$isPrimaryKey) return '#fff4d6';
-      if (props.$isForeignKey) return '#d1e7dd';
-      if (props.$isUniqueKey) return '#e1bee7';
-      return '#f8f9fa';
+      if (props.$darkMode) {
+        if (props.$isPrimaryKey) return '#4a3319';
+        if (props.$isForeignKey) return '#243240';
+        if (props.$isUniqueKey) return '#362040';
+        return '#374151';
+      } else {
+        if (props.$isPrimaryKey) return '#fff4d6';
+        if (props.$isForeignKey) return '#d1e7dd';
+        if (props.$isUniqueKey) return '#e1bee7';
+        return '#f8f9fa';
+      }
     }} !important;
   }
   
@@ -145,53 +159,63 @@ const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean; $i
   }
 `;
 
-const ColumnKeyAndName = styled.div`
+const ColumnKeyAndName = styled.div<{ $darkMode?: boolean }>`
   display: table-cell;
   padding: 8px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid ${props => props.$darkMode ? '#404040' : '#f0f0f0'};
   font-size: 13px;
   vertical-align: middle;
   gap: 4px;
   background: transparent !important;
+  color: ${props => props.$darkMode ? '#e2e8f0' : 'inherit'};
 `;
 
-const ColumnLogicalName = styled.div`
+const ColumnLogicalName = styled.div<{ $darkMode?: boolean }>`
   display: table-cell;
   padding: 8px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid ${props => props.$darkMode ? '#404040' : '#f0f0f0'};
   font-size: 13px;
   vertical-align: middle;
   background: transparent !important;
+  color: ${props => props.$darkMode ? '#cbd5e0' : '#666'};
+  font-weight: 500;
 `;
 
-const ColumnConstraints = styled.div`
+const ColumnConstraints = styled.div<{ $darkMode?: boolean }>`
   display: table-cell;
   padding: 8px 12px;
-  border-bottom: 1px solid #f0f0f0;
-  font-size: 13px;
-  vertical-align: middle;
-  text-align: center;
-  background: transparent !important;
-`;
-
-const ColumnDefaults = styled.div`
-  display: table-cell;
-  padding: 8px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid ${props => props.$darkMode ? '#404040' : '#f0f0f0'};
   font-size: 13px;
   vertical-align: middle;
   text-align: center;
   background: transparent !important;
+  color: ${props => props.$darkMode ? '#a0aec0' : '#555'};
+  font-weight: 500;
 `;
 
-const ColumnTypeArea = styled.div`
+const ColumnDefaults = styled.div<{ $darkMode?: boolean }>`
   display: table-cell;
   padding: 8px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid ${props => props.$darkMode ? '#404040' : '#f0f0f0'};
+  font-size: 13px;
+  vertical-align: middle;
+  text-align: center;
+  background: transparent !important;
+  color: ${props => props.$darkMode ? '#9ca3af' : '#555'};
+  font-weight: 500;;
+  background: transparent !important;
+  color: ${props => props.$darkMode ? '#e2e8f0' : 'inherit'};
+`;
+
+const ColumnTypeArea = styled.div<{ $darkMode?: boolean }>`
+  display: table-cell;
+  padding: 8px 12px;
+  border-bottom: 1px solid ${props => props.$darkMode ? '#404040' : '#f0f0f0'};
   font-size: 13px;
   vertical-align: middle;
   text-align: right;
   background: transparent !important;
+  color: ${props => props.$darkMode ? '#e2e8f0' : 'inherit'};
 `;
 
 const ColumnLeft = styled.div`
@@ -207,33 +231,38 @@ const ColumnContent = styled.div`
   flex: 1;
 `;
 
-const ColumnType = styled.span`
-  color: #666;
+const ColumnType = styled.span<{ $darkMode?: boolean }>`
+  color: ${props => props.$darkMode ? '#a0aec0' : '#666'};
   font-size: 12px;
   font-weight: 500;
   text-transform: uppercase;
   white-space: nowrap;
 `;
 
-const ColumnName = styled.span<{ $isPrimaryKey?: boolean }>`
+const ColumnName = styled.span<{ $isPrimaryKey?: boolean; $darkMode?: boolean }>`
   font-weight: ${props => props.$isPrimaryKey ? 600 : 400};
-  color: ${props => props.$isPrimaryKey ? '#d68910' : '#333'};
+  color: ${props => {
+    if (props.$isPrimaryKey) return '#d68910';
+    return props.$darkMode ? '#e2e8f0' : '#333';
+  }};
 `;
 
-const ColumnLogicalText = styled.span`
-  color: #666;
+const ColumnLogicalText = styled.span<{ $darkMode?: boolean }>`
+  color: ${props => props.$darkMode ? '#a0aec0' : '#666'};
   font-style: italic;
   font-size: 12px;
 `;
 
-const ColumnDetails = styled.span`
+const ColumnDetails = styled.span<{ $darkMode?: boolean }>`
   font-size: 10px;
-  color: #888;
+  color: ${props => props.$darkMode ? '#a0aec0' : '#888'};
   margin-right: 6px;
-  background: rgba(0, 0, 0, 0.05);
+  background: ${props => props.$darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'};
   padding: 1px 4px;
   border-radius: 3px;
 `;
+
+
 
 const IconWrapper = styled.span<{ $type?: 'pk' | 'fk' | 'uq' }>`
   font-size: 14px;
@@ -321,6 +350,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   const nodes = useStore((state) => state.nodes);
   const viewSettings = useStore((state) => state.viewSettings);
   const updateEdgeHandles = useStore((state) => state.updateEdgeHandles);
+  const theme = useStore((state) => state.theme);
   
   // ReactFlow 좌표 변환 함수
   const { flowToScreenPosition, getViewport } = useReactFlow();
@@ -372,6 +402,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
 
   // 현재 노드가 선택되었는지 확인 (id 사용)
   const isSelected = useMemo(() => selectedNodeId === id, [selectedNodeId, id]);
+  const isDarkMode = theme === 'dark';
   
   const handleMouseDown = useCallback((e: any) => {
     // 드래그 시작 - 툴팁 확실히 숨기기
@@ -461,6 +492,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
       <div className="entity-wrapper">
         <NodeContainer 
           $isSelected={isSelected} 
+          $darkMode={isDarkMode}
           onMouseDown={handleMouseDown}
         >
           {/* 보이지 않는 연결 핸들들 - 모든 핸들을 source와 target 둘 다 지원 */}
@@ -470,6 +502,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
           <InvisibleHandle type="source" position={Position.Right} id="right" />
           
                     <Header 
+            $darkMode={isDarkMode}
             onMouseEnter={(e) => handleMouseEnter(e, 'entity')}
             onMouseLeave={handleMouseLeave}
             onClick={handleTooltipClick}
@@ -498,7 +531,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
             )}
           </Header>
           
-          <ColumnsContainer>
+          <ColumnsContainer $darkMode={isDarkMode}>
             {data.columns?.map((col: any, i: number) => {
               return (
                 <Column 
@@ -506,53 +539,54 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
                   $isPrimaryKey={col.pk} 
                   $isForeignKey={col.fk}
                   $isUniqueKey={col.uq}
+                  $darkMode={isDarkMode}
                   onMouseEnter={(e) => handleMouseEnter(e, 'column', col)}
                   onMouseLeave={handleMouseLeave}
                   onClick={handleTooltipClick}
                   onMouseDown={handleTooltipMouseDown}
                 >
                   {/* 첫 번째 컬럼: 키 + 물리명 */}
-                  <ColumnKeyAndName>
+                  <ColumnKeyAndName $darkMode={isDarkMode}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {viewSettings.showKeys && col.pk && <IconWrapper $type="pk"><FaKey /></IconWrapper>}
                       {viewSettings.showKeys && col.fk && <IconWrapper $type="fk"><FaKey /></IconWrapper>}
                       {viewSettings.showKeys && col.uq && <IconWrapper $type="uq"><FaKey /></IconWrapper>}
                       {viewSettings.showPhysicalName && (
-                        <ColumnName $isPrimaryKey={col.pk}>{col.name}</ColumnName>
+                        <ColumnName $isPrimaryKey={col.pk} $darkMode={isDarkMode}>{col.name}</ColumnName>
                       )}
                     </div>
                   </ColumnKeyAndName>
                   
                   {/* 두 번째 컬럼: 논리명 */}
-                  <ColumnLogicalName style={{ display: viewSettings.showLogicalName ? 'table-cell' : 'none' }}>
-                    <ColumnLogicalText>
+                  <ColumnLogicalName $darkMode={isDarkMode} style={{ display: viewSettings.showLogicalName ? 'table-cell' : 'none' }}>
+                    <ColumnLogicalText $darkMode={isDarkMode}>
                       {col.logicalName || col.comment || col.name}
                     </ColumnLogicalText>
                   </ColumnLogicalName>
                   
                   {/* 세 번째 컬럼: 제약조건 */}
-                  <ColumnConstraints style={{ display: viewSettings.showConstraints ? 'table-cell' : 'none' }}>
+                  <ColumnConstraints $darkMode={isDarkMode} style={{ display: viewSettings.showConstraints ? 'table-cell' : 'none' }}>
                     {col.constraint && col.constraint !== 'AUTO_INCREMENT' && (
-                      <ColumnDetails>{col.constraint}</ColumnDetails>
+                      <ColumnDetails $darkMode={isDarkMode}>{col.constraint}</ColumnDetails>
                     )}
                     {(col.nn || col.nullable === false) && (
-                      <ColumnDetails>NN</ColumnDetails>
+                      <ColumnDetails $darkMode={isDarkMode}>NN</ColumnDetails>
                     )}
                     {col.ai && (
-                      <ColumnDetails>AI</ColumnDetails>
+                      <ColumnDetails $darkMode={isDarkMode}>AI</ColumnDetails>
                     )}
                   </ColumnConstraints>
                   
                   {/* 네 번째 컬럼: 기본값 */}
-                  <ColumnDefaults style={{ display: viewSettings.showDefaults ? 'table-cell' : 'none' }}>
+                  <ColumnDefaults $darkMode={isDarkMode} style={{ display: viewSettings.showDefaults ? 'table-cell' : 'none' }}>
                     {col.defaultValue && (
-                      <ColumnDetails>{col.defaultValue}</ColumnDetails>
+                      <ColumnDetails $darkMode={isDarkMode}>{col.defaultValue}</ColumnDetails>
                     )}
                   </ColumnDefaults>
                   
                   {/* 다섯 번째 컬럼: 데이터 타입 */}
-                  <ColumnTypeArea style={{ display: viewSettings.showDataType ? 'table-cell' : 'none' }}>
-                    <ColumnType>
+                  <ColumnTypeArea $darkMode={isDarkMode} style={{ display: viewSettings.showDataType ? 'table-cell' : 'none' }}>
+                    <ColumnType $darkMode={isDarkMode}>
                       {col.type}
                     </ColumnType>
                   </ColumnTypeArea>

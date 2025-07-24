@@ -3,12 +3,13 @@ import styled from 'styled-components';
 import { FaDatabase, FaKey } from 'react-icons/fa';
 import useStore from '../store/useStore';
 
-const PopupContainer = styled.div`
+const PopupContainer = styled.div<{ $darkMode?: boolean }>`
   position: absolute;
   bottom: 100px;
-  right: 20px;
-  background: white;
-  border: 1px solid #e0e0e0;
+  left: 53.5%;
+  transform: translateX(120px);
+  background: ${props => props.$darkMode ? '#374151' : 'white'};
+  border: 1px solid ${props => props.$darkMode ? '#4a5568' : '#e0e0e0'};
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   padding: 16px;
@@ -25,11 +26,11 @@ const Section = styled.div`
   }
 `;
 
-const SectionTitle = styled.h4`
+const SectionTitle = styled.h4<{ $darkMode?: boolean }>`
   margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: ${props => props.$darkMode ? '#e2e8f0' : '#333'};
   display: flex;
   align-items: center;
   gap: 8px;
@@ -41,13 +42,18 @@ const OptionGroup = styled.div`
   gap: 8px;
 `;
 
-const Option = styled.label`
+const Option = styled.label<{ $darkMode?: boolean }>`
   display: flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
   padding: 8px;
   border-radius: 6px;
+  color: ${props => props.$darkMode ? '#e2e8f0' : 'inherit'};
+  
+  &:hover {
+    background: ${props => props.$darkMode ? '#4a5568' : '#f8f9fa'};
+  }
   transition: background 0.2s ease;
   
   &:hover {
@@ -60,9 +66,9 @@ const Checkbox = styled.input`
   cursor: pointer;
 `;
 
-const OptionText = styled.span`
+const OptionText = styled.span<{ $darkMode?: boolean }>`
   font-size: 13px;
-  color: #555;
+  color: ${props => props.$darkMode ? '#a0aec0' : '#555'};
 `;
 
 const RadioGroup = styled.div`
@@ -71,7 +77,7 @@ const RadioGroup = styled.div`
   gap: 6px;
 `;
 
-const RadioOption = styled.label`
+const RadioOption = styled.label<{ $darkMode?: boolean }>`
   display: flex;
   align-items: center;
   gap: 8px;
@@ -79,9 +85,10 @@ const RadioOption = styled.label`
   padding: 6px 8px;
   border-radius: 6px;
   transition: background 0.2s ease;
+  color: ${props => props.$darkMode ? '#e2e8f0' : 'inherit'};
   
   &:hover {
-    background: rgba(0, 122, 204, 0.05);
+    background: ${props => props.$darkMode ? 'rgba(0, 122, 204, 0.15)' : 'rgba(0, 122, 204, 0.05)'};
   }
 `;
 
@@ -96,9 +103,11 @@ interface ViewPopupProps {
 }
 
 const ViewPopup: React.FC<ViewPopupProps> = ({ visible, onClose }) => {
-  const { viewSettings, updateViewSettings } = useStore();
+  const { viewSettings, updateViewSettings, theme } = useStore();
   
   if (!visible) return null;
+
+  const isDarkMode = theme === 'dark';
 
   const handleEntityViewChange = (value: 'logical' | 'physical' | 'both') => {
     updateViewSettings({ entityView: value });
@@ -109,14 +118,14 @@ const ViewPopup: React.FC<ViewPopupProps> = ({ visible, onClose }) => {
   };
 
   return (
-    <PopupContainer onClick={(e) => e.stopPropagation()}>
+    <PopupContainer $darkMode={isDarkMode} onClick={(e) => e.stopPropagation()}>
       <Section>
-        <SectionTitle>
+        <SectionTitle $darkMode={isDarkMode}>
           <FaDatabase size={14} />
           엔티티 보기방식
         </SectionTitle>
         <RadioGroup>
-          <RadioOption>
+          <RadioOption $darkMode={isDarkMode}>
             <RadioInput 
               type="radio" 
               name="entityView" 
@@ -124,9 +133,9 @@ const ViewPopup: React.FC<ViewPopupProps> = ({ visible, onClose }) => {
               checked={viewSettings.entityView === 'logical'}
               onChange={() => handleEntityViewChange('logical')}
             />
-            <OptionText>논리</OptionText>
+            <OptionText $darkMode={isDarkMode}>논리</OptionText>
           </RadioOption>
-          <RadioOption>
+          <RadioOption $darkMode={isDarkMode}>
             <RadioInput 
               type="radio" 
               name="entityView" 
@@ -134,9 +143,9 @@ const ViewPopup: React.FC<ViewPopupProps> = ({ visible, onClose }) => {
               checked={viewSettings.entityView === 'physical'}
               onChange={() => handleEntityViewChange('physical')}
             />
-            <OptionText>물리</OptionText>
+            <OptionText $darkMode={isDarkMode}>물리</OptionText>
           </RadioOption>
-          <RadioOption>
+          <RadioOption $darkMode={isDarkMode}>
             <RadioInput 
               type="radio" 
               name="entityView" 
@@ -144,64 +153,64 @@ const ViewPopup: React.FC<ViewPopupProps> = ({ visible, onClose }) => {
               checked={viewSettings.entityView === 'both'}
               onChange={() => handleEntityViewChange('both')}
             />
-            <OptionText>같이</OptionText>
+            <OptionText $darkMode={isDarkMode}>같이</OptionText>
           </RadioOption>
         </RadioGroup>
       </Section>
 
       <Section>
-        <SectionTitle>
+        <SectionTitle $darkMode={isDarkMode}>
           <FaKey size={14} />
           컬럼보기방식
         </SectionTitle>
         <OptionGroup>
-          <Option>
+          <Option $darkMode={isDarkMode}>
             <Checkbox 
               type="checkbox" 
               checked={viewSettings.showKeys}
               onChange={(e) => handleColumnOptionChange('showKeys', e.target.checked)}
             />
-            <OptionText>키</OptionText>
+            <OptionText $darkMode={isDarkMode}>키</OptionText>
           </Option>
-          <Option>
+          <Option $darkMode={isDarkMode}>
             <Checkbox 
               type="checkbox" 
               checked={viewSettings.showPhysicalName}
               onChange={(e) => handleColumnOptionChange('showPhysicalName', e.target.checked)}
             />
-            <OptionText>물리명</OptionText>
+            <OptionText $darkMode={isDarkMode}>물리명</OptionText>
           </Option>
-          <Option>
+          <Option $darkMode={isDarkMode}>
             <Checkbox 
               type="checkbox" 
               checked={viewSettings.showLogicalName}
               onChange={(e) => handleColumnOptionChange('showLogicalName', e.target.checked)}
             />
-            <OptionText>논리명</OptionText>
+            <OptionText $darkMode={isDarkMode}>논리명</OptionText>
           </Option>
-          <Option>
+          <Option $darkMode={isDarkMode}>
             <Checkbox 
               type="checkbox" 
               checked={viewSettings.showDataType}
               onChange={(e) => handleColumnOptionChange('showDataType', e.target.checked)}
             />
-            <OptionText>타입</OptionText>
+            <OptionText $darkMode={isDarkMode}>타입</OptionText>
           </Option>
-          <Option>
+          <Option $darkMode={isDarkMode}>
             <Checkbox 
               type="checkbox" 
               checked={viewSettings.showConstraints}
               onChange={(e) => handleColumnOptionChange('showConstraints', e.target.checked)}
             />
-            <OptionText>제약조건</OptionText>
+            <OptionText $darkMode={isDarkMode}>제약조건</OptionText>
           </Option>
-          <Option>
+          <Option $darkMode={isDarkMode}>
             <Checkbox 
               type="checkbox" 
               checked={viewSettings.showDefaults}
               onChange={(e) => handleColumnOptionChange('showDefaults', e.target.checked)}
             />
-            <OptionText>기본값</OptionText>
+            <OptionText $darkMode={isDarkMode}>기본값</OptionText>
           </Option>
         </OptionGroup>
       </Section>

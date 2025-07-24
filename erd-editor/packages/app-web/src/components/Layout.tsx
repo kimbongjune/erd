@@ -7,15 +7,16 @@ import Properties from './Properties';
 import useStore from '../store/useStore';
 import { toast } from 'react-toastify';
 
-const Container = styled.div`
+const Container = styled.div<{ $darkMode?: boolean }>`
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  background-color: ${props => props.$darkMode ? '#1E1E1E' : '#FFFFFF'};
 `;
 
-const TopContainer = styled.div`
+const TopContainer = styled.div<{ $darkMode?: boolean }>`
   display: grid;
   flex: 1;
   min-height: 0;
@@ -24,50 +25,51 @@ const TopContainer = styled.div`
   grid-template-areas:
     'header header header'
     'toolbox canvas properties';
+  background-color: ${props => props.$darkMode ? '#1E1E1E' : '#FFFFFF'};
 `;
 
-const ToolboxContainer = styled.aside`
+const ToolboxContainer = styled.aside<{ $darkMode?: boolean }>`
   grid-area: toolbox;
-  background-color: #f8f9fa;
-  border-right: 1px solid #ddd;
+  background-color: ${props => props.$darkMode ? '#2d3748' : '#f8f9fa'};
+  border-right: 1px solid ${props => props.$darkMode ? '#404040' : '#ddd'};
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 20px 0;
 `;
 
-const CanvasContainer = styled.main`
+const CanvasContainer = styled.main<{ $darkMode?: boolean }>`
   grid-area: canvas;
-  background-color: #ffffff;
+  background-color: ${props => props.$darkMode ? '#1E1E1E' : '#ffffff'};
   position: relative;
 `;
 
-const PropertiesContainer = styled.aside`
+const PropertiesContainer = styled.aside<{ $darkMode?: boolean }>`
   grid-area: properties;
-  background-color: #f8f9fa;
-  border-left: 1px solid #ddd;
+  background-color: ${props => props.$darkMode ? '#2d3748' : '#f8f9fa'};
+  border-left: 1px solid ${props => props.$darkMode ? '#404040' : '#ddd'};
   overflow-y: auto;
 `;
-const BottomPanelContainer = styled.div<{ $height: number }>`
-  background-color: #ffffff;
+const BottomPanelContainer = styled.div<{ $height: number; $darkMode?: boolean }>`
+  background-color: ${props => props.$darkMode ? '#2d3748' : '#ffffff'};
   height: ${props => props.$height}px;
-  border-top: 1px solid #d0d0d0;
+  border-top: 1px solid ${props => props.$darkMode ? '#404040' : '#d0d0d0'};
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   position: relative;
 `;
 
-const ResizeHandle = styled.div`
+const ResizeHandle = styled.div<{ $darkMode?: boolean }>`
   position: absolute;
   top: -4px;
   left: 0;
   right: 0;
   height: 8px;
-  background-color: #d0d0d0;
+  background-color: ${props => props.$darkMode ? '#404040' : '#d0d0d0'};
   cursor: ns-resize;
   z-index: 1001;
-  border: 1px solid #b0b0b0;
+  border: 1px solid ${props => props.$darkMode ? '#4a5568' : '#b0b0b0'};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -79,7 +81,7 @@ const ResizeHandle = styled.div`
   
   &:before {
     content: '⋯';
-    color: #666;
+    color: ${props => props.$darkMode ? '#e2e8f0' : '#666'};
     font-size: 14px;
     font-weight: bold;
   }
@@ -89,16 +91,16 @@ const ResizeHandle = styled.div`
   }
 `;
 
-const BottomPanelHeader = styled.div`
+const BottomPanelHeader = styled.div<{ $darkMode?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background-color: #f5f5f5;
-  border-bottom: 1px solid #d0d0d0;
+  background-color: ${props => props.$darkMode ? '#1E1E1E' : '#f5f5f5'};
+  border-bottom: 1px solid ${props => props.$darkMode ? '#404040' : '#d0d0d0'};
   font-size: 12px;
   font-weight: normal;
-  color: #333;
+  color: ${props => props.$darkMode ? '#e2e8f0' : '#333'};
   min-height: 32px;
   flex-shrink: 0;
 `;
@@ -127,7 +129,7 @@ const TableIcon = styled.div`
   }
 `;
 
-const CloseButton = styled.button`
+const CloseButton = styled.button<{ $darkMode?: boolean }>`
   background: none;
   border: none;
   width: 16px;
@@ -136,69 +138,71 @@ const CloseButton = styled.button`
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #666;
+  color: ${props => props.$darkMode ? '#cbd5e0' : '#666'};
   font-size: 14px;
   
   &:hover {
-    background-color: #e0e0e0;
-    color: #333;
+    background-color: ${props => props.$darkMode ? '#4a5568' : '#e0e0e0'};
+    color: ${props => props.$darkMode ? '#e2e8f0' : '#333'};
   }
 `;
 
-const TableContainer = styled.div`
+const TableContainer = styled.div<{ $darkMode?: boolean }>`
   flex: 1;
   overflow: auto;
-  background-color: #ffffff;
+  background-color: ${props => props.$darkMode ? '#1E1E1E' : '#ffffff'};
 `;
 
-const Table = styled.table`
+const Table = styled.table<{ $darkMode?: boolean }>`
   width: 100%;
   border-collapse: collapse;
   font-size: 11px;
+  color: ${props => props.$darkMode ? '#e2e8f0' : 'inherit'};
 `;
 
-const TableHeader = styled.thead`
-  background-color: #f8f8f8;
+const TableHeader = styled.thead<{ $darkMode?: boolean }>`
+  background-color: ${props => props.$darkMode ? '#2d3748' : '#f8f8f8'};
   position: sticky;
   top: 0;
   z-index: 1;
 `;
 
-const HeaderRow = styled.tr`
-  border-bottom: 1px solid #d0d0d0;
+const HeaderRow = styled.tr<{ $darkMode?: boolean }>`
+  border-bottom: 1px solid ${props => props.$darkMode ? '#404040' : '#d0d0d0'};
 `;
 
-const HeaderCell = styled.th`
+const HeaderCell = styled.th<{ $darkMode?: boolean }>`
   padding: 6px 8px;
   text-align: left;
   font-weight: normal;
-  color: #666;
-  border-right: 1px solid #e0e0e0;
+  color: ${props => props.$darkMode ? '#cbd5e0' : '#666'};
+  border-right: 1px solid ${props => props.$darkMode ? '#404040' : '#e0e0e0'};
   font-size: 11px;
   white-space: nowrap;
 `;
 
 const TableBody = styled.tbody``;
 
-const TableRow = styled.tr<{ $selected?: boolean }>`
-  border-bottom: 1px solid #f0f0f0;
-  background-color: ${props => props.$selected ? '#e6f3ff' : 'transparent'};
+const TableRow = styled.tr<{ $selected?: boolean; $darkMode?: boolean }>`
+  border-bottom: 1px solid ${props => props.$darkMode ? '#404040' : '#f0f0f0'};
+  background-color: ${props => props.$selected ? (props.$darkMode ? '#1a365d' : '#e6f3ff') : 'transparent'};
   cursor: pointer;
   
   &:hover {
-    background-color: ${props => props.$selected ? '#e6f3ff' : '#f8f8ff'};
+    background-color: ${props => props.$selected ? (props.$darkMode ? '#1a365d' : '#e6f3ff') : (props.$darkMode ? '#2d3748' : '#f8f8ff')};
   }
 `;
 
-const TableCell = styled.td`
+const TableCell = styled.td<{ $darkMode?: boolean }>`
   padding: 4px 8px;
-  border-right: 1px solid #e0e0e0;
+  border-right: 1px solid ${props => props.$darkMode ? '#404040' : '#e0e0e0'};
   font-size: 11px;
   position: relative;
   cursor: pointer;
+  color: ${props => props.$darkMode ? '#e2e8f0' : 'inherit'};
 `;
 
-const EditableCell = styled.input`
+const EditableCell = styled.input<{ $darkMode?: boolean }>`
   width: 100%;
   border: 1px solid transparent;
   background: transparent;
@@ -207,18 +211,27 @@ const EditableCell = styled.input`
   border-radius: 2px;
   pointer-events: none;
   cursor: default;
+  color: ${props => props.$darkMode ? '#e2e8f0' : 'inherit'};
+  
+  &::placeholder {
+    color: ${props => props.$darkMode ? '#9ca3af' : '#999'};
+  }
   
   &.editing {
     pointer-events: auto;
     cursor: text;
-    border-color: #ccc;
-    background-color: #fafafa;
+    border-color: ${props => props.$darkMode ? '#4a5568' : '#ccc'};
+    background-color: ${props => props.$darkMode ? '#2d3748' : '#fafafa'};
     
     &:focus {
-      background-color: white;
+      background-color: ${props => props.$darkMode ? '#374151' : 'white'};
       border: 1px solid #007acc;
       outline: none;
       box-shadow: 0 0 2px rgba(0,122,204,0.3);
+    }
+    
+    &::placeholder {
+      color: ${props => props.$darkMode ? '#6b7280' : '#aaa'};
     }
   }
 `;
@@ -233,41 +246,45 @@ const Checkbox = styled.input`
   height: 12px;
 `;
 
-const AddColumnRow = styled.tr`
-  background-color: #f8f8f8;
+const AddColumnRow = styled.tr<{ $darkMode?: boolean }>`
+  background-color: ${props => props.$darkMode ? '#2d3748' : '#f8f8f8'};
 `;
 
-const AddColumnCell = styled.td`
+const AddColumnCell = styled.td<{ $darkMode?: boolean }>`
   padding: 8px;
   text-align: center;
-  border-right: 1px solid #e0e0e0;
+  border-right: 1px solid ${props => props.$darkMode ? '#404040' : '#e0e0e0'};
   cursor: pointer;
-  color: #007acc;
+  color: ${props => props.$darkMode ? '#60a5fa' : '#007acc'};
   font-size: 11px;
+  font-weight: 600;
   
   &:hover {
-    background-color: #e6f3ff;
+    background-color: ${props => props.$darkMode ? '#1a365d' : '#e6f3ff'};
+    color: ${props => props.$darkMode ? '#93c5fd' : '#005a9e'};
   }
 `;
 
-const DeleteButton = styled.button`
+const DeleteButton = styled.button<{ $darkMode?: boolean }>`
   background: none;
   border: none;
-  color: #dc3545;
+  color: ${props => props.$darkMode ? '#f87171' : '#dc3545'};
   cursor: pointer;
   font-size: 12px;
+  font-weight: 600;
   padding: 2px 6px;
   border-radius: 2px;
   
   &:hover {
-    background-color: #f5c6cb;
+    background-color: ${props => props.$darkMode ? '#7f1d1d' : '#f5c6cb'};
+    color: ${props => props.$darkMode ? '#fca5a5' : '#721c24'};
   }
 `;
 
-const BottomSection = styled.div`
+const BottomSection = styled.div<{ $darkMode?: boolean }>`
   padding: 12px 16px 16px 16px;
-  background-color: #f8f8f8;
-  border-top: 1px solid #d0d0d0;
+  background-color: ${props => props.$darkMode ? '#2d3748' : '#f8f8f8'};
+  border-top: 1px solid ${props => props.$darkMode ? '#404040' : '#d0d0d0'};
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
@@ -282,21 +299,27 @@ const BottomField = styled.div`
   gap: 8px;
 `;
 
-const BottomLabel = styled.label`
-  color: #666;
+const BottomLabel = styled.label<{ $darkMode?: boolean }>`
+  color: ${props => props.$darkMode ? '#cbd5e0' : '#666'};
   min-width: 100px;
 `;
 
-const BottomInput = styled.input`
+const BottomInput = styled.input<{ $darkMode?: boolean }>`
   flex: 1;
   padding: 4px 6px;
-  border: 1px solid #d0d0d0;
+  border: 1px solid ${props => props.$darkMode ? '#4a5568' : '#d0d0d0'};
   font-size: 11px;
   height: 22px;
   border-radius: 2px;
+  background-color: ${props => props.$darkMode ? '#374151' : 'white'};
+  color: ${props => props.$darkMode ? '#e2e8f0' : 'inherit'};
+  
+  &::placeholder {
+    color: ${props => props.$darkMode ? '#9ca3af' : '#999'};
+  }
   
   &:hover {
-    border-color: #999;
+    border-color: ${props => props.$darkMode ? '#007acc' : '#999'};
   }
   
   &:focus {
@@ -306,79 +329,102 @@ const BottomInput = styled.input`
   }
 `;
 
-const TableNameInput = styled.input`
+const TableNameInput = styled.input<{ $darkMode?: boolean }>`
   background: transparent;
   border: 1px solid transparent;
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: ${props => props.$darkMode ? '#e2e8f0' : '#333'};
   padding: 4px 8px;
   border-radius: 3px;
   width: 120px;
   max-width: 120px;
   
   &:hover {
-    border-color: #ccc;
-    background-color: #fafafa;
+    border-color: ${props => props.$darkMode ? '#4a5568' : '#ccc'};
+    background-color: ${props => props.$darkMode ? '#2d3748' : '#fafafa'};
   }
   
   &:focus {
     border-color: #007acc;
     outline: none;
     box-shadow: 0 0 2px rgba(0,122,204,0.3);
-    background-color: white;
+    background-color: ${props => props.$darkMode ? '#374151' : 'white'};
   }
 `;
 
-const LogicalNameInput = styled.input`
+const LogicalNameInput = styled.input<{ $darkMode?: boolean }>`
   background: transparent;
   border: 1px solid transparent;
   font-size: 13px;
   font-weight: 400;
-  color: #666;
+  color: ${props => props.$darkMode ? '#cbd5e0' : '#666'};
   padding: 4px 8px;
   border-radius: 3px;
   width: 100px;
   max-width: 100px;
   
   &:hover {
-    border-color: #ccc;
-    background-color: #fafafa;
+    border-color: ${props => props.$darkMode ? '#4a5568' : '#ccc'};
+    background-color: ${props => props.$darkMode ? '#2d3748' : '#fafafa'};
   }
   
   &:focus {
     border-color: #007acc;
     outline: none;
     box-shadow: 0 0 2px rgba(0,122,204,0.3);
-    background-color: white;
+    background-color: ${props => props.$darkMode ? '#374151' : 'white'};
   }
 `;
 
-const TableNameDisplay = styled.div`
+const TableNameDisplay = styled.div<{ $darkMode?: boolean }>`
   font-size: 14px;
   font-weight: 600;
-  color: #666;
+  color: ${props => props.$darkMode ? '#e2e8f0' : '#666'};
   padding: 4px 8px;
   border-radius: 3px;
   min-width: 120px;
   cursor: pointer;
   
   &:hover {
-    background-color: #f0f0f0;
+    background-color: ${props => props.$darkMode ? '#2d3748' : '#f0f0f0'};
   }
 `;
 
-const LogicalNameDisplay = styled.div`
+const LogicalNameDisplay = styled.div<{ $darkMode?: boolean }>`
   font-size: 14px;
   font-weight: 600;
-  color: #666;
+  color: ${props => props.$darkMode ? '#e2e8f0' : '#666'};
   padding: 4px 8px;
   border-radius: 3px;
   min-width: 100px;
   cursor: pointer;
   
   &:hover {
-    background-color: #f0f0f0;
+    background-color: ${props => props.$darkMode ? '#2d3748' : '#f0f0f0'};
+  }
+`;
+
+const TableCommentTextarea = styled.textarea<{ $darkMode?: boolean }>`
+  width: 100%;
+  height: 60px;
+  padding: 8px;
+  border: 1px solid ${props => props.$darkMode ? '#4a5568' : '#ccc'};
+  border-radius: 4px;
+  fontSize: 12px;
+  resize: none;
+  font-family: inherit;
+  background-color: ${props => props.$darkMode ? '#374151' : 'white'};
+  color: ${props => props.$darkMode ? '#e2e8f0' : 'inherit'};
+  
+  &::placeholder {
+    color: ${props => props.$darkMode ? '#9ca3af' : '#999'};
+  }
+  
+  &:focus {
+    border-color: #007acc;
+    outline: none;
+    box-shadow: 0 0 2px rgba(0,122,204,0.3);
   }
 `;
 
@@ -390,7 +436,8 @@ const Layout = () => {
     nodes,
     setNodes,
     updateNodeData,
-    updateEdgeHandles
+    updateEdgeHandles,
+    theme
   } = useStore();
   const [bottomPanelHeight, setBottomPanelHeight] = useState(250);
   const [isDragging, setIsDragging] = useState(false);
@@ -759,29 +806,32 @@ const Layout = () => {
     }
   };
 
+  const isDarkMode = theme === 'dark';
+
   return (
-    <Container>
-      <TopContainer>
+    <Container $darkMode={isDarkMode}>
+      <TopContainer $darkMode={isDarkMode}>
         <Header />
-        <ToolboxContainer>
+        <ToolboxContainer $darkMode={isDarkMode}>
           <Toolbox />
         </ToolboxContainer>
-        <CanvasContainer>
+        <CanvasContainer $darkMode={isDarkMode}>
           <Canvas />
         </CanvasContainer>
-        <PropertiesContainer>
+        <PropertiesContainer $darkMode={isDarkMode}>
           <Properties />
         </PropertiesContainer>
       </TopContainer>
       {isBottomPanelOpen && (
-        <BottomPanelContainer $height={bottomPanelHeight}>
-          <ResizeHandle onMouseDown={handleMouseDown} />
-          <BottomPanelHeader>
+        <BottomPanelContainer $height={bottomPanelHeight} $darkMode={isDarkMode}>
+          <ResizeHandle onMouseDown={handleMouseDown} $darkMode={isDarkMode} />
+          <BottomPanelHeader $darkMode={isDarkMode}>
             <TableTitle>
               <TableIcon />
-              <span style={{ fontSize: '10px', color: '#666', marginRight: '4px' }}>물리명:</span>
+              <span style={{ fontSize: '10px', color: isDarkMode ? '#cbd5e0' : '#666', marginRight: '4px' }}>물리명:</span>
               {isEditingTableName ? (
                 <TableNameInput 
+                  $darkMode={isDarkMode}
                   value={tableName} 
                   onChange={(e) => updateTableName(e.target.value)}
                   onBlur={handleTableNameBlur}
@@ -790,14 +840,15 @@ const Layout = () => {
                   placeholder="물리명"
                 />
               ) : (
-                <TableNameDisplay onDoubleClick={handleTableNameDoubleClick}>
+                <TableNameDisplay $darkMode={isDarkMode} onDoubleClick={handleTableNameDoubleClick}>
                   {tableName || '물리명'}
                 </TableNameDisplay>
               )}
               <span style={{ margin: '0 8px', color: '#ccc' }}>/</span>
-              <span style={{ fontSize: '10px', color: '#666', marginRight: '4px' }}>논리명:</span>
+              <span style={{ fontSize: '10px', color: isDarkMode ? '#cbd5e0' : '#666', marginRight: '4px' }}>논리명:</span>
               {isEditingLogicalName ? (
                 <LogicalNameInput
+                  $darkMode={isDarkMode}
                   value={tableLogicalName}
                   onChange={(e) => updateTableLogicalName(e.target.value)}
                   onBlur={handleLogicalNameBlur}
@@ -806,29 +857,29 @@ const Layout = () => {
                   placeholder="논리명"
                 />
               ) : (
-                <LogicalNameDisplay onDoubleClick={handleLogicalNameDoubleClick}>
+                <LogicalNameDisplay $darkMode={isDarkMode} onDoubleClick={handleLogicalNameDoubleClick}>
                   {tableLogicalName || '논리명'}
                 </LogicalNameDisplay>
               )}
             </TableTitle>
-            <CloseButton onClick={() => setBottomPanelOpen(false)}>
+            <CloseButton $darkMode={isDarkMode} onClick={() => setBottomPanelOpen(false)}>
               ×
             </CloseButton>
           </BottomPanelHeader>
-          <TableContainer>
-            <Table>
-              <TableHeader>
-                <HeaderRow>
-                  <HeaderCell key="order" style={{ width: '60px' }}>순서</HeaderCell>
-                  <HeaderCell key="column-name">Column Name (물리명)</HeaderCell>
-                  <HeaderCell key="logical-name">Logical Name (논리명)</HeaderCell>
-                  <HeaderCell key="datatype">Datatype</HeaderCell>
-                  <HeaderCell key="pk">PK</HeaderCell>
-                  <HeaderCell key="nn">NN</HeaderCell>
-                  <HeaderCell key="uq">UQ</HeaderCell>
-                  <HeaderCell key="ai">AI</HeaderCell>
-                  <HeaderCell key="default">Default/Expression</HeaderCell>
-                  <HeaderCell key="delete">Delete</HeaderCell>
+          <TableContainer $darkMode={isDarkMode}>
+            <Table $darkMode={isDarkMode}>
+              <TableHeader $darkMode={isDarkMode}>
+                <HeaderRow $darkMode={isDarkMode}>
+                  <HeaderCell $darkMode={isDarkMode} key="order" style={{ width: '60px' }}>순서</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="column-name">Column Name (물리명)</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="logical-name">Logical Name (논리명)</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="datatype">Datatype</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="pk">PK</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="nn">NN</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="uq">UQ</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="ai">AI</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="default">Default/Expression</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="delete">Delete</HeaderCell>
                 </HeaderRow>
               </TableHeader>
               <TableBody>
@@ -836,10 +887,11 @@ const Layout = () => {
                   <TableRow 
                     key={`row-${column.id}`} 
                     $selected={selectedColumn?.id === column.id}
+                    $darkMode={isDarkMode}
                     onClick={(e) => handleRowClick(column, e)}
                   >
                     {/* 순서 변경 버튼 */}
-                    <TableCell style={{ width: '70px', textAlign: 'center', padding: '8px 4px' }}>
+                    <TableCell $darkMode={isDarkMode} style={{ width: '70px', textAlign: 'center', padding: '8px 4px' }}>
                       <div style={{ display: 'flex', gap: '3px', justifyContent: 'center', alignItems: 'center' }}>
                         <button
                           onClick={(e) => {
@@ -848,9 +900,9 @@ const Layout = () => {
                           }}
                           disabled={index === 0}
                           style={{
-                            background: index === 0 ? '#f8f9fa' : '#fff',
-                            border: '1px solid #e0e0e0',
-                            color: index === 0 ? '#adb5bd' : '#495057',
+                            background: index === 0 ? (isDarkMode ? '#1a202c' : '#e9ecef') : (isDarkMode ? '#4a5568' : '#fff'),
+                            border: `1px solid ${isDarkMode ? '#2d3748' : '#dee2e6'}`,
+                            color: index === 0 ? (isDarkMode ? '#4a5568' : '#6c757d') : (isDarkMode ? '#f7fafc' : '#495057'),
                             borderRadius: '3px',
                             cursor: index === 0 ? 'not-allowed' : 'pointer',
                             fontSize: '10px',
@@ -860,7 +912,8 @@ const Layout = () => {
                             height: '22px',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center'
+                            justifyContent: 'center',
+                            transition: 'all 0.2s ease'
                           }}
                           title="위로 이동"
                         >
@@ -873,9 +926,9 @@ const Layout = () => {
                           }}
                           disabled={index === columns.length - 1}
                           style={{
-                            background: index === columns.length - 1 ? '#f8f9fa' : '#fff',
-                            border: '1px solid #e0e0e0',
-                            color: index === columns.length - 1 ? '#adb5bd' : '#495057',
+                            background: index === columns.length - 1 ? (isDarkMode ? '#1a202c' : '#e9ecef') : (isDarkMode ? '#4a5568' : '#fff'),
+                            border: `1px solid ${isDarkMode ? '#2d3748' : '#dee2e6'}`,
+                            color: index === columns.length - 1 ? (isDarkMode ? '#4a5568' : '#6c757d') : (isDarkMode ? '#f7fafc' : '#495057'),
                             borderRadius: '3px',
                             cursor: index === columns.length - 1 ? 'not-allowed' : 'pointer',
                             fontSize: '10px',
@@ -885,7 +938,8 @@ const Layout = () => {
                             height: '22px',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center'
+                            justifyContent: 'center',
+                            transition: 'all 0.2s ease'
                           }}
                           title="아래로 이동"
                         >
@@ -893,8 +947,9 @@ const Layout = () => {
                         </button>
                       </div>
                     </TableCell>
-                    <TableCell key={`${column.id}-name`} onDoubleClick={() => handleCellDoubleClick(column.id, 'name')}>
+                    <TableCell $darkMode={isDarkMode} key={`${column.id}-name`} onDoubleClick={() => handleCellDoubleClick(column.id, 'name')}>
                       <EditableCell 
+                        $darkMode={isDarkMode}
                         className={editingCell === `${column.id}-name` ? 'editing' : ''}
                         data-editing={editingCell === `${column.id}-name` ? `${column.id}-name` : ''}
                         value={column.name || ''}
@@ -903,8 +958,9 @@ const Layout = () => {
                         readOnly={editingCell !== `${column.id}-name`}
                       />
                     </TableCell>
-                    <TableCell key={`${column.id}-logical`} onDoubleClick={() => handleCellDoubleClick(column.id, 'logicalName')}>
+                    <TableCell $darkMode={isDarkMode} key={`${column.id}-logical`} onDoubleClick={() => handleCellDoubleClick(column.id, 'logicalName')}>
                       <EditableCell 
+                        $darkMode={isDarkMode}
                         className={editingCell === `${column.id}-logicalName` ? 'editing' : ''}
                         data-editing={editingCell === `${column.id}-logicalName` ? `${column.id}-logicalName` : ''}
                         value={column.logicalName || ''}
@@ -913,8 +969,9 @@ const Layout = () => {
                         readOnly={editingCell !== `${column.id}-logicalName`}
                       />
                     </TableCell>
-                    <TableCell key={`${column.id}-datatype`} onDoubleClick={() => handleCellDoubleClick(column.id, 'dataType')}>
+                    <TableCell $darkMode={isDarkMode} key={`${column.id}-datatype`} onDoubleClick={() => handleCellDoubleClick(column.id, 'dataType')}>
                       <EditableCell 
+                        $darkMode={isDarkMode}
                         className={editingCell === `${column.id}-dataType` ? 'editing' : ''}
                         data-editing={editingCell === `${column.id}-dataType` ? `${column.id}-dataType` : ''}
                         value={column.dataType || ''}
@@ -923,14 +980,14 @@ const Layout = () => {
                         readOnly={editingCell !== `${column.id}-dataType`}
                       />
                     </TableCell>
-                    <CheckboxCell key={`${column.id}-pk`}>
+                    <CheckboxCell $darkMode={isDarkMode} key={`${column.id}-pk`}>
                       <Checkbox 
                         type="checkbox" 
                         checked={column.pk || false} 
                         onChange={(e) => updateColumnField(column.id, 'pk', e.target.checked)}
                       />
                     </CheckboxCell>
-                    <CheckboxCell key={`${column.id}-nn`}>
+                    <CheckboxCell $darkMode={isDarkMode} key={`${column.id}-nn`}>
                       <Checkbox 
                         type="checkbox" 
                         checked={column.nn || column.pk || false} 
@@ -938,14 +995,14 @@ const Layout = () => {
                         onChange={(e) => updateColumnField(column.id, 'nn', e.target.checked)}
                       />
                     </CheckboxCell>
-                    <CheckboxCell key={`${column.id}-uq`}>
+                    <CheckboxCell $darkMode={isDarkMode} key={`${column.id}-uq`}>
                       <Checkbox 
                         type="checkbox" 
                         checked={column.uq || false} 
                         onChange={(e) => updateColumnField(column.id, 'uq', e.target.checked)}
                       />
                     </CheckboxCell>
-                    <CheckboxCell key={`${column.id}-ai`}>
+                    <CheckboxCell $darkMode={isDarkMode} key={`${column.id}-ai`}>
                       <Checkbox 
                         type="checkbox" 
                         checked={column.ai || false} 
@@ -957,8 +1014,9 @@ const Layout = () => {
                         onChange={(e) => updateColumnField(column.id, 'ai', e.target.checked)}
                       />
                     </CheckboxCell>
-                    <TableCell key={`${column.id}-default`} onDoubleClick={() => handleCellDoubleClick(column.id, 'defaultValue')}>
+                    <TableCell $darkMode={isDarkMode} key={`${column.id}-default`} onDoubleClick={() => handleCellDoubleClick(column.id, 'defaultValue')}>
                       <EditableCell 
+                        $darkMode={isDarkMode}
                         className={editingCell === `${column.id}-defaultValue` ? 'editing' : ''}
                         data-editing={editingCell === `${column.id}-defaultValue` ? `${column.id}-defaultValue` : ''}
                         value={column.defaultValue || ''}
@@ -968,15 +1026,15 @@ const Layout = () => {
                         placeholder="Default value"
                       />
                     </TableCell>
-                    <TableCell key={`${column.id}-delete`}>
-                      <DeleteButton onClick={() => deleteColumn(column.id)}>
+                    <TableCell $darkMode={isDarkMode} key={`${column.id}-delete`}>
+                      <DeleteButton $darkMode={isDarkMode} onClick={() => deleteColumn(column.id)}>
                         Delete
                       </DeleteButton>
                     </TableCell>
                   </TableRow>
                 ))}
-                <AddColumnRow key="add-column">
-                  <AddColumnCell colSpan={10} onClick={addColumn}>
+                <AddColumnRow $darkMode={isDarkMode} key="add-column">
+                  <AddColumnCell $darkMode={isDarkMode} colSpan={10} onClick={addColumn}>
                     + Add Column
                   </AddColumnCell>
                 </AddColumnRow>
@@ -987,8 +1045,8 @@ const Layout = () => {
           {/* 테이블 커멘트 입력 영역 */}
           <div style={{ 
             padding: '15px', 
-            borderTop: '1px solid #ddd',
-            backgroundColor: '#f8f9fa'
+            borderTop: `1px solid ${isDarkMode ? '#404040' : '#ddd'}`,
+            backgroundColor: isDarkMode ? '#2d3748' : '#f8f9fa'
           }}>
             <div style={{ marginBottom: '10px' }}>
               <label style={{ 
@@ -996,11 +1054,12 @@ const Layout = () => {
                 marginBottom: '5px', 
                 fontSize: '12px',
                 fontWeight: 'bold',
-                color: '#333'
+                color: isDarkMode ? '#e2e8f0' : '#333'
               }}>
                 Table Comment:
               </label>
-              <textarea
+              <TableCommentTextarea
+                $darkMode={isDarkMode}
                 value={nodes.find(n => n.id === selectedNodeId)?.data?.comment || ''}
                 onChange={(e) => {
                   if (selectedNodeId) {
@@ -1013,41 +1072,34 @@ const Layout = () => {
                     }
                   }
                 }}
-                style={{ 
-                  width: '100%', 
-                  height: '60px',
-                  padding: '8px', 
-                  border: '1px solid #ccc', 
-                  borderRadius: '4px',
-                  fontSize: '12px',
-                  resize: 'none',
-                  fontFamily: 'inherit'
-                }}
                 placeholder="테이블에 대한 설명을 입력하세요..."
               />
             </div>
           </div>
           
-          <BottomSection>
+          <BottomSection $darkMode={isDarkMode}>
             <BottomField>
-              <BottomLabel>Column Name:</BottomLabel>
+              <BottomLabel $darkMode={isDarkMode}>Column Name:</BottomLabel>
               <BottomInput 
+                $darkMode={isDarkMode}
                 type="text" 
                 value={selectedColumn?.name || ''} 
                 onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'name', e.target.value)}
               />
             </BottomField>
             <BottomField>
-              <BottomLabel>Data Type:</BottomLabel>
+              <BottomLabel $darkMode={isDarkMode}>Data Type:</BottomLabel>
               <BottomInput 
+                $darkMode={isDarkMode}
                 type="text" 
                 value={selectedColumn?.dataType || ''} 
                 onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'dataType', e.target.value)}
               />
             </BottomField>
             <BottomField>
-              <BottomLabel>Default:</BottomLabel>
+              <BottomLabel $darkMode={isDarkMode}>Default:</BottomLabel>
               <BottomInput 
+                $darkMode={isDarkMode}
                 type="text" 
                 value={selectedColumn?.defaultValue || ''} 
                 onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'defaultValue', e.target.value)}
@@ -1055,8 +1107,9 @@ const Layout = () => {
               />
             </BottomField>
             <BottomField>
-              <BottomLabel>Comments:</BottomLabel>
+              <BottomLabel $darkMode={isDarkMode}>Comments:</BottomLabel>
               <BottomInput 
+                $darkMode={isDarkMode}
                 type="text" 
                 value={selectedColumn?.comment || ''} 
                 onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'comment', e.target.value)}

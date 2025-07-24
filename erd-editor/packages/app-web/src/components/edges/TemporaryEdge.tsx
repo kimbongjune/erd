@@ -1,5 +1,6 @@
 import React from 'react';
 import { BaseEdge, getSmoothStepPath, EdgeProps, Position } from 'reactflow';
+import useStore from '../../store/useStore';
 
 interface TemporaryEdgeProps extends EdgeProps {
   data?: {
@@ -13,8 +14,18 @@ interface TemporaryEdgeProps extends EdgeProps {
 const TemporaryEdge: React.FC<TemporaryEdgeProps> = ({
   id,
   data,
-  style = { strokeWidth: 3, stroke: '#ff0000', strokeDasharray: '10, 5' }, // Make it more visible
+  style = {}, // Remove default style
 }) => {
+  const theme = useStore((state) => state.theme);
+  const isDarkMode = theme === 'dark';
+  
+  const defaultStyle = {
+    strokeWidth: 3,
+    stroke: isDarkMode ? '#ff6b7a' : '#ff0000', // Slightly lighter red for dark mode
+    strokeDasharray: '10, 5', // Make it more visible
+    ...style
+  };
+  
   if (!data) {
     return null;
   }
@@ -32,7 +43,7 @@ const TemporaryEdge: React.FC<TemporaryEdgeProps> = ({
 
   return (
     <g>
-      <BaseEdge id={id} path={edgePath} style={style} />
+      <BaseEdge id={id} path={edgePath} style={defaultStyle} />
       {/* Add a circle at the target position to show where the connection will be made */}
       <circle
         cx={targetX}

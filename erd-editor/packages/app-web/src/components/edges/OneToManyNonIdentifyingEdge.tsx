@@ -1,5 +1,6 @@
 import React from 'react';
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath } from 'reactflow';
+import useStore from '../../store/useStore';
 
 interface OneToManyNonIdentifyingEdgeProps {
   id: string;
@@ -22,9 +23,18 @@ const OneToManyNonIdentifyingEdge: React.FC<OneToManyNonIdentifyingEdgeProps> = 
   targetY,
   sourcePosition,
   targetPosition,
-  style = { strokeWidth: 1.5, stroke: 'black', strokeDasharray: '5, 5' }, // Add dashed style for non-identifying
+  style = {}, // Remove default style
   data,
 }) => {
+  const theme = useStore((state) => state.theme);
+  const isDarkMode = theme === 'dark';
+  
+  const defaultStyle = {
+    strokeWidth: 1.5,
+    stroke: isDarkMode ? '#e2e8f0' : '#333333',
+    strokeDasharray: '5, 5', // Add dashed style for non-identifying
+    ...style
+  };
   const markerStart = data?.markerStart ? `url(#${data.markerStart.id})` : 'url(#marker-parent)';
   const markerEnd = data?.markerEnd ? `url(#${data.markerEnd.id})` : 'url(#marker-crow-many)';
 
@@ -44,7 +54,7 @@ const OneToManyNonIdentifyingEdge: React.FC<OneToManyNonIdentifyingEdgeProps> = 
 
   return (
     <>
-      <BaseEdge id={id} path={edgePath} style={edgeStyle} markerStart={markerStart} markerEnd={markerEnd} />
+      <BaseEdge id={id} path={edgePath} style={defaultStyle} markerStart={markerStart} markerEnd={markerEnd} />
     </>
   );
 };

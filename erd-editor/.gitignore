@@ -54,3 +54,7 @@ ehthumbs.db
 *.bak
 *.swp
 *.swo
+
+/.vite
+.vite
+.vite/**

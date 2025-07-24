@@ -61,6 +61,7 @@ const Canvas = () => {
   const onEdgesChange = useStore((state) => state.onEdgesChange);
   const setSelectedNodeId = useStore((state) => state.setSelectedNodeId);
   const setSelectedEdgeId = useStore((state) => state.setSelectedEdgeId);
+  const setHoveredEdgeId = useStore((state) => state.setHoveredEdgeId);
   const setBottomPanelOpen = useStore((state) => state.setBottomPanelOpen);
   const connectionMode = useStore((state) => state.connectionMode);
   const connectingNodeId = useStore((state) => state.connectingNodeId);
@@ -183,6 +184,11 @@ const Canvas = () => {
     if (connectionMode && node.type === 'entity') {
       event.preventDefault();
       event.stopPropagation();
+      
+      // 새로운 관계선 그리기 시작 시 기존 활성화 상태 해제
+      setSelectedEdgeId(null);
+      setHoveredEdgeId(null);
+      
       setConnectingNodeId(node.id);
 
       // ReactFlow 컨테이너의 bounds 가져오기
@@ -277,10 +283,19 @@ const Canvas = () => {
   }, [setSelectedNodeId, setSelectedEdgeId, setBottomPanelOpen]);
 
   const handleEdgeClick = useCallback((_: MouseEvent, edge: Edge) => {
-    setSelectedEdgeId(edge.id);
+    const currentSelectedEdgeId = useStore.getState().selectedEdgeId;
+    setSelectedEdgeId(currentSelectedEdgeId === edge.id ? null : edge.id);
     setSelectedNodeId(null); // Clear node selection when edge is selected
     setBottomPanelOpen(false); // Close bottom panel when edge is selected
   }, [setSelectedEdgeId, setSelectedNodeId, setBottomPanelOpen]);
+
+  const handleEdgeMouseEnter = useCallback((_: MouseEvent, edge: Edge) => {
+    setHoveredEdgeId(edge.id);
+  }, [setHoveredEdgeId]);
+
+  const handleEdgeMouseLeave = useCallback(() => {
+    setHoveredEdgeId(null);
+  }, [setHoveredEdgeId]);
 
     // 컨텍스트 메뉴 핸들러들
   const handleNodeContextMenu = useCallback((event: MouseEvent, node: Node) => {
@@ -474,12 +489,15 @@ const Canvas = () => {
 
       if (targetNodeId && targetNodeId !== connectingNodeId) {
         finishConnection(targetNodeId);
+        // 관계선 연결 완료 후 활성화 상태 해제
+        setSelectedEdgeId(null);
+        setHoveredEdgeId(null);
       } else {
         cancelConnection();
       }
       setTemporaryEdge(null);
     }
-  }, [connectingNodeId, temporaryEdge, finishConnection, cancelConnection]);
+  }, [connectingNodeId, temporaryEdge, finishConnection, cancelConnection, setSelectedEdgeId, setHoveredEdgeId]);
 
   return (
     <div 
@@ -503,10 +521,22 @@ const Canvas = () => {
             viewBox="0 0 10 10"
             refX="8"
             refY="5"
-            markerUnits="strokeWidth"
+            markerUnits="userSpaceOnUse"
             orient="auto"
           >
             <path d="M 0 5 L 10 0 M 0 5 L 10 5 M 0 5 L 10 10" stroke={isDarkMode ? "#e2e8f0" : "#333333"} strokeWidth="1" fill="none" />
+          </marker>
+          <marker
+            id="marker-crow-many-active"
+            markerWidth="10"
+            markerHeight="10"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerUnits="userSpaceOnUse"
+            orient="auto"
+          >
+            <path d="M 0 5 L 10 0 M 0 5 L 10 5 M 0 5 L 10 10" stroke="#3b82f6" strokeWidth="1" fill="none" />
           </marker>
           <marker
             id="marker-parent"
@@ -515,10 +545,46 @@ const Canvas = () => {
             viewBox="-6 -6 12 12"
             refX="-8"
             refY="0"
-            markerUnits="strokeWidth"
+            markerUnits="userSpaceOnUse"
             orient="auto"
           >
             <path d="M-2,-6 L-2,6" stroke={isDarkMode ? "#e2e8f0" : "#333333"} strokeWidth="1" fill="none" />
+          </marker>
+          <marker
+            id="marker-parent-active"
+            markerWidth="12"
+            markerHeight="12"
+            viewBox="-6 -6 12 12"
+            refX="-8"
+            refY="0"
+            markerUnits="userSpaceOnUse"
+            orient="auto"
+          >
+            <path d="M-2,-6 L-2,6" stroke="#3b82f6" strokeWidth="1" fill="none" />
+          </marker>
+          <marker
+            id="marker-one"
+            markerWidth="10"
+            markerHeight="10"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerUnits="userSpaceOnUse"
+            orient="auto"
+          >
+            <path d="M 8 1 L 8 9" stroke={isDarkMode ? "#e2e8f0" : "#333333"} strokeWidth="1" fill="none" />
+          </marker>
+          <marker
+            id="marker-one-active"
+            markerWidth="10"
+            markerHeight="10"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerUnits="userSpaceOnUse"
+            orient="auto"
+          >
+            <path d="M 8 1 L 8 9" stroke="#3b82f6" strokeWidth="1" fill="none" />
           </marker>
         </defs>
       </svg>
@@ -601,6 +667,8 @@ const Canvas = () => {
         onNodeDrag={handleNodeDrag}
         onNodeDragStop={handleNodeDragStop}
         onEdgeClick={handleEdgeClick}
+        onEdgeMouseEnter={handleEdgeMouseEnter}
+        onEdgeMouseLeave={handleEdgeMouseLeave}
         onEdgeContextMenu={handleEdgeContextMenu}
         onPaneClick={handlePaneClick}
         onPaneContextMenu={handleContextMenuClose}
@@ -610,7 +678,7 @@ const Canvas = () => {
         nodesDraggable={!connectionMode}
         connectionLineComponent={connectionMode ? CustomConnectionLine : undefined}
         elevateNodesOnSelect={false}
-        elevateEdgesOnSelect={true}
+        elevateEdgesOnSelect={false}
         selectNodesOnDrag={false}
         panOnScroll={false}
         zoomOnScroll={true}
@@ -625,6 +693,11 @@ const Canvas = () => {
         proOptions={{ hideAttribution: true }}
         deleteKeyCode={null}
         multiSelectionKeyCode={null}
+        onlyRenderVisibleElements={false}
+        elementsSelectable={true}
+        fitView={false}
+        snapToGrid={false}
+        snapGrid={[15, 15]}
       >
         <MiniMap 
           nodeColor={(node) => node.type === 'comment' ? 'transparent' : (isDarkMode ? '#4a5568' : '#e2e8f0')}

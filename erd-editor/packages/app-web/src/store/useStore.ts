@@ -39,6 +39,7 @@ type RFState = {
   edges: Edge[];
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
+  hoveredEdgeId: string | null;
   isBottomPanelOpen: boolean;
   connectionMode: string | null;
   connectingNodeId: string | null;
@@ -209,6 +210,7 @@ const useStore = create<RFState>((set, get) => ({
   edges: [],
   selectedNodeId: null,
   selectedEdgeId: null,
+  hoveredEdgeId: null,
   isBottomPanelOpen: false,
   connectionMode: null,
   connectingNodeId: null,
@@ -267,6 +269,7 @@ const useStore = create<RFState>((set, get) => ({
   },
   setSelectedNodeId: (id) => set({ selectedNodeId: id }),
   setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
+  setHoveredEdgeId: (id: string | null) => set({ hoveredEdgeId: id }),
   setBottomPanelOpen: (isOpen) => set({ isBottomPanelOpen: isOpen }),
   deleteNode: (id) => {
     set((state) => {

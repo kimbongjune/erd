@@ -535,11 +535,9 @@ const Layout = () => {
         if (field === 'pk' && value === true) {
           updatedCol.nn = true;
           updatedCol.uq = false; // PK 체크하면 UQ 해제
-          toast.info('PK 설정으로 NN이 자동 체크되었습니다.');
         } else if (field === 'uq' && value === true && col.pk === true) {
           updatedCol.pk = false; // UQ 체크하면 PK 해제
           updatedCol.nn = false; // PK 해제 시 NN도 해제 가능하게
-          toast.info('UQ 설정으로 PK가 해제되었습니다.');
           
           // PK를 UQ로 변경했을 때 관계 해제
           const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
@@ -558,7 +556,10 @@ const Layout = () => {
         
         // AI 설정 시 체크 (PK이면서 INT 타입인지 확인)
         if (field === 'ai' && value === true) {
-          if (!updatedCol.pk || !updatedCol.dataType?.toUpperCase().includes('INT')) {
+          const dataType = updatedCol.dataType?.toUpperCase().trim();
+          const isIntType = /^(INT|INTEGER|BIGINT|SMALLINT|TINYINT)(\(\d+\))?$/.test(dataType || '');
+          
+          if (!updatedCol.pk || !isIntType) {
             toast.error('AI는 PK이면서 INT 타입인 컬럼에만 설정할 수 있습니다.');
             return col; // 변경하지 않음
           }
@@ -567,6 +568,16 @@ const Layout = () => {
         // dataType이 변경되면 type도 함께 업데이트 (EntityNode에서 사용)
         if (field === 'dataType') {
           updatedCol.type = value;
+          
+          // 데이터타입이 INT 계열이 아니면 AI 해제
+          const dataType = value?.toUpperCase().trim();
+          const isIntType = /^(INT|INTEGER|BIGINT|SMALLINT|TINYINT)(\(\d+\))?$/.test(dataType || '');
+          
+          if (updatedCol.ai && !isIntType) {
+            updatedCol.ai = false;
+            updatedCol.constraint = null;
+            toast.info('데이터타입이 INT 계열이 아니므로 AI가 해제되었습니다.');
+          }
         }
         
         // AI 체크박스 변경 시 constraint도 함께 업데이트
@@ -709,6 +720,32 @@ const Layout = () => {
     setEditingCell(null);
   };
 
+  // 컬럼 순서 변경 함수
+  const moveColumn = (columnId: string, direction: 'up' | 'down') => {
+    const currentIndex = columns.findIndex(col => col.id === columnId);
+    if (currentIndex === -1) return;
+
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= columns.length) return;
+
+    const newColumns = [...columns];
+    [newColumns[currentIndex], newColumns[newIndex]] = [newColumns[newIndex], newColumns[currentIndex]];
+    
+    setColumns(newColumns);
+
+    // 엔티티 노드의 데이터 업데이트
+    if (selectedNodeId) {
+      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+      if (selectedNode && selectedNode.type === 'entity') {
+        updateNodeData(selectedNodeId, {
+          ...selectedNode.data,
+          columns: newColumns,
+          label: tableName
+        });
+      }
+    }
+  };
+
   const handleRowClick = (column: any, e: React.MouseEvent) => {
     // 더블클릭이나 input 클릭이 아닌 경우에만 행 선택
     if ((e.target as HTMLElement).tagName !== 'INPUT') {
@@ -776,6 +813,7 @@ const Layout = () => {
             <Table>
               <TableHeader>
                 <HeaderRow>
+                  <HeaderCell key="order" style={{ width: '60px' }}>순서</HeaderCell>
                   <HeaderCell key="column-name">Column Name (물리명)</HeaderCell>
                   <HeaderCell key="logical-name">Logical Name (논리명)</HeaderCell>
                   <HeaderCell key="datatype">Datatype</HeaderCell>
@@ -788,12 +826,67 @@ const Layout = () => {
                 </HeaderRow>
               </TableHeader>
               <TableBody>
-                {columns.map((column) => (
+                {columns.map((column, index) => (
                   <TableRow 
                     key={`row-${column.id}`} 
                     $selected={selectedColumn?.id === column.id}
                     onClick={(e) => handleRowClick(column, e)}
                   >
+                    {/* 순서 변경 버튼 */}
+                    <TableCell style={{ width: '70px', textAlign: 'center', padding: '8px 4px' }}>
+                      <div style={{ display: 'flex', gap: '3px', justifyContent: 'center', alignItems: 'center' }}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            moveColumn(column.id, 'up');
+                          }}
+                          disabled={index === 0}
+                          style={{
+                            background: index === 0 ? '#f8f9fa' : '#fff',
+                            border: '1px solid #e0e0e0',
+                            color: index === 0 ? '#adb5bd' : '#495057',
+                            borderRadius: '3px',
+                            cursor: index === 0 ? 'not-allowed' : 'pointer',
+                            fontSize: '10px',
+                            padding: '3px 5px',
+                            fontWeight: 'normal',
+                            minWidth: '20px',
+                            height: '22px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="위로 이동"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            moveColumn(column.id, 'down');
+                          }}
+                          disabled={index === columns.length - 1}
+                          style={{
+                            background: index === columns.length - 1 ? '#f8f9fa' : '#fff',
+                            border: '1px solid #e0e0e0',
+                            color: index === columns.length - 1 ? '#adb5bd' : '#495057',
+                            borderRadius: '3px',
+                            cursor: index === columns.length - 1 ? 'not-allowed' : 'pointer',
+                            fontSize: '10px',
+                            padding: '3px 5px',
+                            fontWeight: 'normal',
+                            minWidth: '20px',
+                            height: '22px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="아래로 이동"
+                        >
+                          ▼
+                        </button>
+                      </div>
+                    </TableCell>
                     <TableCell key={`${column.id}-name`} onDoubleClick={() => handleCellDoubleClick(column.id, 'name')}>
                       <EditableCell 
                         className={editingCell === `${column.id}-name` ? 'editing' : ''}
@@ -850,7 +943,11 @@ const Layout = () => {
                       <Checkbox 
                         type="checkbox" 
                         checked={column.ai || false} 
-                        disabled={!column.pk || !column.dataType?.toUpperCase().includes('INT')}
+                        disabled={(() => {
+                          const dataType = column.dataType?.toUpperCase().trim();
+                          const isIntType = /^(INT|INTEGER|BIGINT|SMALLINT|TINYINT)(\(\d+\))?$/.test(dataType || '');
+                          return !column.pk || !isIntType;
+                        })()}
                         onChange={(e) => updateColumnField(column.id, 'ai', e.target.checked)}
                       />
                     </CheckboxCell>

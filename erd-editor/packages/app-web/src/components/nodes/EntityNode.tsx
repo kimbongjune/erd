@@ -25,7 +25,7 @@ interface Column {
 const NodeContainer = styled.div<{ $isSelected: boolean }>`
   min-width: 240px;
   width: auto;
-  min-height: 120px;
+  min-height: 60px;
   height: fit-content;
   border: 3px solid ${props => props.$isSelected ? '#007acc' : '#ddd'};
   background-color: ${props => props.$isSelected ? '#f0f8ff' : '#fff'};
@@ -67,7 +67,7 @@ const NodeContainer = styled.div<{ $isSelected: boolean }>`
 `;
 
 const Header = styled.div`
-  padding: 8px 16px;
+  padding: 8px 12px;
   background: linear-gradient(135deg, #007acc 0%, #005999 100%);
   color: white;
   font-weight: 600;
@@ -79,6 +79,8 @@ const Header = styled.div`
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
 `;
 
 const EntityName = styled.div`
@@ -144,7 +146,7 @@ const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean; $i
 
 const ColumnKeyAndName = styled.div`
   display: table-cell;
-  padding: 8px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid #f0f0f0;
   font-size: 13px;
   vertical-align: middle;
@@ -154,7 +156,7 @@ const ColumnKeyAndName = styled.div`
 
 const ColumnLogicalName = styled.div`
   display: table-cell;
-  padding: 8px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid #f0f0f0;
   font-size: 13px;
   vertical-align: middle;
@@ -163,7 +165,7 @@ const ColumnLogicalName = styled.div`
 
 const ColumnConstraints = styled.div`
   display: table-cell;
-  padding: 8px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid #f0f0f0;
   font-size: 13px;
   vertical-align: middle;
@@ -173,7 +175,7 @@ const ColumnConstraints = styled.div`
 
 const ColumnDefaults = styled.div`
   display: table-cell;
-  padding: 8px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid #f0f0f0;
   font-size: 13px;
   vertical-align: middle;
@@ -183,7 +185,7 @@ const ColumnDefaults = styled.div`
 
 const ColumnTypeArea = styled.div`
   display: table-cell;
-  padding: 8px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid #f0f0f0;
   font-size: 13px;
   vertical-align: middle;
@@ -545,6 +547,38 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
                       {col.type}
                     </ColumnType>
                   </ColumnTypeArea>
+                  
+                  {/* 컬럼별 연결 핸들 */}
+                  <Handle
+                    type="source"
+                    position={Position.Right}
+                    id={`${col.name}-right`}
+                    style={{
+                      right: -8,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: 8,
+                      height: 8,
+                      backgroundColor: col.pk ? '#f1c40f' : col.fk ? '#2196f3' : '#ccc',
+                      border: '2px solid white',
+                      borderRadius: '50%'
+                    }}
+                  />
+                  <Handle
+                    type="target"
+                    position={Position.Left}
+                    id={`${col.name}-left`}
+                    style={{
+                      left: -8,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: 8,
+                      height: 8,
+                      backgroundColor: col.pk ? '#f1c40f' : col.fk ? '#2196f3' : '#ccc',
+                      border: '2px solid white',
+                      borderRadius: '50%'
+                    }}
+                  />
                 </Column>
               );
             })}

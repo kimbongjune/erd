@@ -19,6 +19,21 @@ type ViewSettings = {
   showDefaults: boolean;
 };
 
+type Theme = 'light' | 'dark';
+
+type AppTheme = {
+  mode: Theme;
+  colors: {
+    background: string;
+    surface: string;
+    primary: string;
+    text: string;
+    textSecondary: string;
+    border: string;
+    shadow: string;
+  };
+};
+
 type RFState = {
   nodes: Node[];
   edges: Edge[];
@@ -45,6 +60,9 @@ type RFState = {
   
   // 뷰 설정
   viewSettings: ViewSettings;
+  
+  // 테마 설정
+  theme: Theme;
   
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
@@ -82,6 +100,10 @@ type RFState = {
   
   // 뷰 설정 함수들
   updateViewSettings: (settings: Partial<ViewSettings>) => void;
+  
+  // 테마 함수들
+  setTheme: (theme: Theme) => void;
+  toggleTheme: () => void;
 };
 
 const useStore = create<RFState>((set, get) => ({
@@ -583,6 +605,9 @@ const useStore = create<RFState>((set, get) => ({
     showDefaults: false,
   },
   
+  // 테마 초기값
+  theme: 'light',
+  
   // 스냅 기능 관련 함수들
   setIsDragging: (isDragging: boolean) => set({ isDragging }),
   setDraggingNodeId: (nodeId: string | null) => set({ draggingNodeId: nodeId }),
@@ -710,6 +735,13 @@ const useStore = create<RFState>((set, get) => ({
   updateViewSettings: (settings: Partial<ViewSettings>) => 
     set((state) => ({ 
       viewSettings: { ...state.viewSettings, ...settings } 
+    })),
+  
+  // 테마 함수들
+  setTheme: (theme: Theme) => set({ theme }),
+  toggleTheme: () => 
+    set((state) => ({ 
+      theme: state.theme === 'light' ? 'dark' : 'light' 
     })),
   
   updateNodeData: (nodeId: string, newData: any) => {

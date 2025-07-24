@@ -389,7 +389,8 @@ const Layout = () => {
     selectedNodeId, 
     nodes,
     setNodes,
-    updateNodeData
+    updateNodeData,
+    updateEdgeHandles
   } = useStore();
   const [bottomPanelHeight, setBottomPanelHeight] = useState(250);
   const [isDragging, setIsDragging] = useState(false);
@@ -742,6 +743,11 @@ const Layout = () => {
           columns: newColumns,
           label: tableName
         });
+        
+        // 컬럼 순서 변경 후 관계선 Handle 업데이트
+        setTimeout(() => {
+          updateEdgeHandles();
+        }, 50);
       }
     }
   };

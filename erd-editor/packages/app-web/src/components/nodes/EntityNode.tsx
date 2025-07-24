@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import { Handle, Position, useReactFlow } from 'reactflow';
+import { Handle, Position, useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import { FaKey } from 'react-icons/fa';
 import useStore from '../../store/useStore';
 import React, { useState, useEffect, memo, useMemo, useCallback } from 'react';
@@ -123,6 +123,7 @@ const ColumnsContainer = styled.div`
 
 const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean; $isUniqueKey?: boolean }>`
   display: table-row;
+  position: relative;
   background: ${props => {
     if (props.$isPrimaryKey) return '#fff8e7';
     if (props.$isForeignKey) return '#e3f2fd';
@@ -319,9 +320,11 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   const setBottomPanelOpen = useStore((state) => state.setBottomPanelOpen);
   const nodes = useStore((state) => state.nodes);
   const viewSettings = useStore((state) => state.viewSettings);
+  const updateEdgeHandles = useStore((state) => state.updateEdgeHandles);
   
   // ReactFlow 좌표 변환 함수
   const { flowToScreenPosition, getViewport } = useReactFlow();
+  const updateNodeInternals = useUpdateNodeInternals();
   
   // 드래그 상태 추적
   const [isDragging, setIsDragging] = useState(false);
@@ -346,6 +349,10 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
 
     const handleNodeDragStop = () => {
       setIsDragging(false);
+      // 드래그 완료 후 edges Handle 업데이트
+      updateEdgeHandles();
+      // ReactFlow 내부 Handle 업데이트
+      updateNodeInternals(id);
     };
 
     window.addEventListener('nodeDragStart', handleNodeDragStart);
@@ -355,7 +362,13 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
       window.removeEventListener('nodeDragStart', handleNodeDragStart);
       window.removeEventListener('nodeDragStop', handleNodeDragStop);
     };
-  }, []);
+  }, [updateEdgeHandles]);
+
+  // 컴포넌트 마운트 시 기존 edges 업데이트
+  useEffect(() => {
+    updateEdgeHandles();
+    updateNodeInternals(id);
+  }, [data.columns, updateEdgeHandles, updateNodeInternals, id]);
 
   // 현재 노드가 선택되었는지 확인 (id 사용)
   const isSelected = useMemo(() => selectedNodeId === id, [selectedNodeId, id]);
@@ -455,10 +468,6 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
           <InvisibleHandle type="source" position={Position.Left} id="left" />
           <InvisibleHandle type="target" position={Position.Right} id="right" />
           <InvisibleHandle type="source" position={Position.Right} id="right" />
-          <InvisibleHandle type="target" position={Position.Top} id="top" />
-          <InvisibleHandle type="source" position={Position.Top} id="top" />
-          <InvisibleHandle type="target" position={Position.Bottom} id="bottom" />
-          <InvisibleHandle type="source" position={Position.Bottom} id="bottom" />
           
                     <Header 
             onMouseEnter={(e) => handleMouseEnter(e, 'entity')}
@@ -548,37 +557,90 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
                     </ColumnType>
                   </ColumnTypeArea>
                   
-                  {/* 컬럼별 연결 핸들 */}
-                  <Handle
-                    type="source"
-                    position={Position.Right}
-                    id={`${col.name}-right`}
-                    style={{
-                      right: -8,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      width: 8,
-                      height: 8,
-                      backgroundColor: col.pk ? '#f1c40f' : col.fk ? '#2196f3' : '#ccc',
-                      border: '2px solid white',
-                      borderRadius: '50%'
-                    }}
-                  />
-                  <Handle
-                    type="target"
-                    position={Position.Left}
-                    id={`${col.name}-left`}
-                    style={{
-                      left: -8,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      width: 8,
-                      height: 8,
-                      backgroundColor: col.pk ? '#f1c40f' : col.fk ? '#2196f3' : '#ccc',
-                      border: '2px solid white',
-                      borderRadius: '50%'
-                    }}
-                  />
+                  {/* PK 또는 FK 컬럼에 연결 핸들 표시 - source와 target 모두 지원 */}
+                  {(col.pk || col.fk) && (
+                    <>
+                      {/* Right Handle - source와 target 둘 다 */}
+                      <Handle
+                        key={`${id}-${col.name}-right-source`}
+                        type="source"
+                        position={Position.Right}
+                        id={`${col.name}-right`}
+                        style={{
+                          position: 'absolute',
+                          right: -8,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 12,
+                          height: 12,
+                          backgroundColor: col.pk ? '#f1c40f' : '#2196f3',
+                          border: '3px solid white',
+                          borderRadius: '50%',
+                          zIndex: 100,
+                          cursor: 'crosshair'
+                        }}
+                      />
+                      <Handle
+                        key={`${id}-${col.name}-right-target`}
+                        type="target"
+                        position={Position.Right}
+                        id={`${col.name}-right`}
+                        style={{
+                          position: 'absolute',
+                          right: -8,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 12,
+                          height: 12,
+                          backgroundColor: col.pk ? '#f1c40f' : '#2196f3',
+                          border: '3px solid white',
+                          borderRadius: '50%',
+                          zIndex: 100,
+                          cursor: 'crosshair'
+                        }}
+                      />
+                      
+                      {/* Left Handle - source와 target 둘 다 */}
+                      <Handle
+                        key={`${id}-${col.name}-left-source`}
+                        type="source"
+                        position={Position.Left}
+                        id={`${col.name}-left`}
+                        style={{
+                          position: 'absolute',
+                          left: -8,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 12,
+                          height: 12,
+                          backgroundColor: col.pk ? '#f1c40f' : '#2196f3',
+                          border: '3px solid white',
+                          borderRadius: '50%',
+                          zIndex: 100,
+                          cursor: 'crosshair'
+                        }}
+                      />
+                      <Handle
+                        key={`${id}-${col.name}-left-target`}
+                        type="target"
+                        position={Position.Left}
+                        id={`${col.name}-left`}
+                        style={{
+                          position: 'absolute',
+                          left: -8,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 12,
+                          height: 12,
+                          backgroundColor: col.pk ? '#f1c40f' : '#2196f3',
+                          border: '3px solid white',
+                          borderRadius: '50%',
+                          zIndex: 100,
+                          cursor: 'crosshair'
+                        }}
+                      />
+                    </>
+                  )}
                 </Column>
               );
             })}

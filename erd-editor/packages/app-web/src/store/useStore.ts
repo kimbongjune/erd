@@ -97,6 +97,7 @@ type RFState = {
   setShowGrid: (show: boolean) => void;
   setShowAlignPopup: (show: boolean) => void;
   setShowViewPopup: (show: boolean) => void;
+  updateEdgeHandles: () => void;
   
   // 뷰 설정 함수들
   updateViewSettings: (settings: Partial<ViewSettings>) => void;
@@ -475,6 +476,28 @@ const useStore = create<RFState>((set, get) => ({
       const sourceX = sourceNode?.position.x ? sourceNode.position.x + (sourceNode.width ?? 0) / 2 : 0;
       const targetX = targetNode?.position.x ? targetNode.position.x + (targetNode.width ?? 0) / 2 : 0;
 
+      // 부모 엔티티의 PK 컬럼과 자식 엔티티의 새로 생성된 FK 컬럼을 찾아서 Handle 사용
+      const sourcePkColumn = sourceNode?.data.columns?.find((col: any) => col.pk);
+      
+      // 자식 엔티티에서 새로 생성된 FK 컬럼 찾기
+      let targetFkColumn = null;
+      if (sourcePkColumn && sourceNode) {
+        const fkColumnName = `${sourceNode.data.label.toLowerCase()}_${sourcePkColumn.name}`;
+        const targetUpdatedNode = updatedNodes.find(node => node.id === targetNode?.id);
+        if (targetUpdatedNode) {
+          targetFkColumn = targetUpdatedNode.data.columns?.find((col: any) => col.name === fkColumnName && col.fk);
+        }
+      }
+      
+      // Handle ID 결정
+      const sourceHandleId = sourcePkColumn 
+        ? `${sourcePkColumn.name}-${sourceX <= targetX ? 'right' : 'left'}`
+        : (sourceX <= targetX ? 'right' : 'left');
+        
+      const targetHandleId = targetFkColumn
+        ? `${targetFkColumn.name}-${sourceX <= targetX ? 'left' : 'right'}`
+        : (sourceX <= targetX ? 'left' : 'right');
+
       let updatedEdges;
 
       const getEdgeType = (connectionMode: string | null) => {
@@ -502,8 +525,8 @@ const useStore = create<RFState>((set, get) => ({
               type: getEdgeType(state.connectionMode),
               markerStart: sourceMarker,
               markerEnd: targetMarker,
-              sourceHandle: sourceX < targetX ? 'right' : 'left',
-              targetHandle: sourceX < targetX ? 'left' : 'right',
+              sourceHandle: sourceHandleId,
+              targetHandle: targetHandleId,
             };
           }
           return edge;
@@ -512,8 +535,8 @@ const useStore = create<RFState>((set, get) => ({
         // Create new edge
         const newEdge = {
           ...connection,
-          sourceHandle: sourceX <= targetX ? 'right' : 'left',
-          targetHandle: sourceX <= targetX ? 'left' : 'right',
+          sourceHandle: sourceHandleId,
+          targetHandle: targetHandleId,
           type: getEdgeType(state.connectionMode),
           markerStart: sourceMarker,
           markerEnd: targetMarker,
@@ -888,6 +911,54 @@ const useStore = create<RFState>((set, get) => ({
       }
 
       return { nodes: finalNodes, edges: finalEdges };
+    });
+  },
+  
+  // 기존 edges의 Handle을 올바르게 업데이트하는 함수
+  updateEdgeHandles: () => {
+    set((state) => {
+      if (state.edges.length === 0) {
+        return state; // edges가 없으면 아무것도 하지 않음
+      }
+      
+      const updatedEdges = state.edges.map(edge => {
+        const sourceNode = state.nodes.find(node => node.id === edge.source);
+        const targetNode = state.nodes.find(node => node.id === edge.target);
+        
+        if (!sourceNode || !targetNode) return edge;
+        
+        // 부모 엔티티의 PK 컬럼 찾기
+        const sourcePkColumn = sourceNode.data.columns?.find((col: any) => col.pk);
+        
+        // 자식 엔티티의 FK 컬럼 찾기 (부모 테이블명_PK컬럼명 형태)
+        let targetFkColumn = null;
+        if (sourcePkColumn) {
+          const fkColumnName = `${sourceNode.data.label.toLowerCase()}_${sourcePkColumn.name}`;
+          targetFkColumn = targetNode.data.columns?.find((col: any) => col.name === fkColumnName && col.fk);
+        }
+        
+        // X 좌표를 기준으로 좌우 결정
+        const sourceX = sourceNode.position.x;
+        const targetX = targetNode.position.x;
+        
+        // Handle ID 설정 - 항상 최신 위치를 기준으로 계산
+        const sourceHandleId = sourcePkColumn 
+          ? `${sourcePkColumn.name}-${sourceX <= targetX ? 'right' : 'left'}`
+          : 'right'; // 기본값
+          
+        const targetHandleId = targetFkColumn
+          ? `${targetFkColumn.name}-${sourceX <= targetX ? 'left' : 'right'}`
+          : 'left'; // 기본값
+        
+        // 항상 업데이트 (조건 제거)
+        return {
+          ...edge,
+          sourceHandle: sourceHandleId,
+          targetHandle: targetHandleId
+        };
+      });
+      
+      return { ...state, edges: updatedEdges };
     });
   },
 }));

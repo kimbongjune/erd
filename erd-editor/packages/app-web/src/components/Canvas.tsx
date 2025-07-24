@@ -1,4 +1,4 @@
-import ReactFlow, { Node, useReactFlow, Edge, MiniMap, useViewport, Panel, Background, BackgroundVariant } from 'reactflow';
+import ReactFlow, { Node, useReactFlow, Edge, MiniMap, useViewport, Panel, Background, BackgroundVariant, useUpdateNodeInternals } from 'reactflow';
 import React, { useCallback, useRef, useState, MouseEvent, useEffect } from 'react';
 import 'reactflow/dist/style.css';
 import throttle from 'lodash.throttle';
@@ -76,13 +76,15 @@ const Canvas = () => {
   const setDraggingNodeId = useStore((state) => state.setDraggingNodeId);
   const setSnapGuides = useStore((state) => state.setSnapGuides);
   const calculateSnapGuides = useStore((state) => state.calculateSnapGuides);
+  const updateEdgeHandles = useStore((state) => state.updateEdgeHandles);
   
   // 툴바 관련
   const showGrid = useStore((state) => state.showGrid);
   const setShowAlignPopup = useStore((state) => state.setShowAlignPopup);
   const setShowViewPopup = useStore((state) => state.setShowViewPopup);
 
-  const { screenToFlowPosition, flowToScreenPosition } = useReactFlow();
+  const { screenToFlowPosition, flowToScreenPosition, fitView } = useReactFlow();
+  const updateNodeInternals = useUpdateNodeInternals();
   const { zoom } = useViewport();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [temporaryEdge, setTemporaryEdge] = useState<Edge | null>(null);
@@ -384,7 +386,10 @@ const Canvas = () => {
         useStore.getState().setNodes(updatedNodes);
       }
     }
-  }, 16), [calculateSnapGuides, setSnapGuides, nodes]);
+    
+    // 드래그 중에도 Handle 위치 업데이트 (깜빡임 방지를 위해 적당한 throttle)
+    updateEdgeHandles();
+  }, 50), [calculateSnapGuides, setSnapGuides, nodes, updateEdgeHandles]); // 50ms throttle로 안정성 확보
 
   const handleNodeDragStop = useCallback((event: any, node: any) => {
     // 모든 EntityNode에 드래그 종료 이벤트 전파
@@ -394,7 +399,25 @@ const Canvas = () => {
     setIsDragging(false);
     setDraggingNodeId(null);
     setSnapGuides([]);
-  }, [setIsDragging, setDraggingNodeId, setSnapGuides]);
+    
+    // 드래그 완료 후 Handle 재계산 (한 번만 호출)
+    setTimeout(() => {
+      updateEdgeHandles();
+      
+      // 연결된 노드들의 internals 업데이트
+      const edges = useStore.getState().edges;
+      const connectedNodeIds = new Set<string>();
+      edges.forEach(edge => {
+        connectedNodeIds.add(edge.source);
+        connectedNodeIds.add(edge.target);
+      });
+      
+      connectedNodeIds.forEach(nodeId => {
+        updateNodeInternals(nodeId);
+      });
+    }, 50); // 빠른 응답을 위해 지연 시간 단축
+    
+  }, [setIsDragging, setDraggingNodeId, setSnapGuides, updateEdgeHandles, updateNodeInternals]);
 
   const handleNodeClick = useCallback((event: any, node: any) => {
     event.stopPropagation();
@@ -584,6 +607,11 @@ const Canvas = () => {
         nodesDraggable={!connectionMode}
         connectionLineComponent={connectionMode ? CustomConnectionLine : undefined}
         elevateNodesOnSelect={false}
+        elevateEdgesOnSelect={true}
+        selectNodesOnDrag={false}
+        panOnScroll={true}
+        zoomOnScroll={true}
+        preventScrolling={false}
         disableKeyboardA11y={false}
         nodeOrigin={[0.5, 0.5]}
         maxZoom={2}

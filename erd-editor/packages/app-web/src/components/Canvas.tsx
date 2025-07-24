@@ -1,6 +1,7 @@
-import ReactFlow, { Node, useReactFlow, Edge, MarkerType, MiniMap, useViewport } from 'reactflow';
+import ReactFlow, { Node, useReactFlow, Edge, MiniMap, useViewport, Panel } from 'reactflow';
 import React, { useCallback, useRef, useState, MouseEvent, useEffect } from 'react';
 import 'reactflow/dist/style.css';
+import throttle from 'lodash.throttle';
 import useStore from '../store/useStore';
 import EntityNode from './nodes/EntityNode';
 import CommentNode from './nodes/CommentNode';
@@ -13,6 +14,7 @@ import TemporaryEdge from './edges/TemporaryEdge';
 import CustomConnectionLine from './CustomConnectionLine';
 import ContextMenu from './ContextMenu';
 import CanvasToolbar from './CanvasToolbar';
+import SnapGuides from './SnapGuides';
 
 const edgeTypes = {
   'one-to-one-identifying': OneToOneIdentifyingEdge,
@@ -68,6 +70,12 @@ const Canvas = () => {
   const createMode = useStore((state) => state.createMode);
   const addNode = useStore((state) => state.addNode);
   const deleteSelected = useStore((state) => state.deleteSelected);
+  
+  // 스냅 기능 관련
+  const setIsDragging = useStore((state) => state.setIsDragging);
+  const setDraggingNodeId = useStore((state) => state.setDraggingNodeId);
+  const setSnapGuides = useStore((state) => state.setSnapGuides);
+  const calculateSnapGuides = useStore((state) => state.calculateSnapGuides);
 
   const { screenToFlowPosition, flowToScreenPosition } = useReactFlow();
   const { zoom } = useViewport();
@@ -125,10 +133,10 @@ const Canvas = () => {
           // ReactFlow 컨테이너의 bounds 가져오기
           const reactFlowBounds = reactFlowWrapper.current.querySelector('.react-flow')?.getBoundingClientRect();
           if (reactFlowBounds) {
-            // Convert ReactFlow coordinates to screen coordinates
+            // nodeOrigin=[0.5, 0.5]이므로 position이 이미 노드 중심점
             const nodeCenterFlow = {
-              x: sourceNode.position.x + (sourceNode.width ?? 200) / 2,
-              y: sourceNode.position.y + (sourceNode.height ?? 100) / 2
+              x: sourceNode.position.x,
+              y: sourceNode.position.y
             };
             const projected = flowToScreenPosition(nodeCenterFlow);
             const sourceX = projected.x - reactFlowBounds.left;
@@ -170,10 +178,10 @@ const Canvas = () => {
       // ReactFlow 컨테이너의 bounds 가져오기
       const reactFlowBounds = reactFlowWrapper.current?.querySelector('.react-flow')?.getBoundingClientRect();
       if (reactFlowBounds) {
-        // 소스 노드의 중앙 좌표를 계산
+        // nodeOrigin=[0.5, 0.5]이므로 position이 이미 노드 중심점
         const nodeCenterFlow = {
-          x: node.position.x + (node.width ?? 200) / 2,
-          y: node.position.y + (node.height ?? 100) / 2
+          x: node.position.x,
+          y: node.position.y
         };
         const sourceScreenPos = flowToScreenPosition(nodeCenterFlow);
         
@@ -239,8 +247,13 @@ const Canvas = () => {
         useStore.getState().setCreateMode(null);
         useStore.getState().setSelectMode(true);
       }
+    } else {
+      // 캔버스 빈 공간 클릭 시 모든 선택 해제 및 패널 닫기
+      setSelectedNodeId(null);
+      setSelectedEdgeId(null);
+      setBottomPanelOpen(false);
     }
-  }, [createMode, nodes, screenToFlowPosition]);
+  }, [createMode, nodes, screenToFlowPosition, setSelectedNodeId, setSelectedEdgeId, setBottomPanelOpen]);
 
   const handleNodeDoubleClick = useCallback((_: MouseEvent, node: Node) => {
     if (node.type === 'text') return;
@@ -294,22 +307,92 @@ const Canvas = () => {
 
   // 노드 클릭 핸들러 (기존)
   // 노드 드래그 이벤트 핸들러들
-  const handleNodeDragStart = useCallback(() => {
+  const handleNodeDragStart = useCallback((event: any, node: any) => {
     // 모든 EntityNode에 드래그 시작 이벤트 전파
     window.dispatchEvent(new CustomEvent('nodeDragStart'));
-  }, []);
+    
+    // 스냅 기능 활성화
+    setIsDragging(true);
+    setDraggingNodeId(node.id);
+  }, [setIsDragging, setDraggingNodeId]);
 
-  const handleNodeDragStop = useCallback(() => {
+  const handleNodeDrag = useCallback(throttle((event: any, node: any) => {
+    if (!node) return;
+    
+    // 스냅 가이드라인 계산
+    const guides = calculateSnapGuides(node.id, node.position);
+    setSnapGuides(guides);
+    
+    // 실시간 스냅 적용
+    if (guides.length > 0) {
+      const threshold = 5;
+      let snappedPosition = { ...node.position };
+      let hasSnapped = false;
+      
+      guides.forEach(guide => {
+        if (guide.type === 'vertical') {
+          // X축 스냅 - nodeOrigin=[0.5, 0.5] 고려
+          const nodeWidth = node.width || 280;
+          const left = node.position.x - nodeWidth / 2;
+          const right = node.position.x + nodeWidth / 2;
+          const centerX = node.position.x;
+          
+          if (Math.abs(guide.position - left) <= threshold) {
+            snappedPosition.x = guide.position + nodeWidth / 2;
+            hasSnapped = true;
+          } else if (Math.abs(guide.position - right) <= threshold) {
+            snappedPosition.x = guide.position - nodeWidth / 2;
+            hasSnapped = true;
+          } else if (Math.abs(guide.position - centerX) <= threshold) {
+            snappedPosition.x = guide.position;
+            hasSnapped = true;
+          }
+        } else if (guide.type === 'horizontal') {
+          // Y축 스냅 - nodeOrigin=[0.5, 0.5] 고려
+          const nodeHeight = node.height || 120;
+          const top = node.position.y - nodeHeight / 2;
+          const bottom = node.position.y + nodeHeight / 2;
+          const centerY = node.position.y;
+          
+          if (Math.abs(guide.position - top) <= threshold) {
+            snappedPosition.y = guide.position + nodeHeight / 2;
+            hasSnapped = true;
+          } else if (Math.abs(guide.position - bottom) <= threshold) {
+            snappedPosition.y = guide.position - nodeHeight / 2;
+            hasSnapped = true;
+          } else if (Math.abs(guide.position - centerY) <= threshold) {
+            snappedPosition.y = guide.position;
+            hasSnapped = true;
+          }
+        }
+      });
+      
+      // 스냅된 위치로 노드 업데이트 (실시간 "탁탁" 스냅)
+      if (hasSnapped && (snappedPosition.x !== node.position.x || snappedPosition.y !== node.position.y)) {
+        const updatedNodes = nodes.map(n => 
+          n.id === node.id ? { ...n, position: snappedPosition } : n
+        );
+        useStore.getState().setNodes(updatedNodes);
+      }
+    }
+  }, 16), [calculateSnapGuides, setSnapGuides, nodes]);
+
+  const handleNodeDragStop = useCallback((event: any, node: any) => {
     // 모든 EntityNode에 드래그 종료 이벤트 전파
     window.dispatchEvent(new CustomEvent('nodeDragStop'));
-  }, []);
+    
+    // 스냅 기능 비활성화
+    setIsDragging(false);
+    setDraggingNodeId(null);
+    setSnapGuides([]);
+  }, [setIsDragging, setDraggingNodeId, setSnapGuides]);
 
   const handleNodeClick = useCallback((event: any, node: any) => {
     event.stopPropagation();
     setSelectedNodeId(node.id);
   }, [setSelectedNodeId]);
 
-  const handleMouseMove = useCallback((event: MouseEvent) => {
+  const handleMouseMove = useCallback(throttle((event: MouseEvent) => {
     if (connectingNodeId && temporaryEdge) {
       // Get source node position 
       const sourceNode = nodes.find(n => n.id === connectingNodeId);
@@ -317,10 +400,10 @@ const Canvas = () => {
         // ReactFlow 컨테이너의 bounds 가져오기
         const reactFlowBounds = reactFlowWrapper.current.querySelector('.react-flow')?.getBoundingClientRect();
         if (reactFlowBounds) {
-          // 소스 노드의 중앙 좌표를 스크린 좌표로 변환
+          // nodeOrigin=[0.5, 0.5]이므로 position이 이미 노드 중심점
           const nodeCenterFlow = {
-            x: sourceNode.position.x + (sourceNode.width ?? 200) / 2,
-            y: sourceNode.position.y + (sourceNode.height ?? 100) / 2
+            x: sourceNode.position.x,
+            y: sourceNode.position.y
           };
           const sourceScreenPos = flowToScreenPosition(nodeCenterFlow);
           
@@ -341,7 +424,7 @@ const Canvas = () => {
         }
       }
     }
-  }, [connectingNodeId, temporaryEdge, flowToScreenPosition, nodes, reactFlowWrapper]);
+  }, 16), [connectingNodeId, temporaryEdge, flowToScreenPosition, nodes, reactFlowWrapper]); // 16ms = ~60fps
 
   const handleMouseUp = useCallback((event: MouseEvent) => {
     if (connectingNodeId && temporaryEdge) {
@@ -477,6 +560,7 @@ const Canvas = () => {
         onNodeDoubleClick={handleNodeDoubleClick}
         onNodeContextMenu={handleNodeContextMenu}
         onNodeDragStart={handleNodeDragStart}
+        onNodeDrag={handleNodeDrag}
         onNodeDragStop={handleNodeDragStop}
         onEdgeClick={handleEdgeClick}
         onEdgeContextMenu={handleEdgeContextMenu}
@@ -487,6 +571,16 @@ const Canvas = () => {
         selectionOnDrag={!connectionMode && !createMode}
         nodesDraggable={!connectionMode}
         connectionLineComponent={connectionMode ? CustomConnectionLine : undefined}
+        elevateNodesOnSelect={false}
+        disableKeyboardA11y={false}
+        nodeOrigin={[0.5, 0.5]}
+        maxZoom={2}
+        minZoom={0.1}
+        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        attributionPosition="bottom-left"
+        proOptions={{ hideAttribution: true }}
+        deleteKeyCode={null}
+        multiSelectionKeyCode={null}
       >
         <MiniMap 
           nodeColor={(node) => node.type === 'comment' ? 'transparent' : '#e2e8f0'}
@@ -502,6 +596,11 @@ const Canvas = () => {
             borderRadius: '8px'
           }}
         />
+        
+        {/* 스냅 가이드라인을 ReactFlow 내부에 렌더링 */}
+        <Panel position="top-left" style={{ pointerEvents: 'none', zIndex: 1000 }}>
+          <SnapGuides />
+        </Panel>
       </ReactFlow>
       
       {/* 캔버스 툴바 */}

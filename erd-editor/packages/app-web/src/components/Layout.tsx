@@ -4,7 +4,6 @@ import Header from './Header';
 import Toolbox from './Toolbox';
 import Canvas from './Canvas';
 import Properties from './Properties';
-import BottomPanel from './BottomPanel';
 import useStore from '../store/useStore';
 import { toast } from 'react-toastify';
 

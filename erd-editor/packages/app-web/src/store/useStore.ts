@@ -2,6 +2,13 @@ import { create } from 'zustand';
 import { Node, Edge, OnNodesChange, OnEdgesChange, applyNodeChanges, applyEdgeChanges, addEdge, Connection, NodeChange, MarkerType } from 'reactflow';
 import { toast } from 'react-toastify';
 
+type SnapGuide = {
+  type: 'vertical' | 'horizontal';
+  position: number;
+  color: string;
+  priority?: number;
+};
+
 type RFState = {
   nodes: Node[];
   edges: Edge[];
@@ -12,6 +19,12 @@ type RFState = {
   connectingNodeId: string | null;
   createMode: string | null;
   selectMode: boolean;
+  
+  // 스냅 기능 관련
+  isDragging: boolean;
+  draggingNodeId: string | null;
+  snapGuides: SnapGuide[];
+  snapThreshold: number;
   
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
@@ -33,6 +46,12 @@ type RFState = {
   updateNodeData: (nodeId: string, newData: any) => void;
   setCreateMode: (mode: string | null) => void;
   setSelectMode: (mode: boolean) => void;
+  
+  // 스냅 기능 관련 함수들
+  setIsDragging: (isDragging: boolean) => void;
+  setDraggingNodeId: (nodeId: string | null) => void;
+  setSnapGuides: (guides: SnapGuide[]) => void;
+  calculateSnapGuides: (draggedNodeId: string, position: { x: number; y: number }) => SnapGuide[];
 };
 
 const useStore = create<RFState>((set, get) => ({
@@ -436,6 +455,128 @@ const useStore = create<RFState>((set, get) => ({
 
   setCreateMode: (mode: string | null) => set({ createMode: mode }),
   setSelectMode: (mode: boolean) => set({ selectMode: mode }),
+  
+  // 스냅 기능 관련 상태 초기값
+  isDragging: false,
+  draggingNodeId: null,
+  snapGuides: [],
+  snapThreshold: 5,
+  
+  // 스냅 기능 관련 함수들
+  setIsDragging: (isDragging: boolean) => set({ isDragging }),
+  setDraggingNodeId: (nodeId: string | null) => set({ draggingNodeId: nodeId }),
+  setSnapGuides: (guides: SnapGuide[]) => set({ snapGuides: guides }),
+  
+  calculateSnapGuides: (draggedNodeId: string, position: { x: number; y: number }) => {
+    const state = get();
+    const nodes = state.nodes;
+    const draggedNode = nodes.find(n => n.id === draggedNodeId);
+    
+    if (!draggedNode) return [];
+    
+    const guides: SnapGuide[] = [];
+    const threshold = state.snapThreshold;
+    
+    // 드래그 중인 노드의 크기 (기본값 설정)
+    const draggedWidth = draggedNode.width || 280;
+    const draggedHeight = draggedNode.height || 120;
+    
+    // nodeOrigin=[0.5, 0.5]이므로 position이 노드 중심점
+    const draggedBounds = {
+      left: position.x - draggedWidth / 2,
+      right: position.x + draggedWidth / 2,
+      top: position.y - draggedHeight / 2,
+      bottom: position.y + draggedHeight / 2,
+      centerX: position.x,
+      centerY: position.y
+    };
+    
+    let bestVerticalGuide: { guide: SnapGuide; distance: number } | null = null;
+    let bestHorizontalGuide: { guide: SnapGuide; distance: number } | null = null;
+    
+    // 다른 노드들과 비교
+    nodes.forEach(node => {
+      if (node.id === draggedNodeId) return;
+      
+      const nodeWidth = node.width || 280;
+      const nodeHeight = node.height || 120;
+      
+      // nodeOrigin=[0.5, 0.5]이므로 position이 노드 중심점
+      const nodeBounds = {
+        left: node.position.x - nodeWidth / 2,
+        right: node.position.x + nodeWidth / 2,
+        top: node.position.y - nodeHeight / 2,
+        bottom: node.position.y + nodeHeight / 2,
+        centerX: node.position.x,
+        centerY: node.position.y
+      };
+      
+      // 수직 가이드라인 (X축 정렬) - 우선순위: center > left/right
+      const verticalChecks = [
+        { name: 'centerX', targetValue: nodeBounds.centerX, draggedValue: draggedBounds.centerX, priority: 1 },
+        { name: 'left', targetValue: nodeBounds.left, draggedValue: draggedBounds.left, priority: 2 },
+        { name: 'left', targetValue: nodeBounds.left, draggedValue: draggedBounds.right, priority: 2 },
+        { name: 'right', targetValue: nodeBounds.right, draggedValue: draggedBounds.left, priority: 2 },
+        { name: 'right', targetValue: nodeBounds.right, draggedValue: draggedBounds.right, priority: 2 }
+      ];
+      
+      verticalChecks.forEach(check => {
+        const distance = Math.abs(check.targetValue - check.draggedValue);
+        if (distance <= threshold) {
+          if (!bestVerticalGuide || check.priority < (bestVerticalGuide.guide.priority || 99) || 
+              (check.priority === (bestVerticalGuide.guide.priority || 99) && distance < bestVerticalGuide.distance)) {
+            bestVerticalGuide = {
+              guide: {
+                type: 'vertical',
+                position: check.targetValue,
+                color: check.priority === 1 ? '#ef4444' : '#3b82f6',
+                priority: check.priority
+              },
+              distance
+            };
+          }
+        }
+      });
+      
+      // 수평 가이드라인 (Y축 정렬) - 우선순위: center > top/bottom
+      const horizontalChecks = [
+        { name: 'centerY', targetValue: nodeBounds.centerY, draggedValue: draggedBounds.centerY, priority: 1 },
+        { name: 'top', targetValue: nodeBounds.top, draggedValue: draggedBounds.top, priority: 2 },
+        { name: 'top', targetValue: nodeBounds.top, draggedValue: draggedBounds.bottom, priority: 2 },
+        { name: 'bottom', targetValue: nodeBounds.bottom, draggedValue: draggedBounds.top, priority: 2 },
+        { name: 'bottom', targetValue: nodeBounds.bottom, draggedValue: draggedBounds.bottom, priority: 2 }
+      ];
+      
+      horizontalChecks.forEach(check => {
+        const distance = Math.abs(check.targetValue - check.draggedValue);
+        if (distance <= threshold) {
+          if (!bestHorizontalGuide || check.priority < (bestHorizontalGuide.guide.priority || 99) || 
+              (check.priority === (bestHorizontalGuide.guide.priority || 99) && distance < bestHorizontalGuide.distance)) {
+            bestHorizontalGuide = {
+              guide: {
+                type: 'horizontal',
+                position: check.targetValue,
+                color: check.priority === 1 ? '#ef4444' : '#3b82f6',
+                priority: check.priority
+              },
+              distance
+            };
+          }
+        }
+      });
+    });
+    
+    // 최고 우선순위 가이드만 반환
+    const result: SnapGuide[] = [];
+    if (bestVerticalGuide) {
+      result.push(bestVerticalGuide.guide);
+    }
+    if (bestHorizontalGuide) {
+      result.push(bestHorizontalGuide.guide);
+    }
+    
+    return result;
+  },
   
   updateNodeData: (nodeId: string, newData: any) => {
     set((state) => {

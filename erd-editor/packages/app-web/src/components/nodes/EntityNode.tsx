@@ -2,7 +2,7 @@ import styled from 'styled-components';
 import { Handle, Position, useReactFlow } from 'reactflow';
 import { FaKey } from 'react-icons/fa';
 import useStore from '../../store/useStore';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 
 interface Column {
@@ -28,14 +28,16 @@ const NodeContainer = styled.div<{ $isSelected: boolean }>`
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   cursor: pointer;
   transition: all 0.3s ease;
-  transform: ${props => props.$isSelected ? 'scale(1.02)' : 'scale(1)'};
+  transform: ${props => props.$isSelected ? 'scale(1.02) translateZ(0)' : 'scale(1) translateZ(0)'};
+  will-change: transform, box-shadow;
+  backface-visibility: hidden;
   
   &:hover {
     border-color: ${props => props.$isSelected ? '#005999' : '#60a5fa'};
     box-shadow: ${props => props.$isSelected 
       ? '0 12px 35px rgba(0, 122, 204, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.8)' 
       : '0 4px 15px rgba(96, 165, 250, 0.2)'};
-    transform: ${props => props.$isSelected ? 'scale(1.03)' : 'scale(1.01)'};
+    transform: ${props => props.$isSelected ? 'scale(1.03) translateZ(0)' : 'scale(1.01) translateZ(0)'};
   }
   
   &::before {
@@ -48,6 +50,7 @@ const NodeContainer = styled.div<{ $isSelected: boolean }>`
     background: ${props => props.$isSelected ? 'linear-gradient(90deg, #007acc, #4da6ff, #007acc)' : 'transparent'};
     background-size: 200% 100%;
     animation: ${props => props.$isSelected ? 'shimmer 2s infinite' : 'none'};
+    will-change: background-position;
   }
   
   @keyframes shimmer {
@@ -235,7 +238,7 @@ const ColumnTypeText = styled.span`
   font-weight: 500;
 `;
 
-const EntityNode = ({ data, id, onMouseDown }: any) => {
+const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   const selectedNodeId = useStore((state) => state.selectedNodeId);
   const setSelectedNodeId = useStore((state) => state.setSelectedNodeId);
   const setBottomPanelOpen = useStore((state) => state.setBottomPanelOpen);
@@ -258,7 +261,7 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
     comment: ''
   });
 
-  // ReactFlow 드래그 이벤트와 연동
+  // ReactFlow 드래그 이벤트와 연동 (단순화)
   useEffect(() => {
     const handleNodeDragStart = () => {
       setIsDragging(true);
@@ -266,10 +269,7 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
     };
 
     const handleNodeDragStop = () => {
-      // 드래그 종료 후 잠시 후에 상태 해제
-      setTimeout(() => {
-        setIsDragging(false);
-      }, 100);
+      setIsDragging(false);
     };
 
     window.addEventListener('nodeDragStart', handleNodeDragStart);
@@ -281,55 +281,10 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
     };
   }, []);
 
-  // 기존 전역 이벤트 리스너는 백업용으로 유지
-  useEffect(() => {
-    const handleGlobalMouseDown = (e: MouseEvent) => {
-      setIsDragging(true);
-      if (tooltip.visible) {
-        setTooltip(prev => ({ ...prev, visible: false }));
-      }
-    };
-
-    const handleGlobalMouseMove = (e: MouseEvent) => {
-      if (e.buttons > 0) { // 마우스 버튼이 눌린 상태로 움직이면
-        setIsDragging(true);
-        if (tooltip.visible) {
-          setTooltip(prev => ({ ...prev, visible: false }));
-        }
-      }
-    };
-
-    const handleGlobalMouseUp = () => {
-      // 마우스 업 후 잠시 후에 드래그 상태 해제 (툴팁 재활성화)
-      setTimeout(() => {
-        setIsDragging(false);
-      }, 100);
-    };
-
-    const handleGlobalDragStart = () => {
-      setIsDragging(true);
-      if (tooltip.visible) {
-        setTooltip(prev => ({ ...prev, visible: false }));
-      }
-    };
-
-    document.addEventListener('mousedown', handleGlobalMouseDown, true);
-    document.addEventListener('mousemove', handleGlobalMouseMove, true);
-    document.addEventListener('mouseup', handleGlobalMouseUp, true);
-    document.addEventListener('dragstart', handleGlobalDragStart, true);
-
-    return () => {
-      document.removeEventListener('mousedown', handleGlobalMouseDown, true);
-      document.removeEventListener('mousemove', handleGlobalMouseMove, true);
-      document.removeEventListener('mouseup', handleGlobalMouseUp, true);
-      document.removeEventListener('dragstart', handleGlobalDragStart, true);
-    };
-  }, [tooltip.visible]);
-  
   // 현재 노드가 선택되었는지 확인 (id 사용)
-  const isSelected = selectedNodeId === id;
+  const isSelected = useMemo(() => selectedNodeId === id, [selectedNodeId, id]);
   
-  const handleMouseDown = (e: any) => {
+  const handleMouseDown = useCallback((e: any) => {
     // 드래그 시작 - 툴팁 확실히 숨기기
     setIsDragging(true);
     setTooltip({ visible: false, x: 0, y: 0, type: 'entity', title: '', dataType: '', comment: '' });
@@ -359,12 +314,12 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
     if (onMouseDown) {
       onMouseDown(e);
     }
-  };
+  }, [id, selectedNodeId, setSelectedNodeId, setBottomPanelOpen, onMouseDown]);
 
   // handleContextMenu 제거 - ReactFlow의 onNodeContextMenu가 처리하도록
 
   // 툴팁 핸들러 - 엔티티 오른쪽에 정확히 붙이기
-  const handleMouseEnter = (e: React.MouseEvent, type: 'entity' | 'column', item?: Column) => {
+  const handleMouseEnter = useCallback((e: React.MouseEvent, type: 'entity' | 'column', item?: Column) => {
     // 드래그 중이면 툴팁 표시하지 않음
     if (isDragging) {
       return;
@@ -398,19 +353,19 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
         comment: item.comment || '컬럼 설명 없음'
       });
     }
-  };
+  }, [isDragging, data.label, data.comment]);
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     setTooltip(prev => ({ ...prev, visible: false }));
-  };
+  }, []);
 
-  const handleTooltipClick = () => {
+  const handleTooltipClick = useCallback(() => {
     setTooltip(prev => ({ ...prev, visible: false }));
-  };
+  }, []);
 
-  const handleTooltipMouseDown = () => {
+  const handleTooltipMouseDown = useCallback(() => {
     setTooltip(prev => ({ ...prev, visible: false }));
-  };
+  }, []);
 
   return (
     <>
@@ -498,6 +453,8 @@ const EntityNode = ({ data, id, onMouseDown }: any) => {
       )}
     </>
   );
-};
+});
+
+EntityNode.displayName = 'EntityNode';
 
 export default EntityNode;

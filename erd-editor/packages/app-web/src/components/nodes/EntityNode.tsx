@@ -119,10 +119,15 @@ const ColumnsContainer = styled.div<{ $darkMode?: boolean }>`
   background: ${props => props.$darkMode ? '#2d3748' : '#fff'};
 `;
 
-const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean; $isUniqueKey?: boolean; $darkMode?: boolean }>`
+const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean; $isUniqueKey?: boolean; $darkMode?: boolean; $isHighlighted?: boolean }>`
   display: table-row;
   position: relative;
   background: ${props => {
+    if (props.$isHighlighted) {
+      // 하이라이트된 경우의 배경색
+      return props.$darkMode ? '#1e3a5f' : '#e3f2fd';
+    }
+    
     if (props.$darkMode) {
       if (props.$isPrimaryKey) return '#3d2914';
       if (props.$isForeignKey) return '#1e2832';
@@ -136,8 +141,17 @@ const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean; $i
     }
   }};
   
+  ${props => props.$isHighlighted && `
+    border-left: 3px solid ${props.$darkMode ? '#60a5fa' : '#3b82f6'};
+    box-shadow: ${props.$darkMode ? '0 0 8px rgba(96, 165, 250, 0.3)' : '0 0 8px rgba(59, 130, 246, 0.3)'};
+  `}
+  
   &:hover {
     background: ${props => {
+      if (props.$isHighlighted) {
+        return props.$darkMode ? '#2563eb' : '#bfdbfe';
+      }
+      
       if (props.$darkMode) {
         if (props.$isPrimaryKey) return '#4a3319';
         if (props.$isForeignKey) return '#243240';
@@ -345,6 +359,11 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   const selectedNodeId = useStore((state) => state.selectedNodeId);
   const setSelectedNodeId = useStore((state) => state.setSelectedNodeId);
   const setBottomPanelOpen = useStore((state) => state.setBottomPanelOpen);
+  const setHoveredEntityId = useStore((state) => state.setHoveredEntityId);
+  const highlightedEntities = useStore((state) => state.highlightedEntities);
+  const highlightedColumns = useStore((state) => state.highlightedColumns);
+  const clearAllHighlights = useStore((state) => state.clearAllHighlights);
+  const updateAllHighlights = useStore((state) => state.updateAllHighlights);
   const nodes = useStore((state) => state.nodes);
   const viewSettings = useStore((state) => state.viewSettings);
   const updateEdgeHandles = useStore((state) => state.updateEdgeHandles);
@@ -428,11 +447,38 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
       setBottomPanelOpen(true);
     }
     
+    // 클릭 시 즉시 하이라이트 효과 적용
+    setHoveredEntityId(id);
+    
     // Only call onMouseDown for connection mode, let double click pass through
     if (onMouseDown) {
       onMouseDown(e);
     }
   }, [id, selectedNodeId, setSelectedNodeId, setBottomPanelOpen, onMouseDown]);
+
+  // 엔티티 호버 이벤트 핸들러
+  const handleEntityMouseEnter = useCallback(() => {
+    if (!isDragging) {
+      setHoveredEntityId(id);
+    }
+  }, [id, isDragging, setHoveredEntityId]);
+
+  const handleEntityMouseLeave = useCallback(() => {
+    if (!isDragging) {
+      setHoveredEntityId(null);
+    }
+  }, [isDragging, setHoveredEntityId]);
+
+  // 선택 상태가 변경될 때 하이라이트 업데이트
+  useEffect(() => {
+    // 선택이 해제되면 호버 상태도 해제 (다른 엔티티가 선택된 경우 제외)
+    if (selectedNodeId !== id && selectedNodeId !== null) {
+      // 다른 엔티티가 선택됨 - 호버 상태 해제
+      if (setHoveredEntityId) {
+        setHoveredEntityId(null);
+      }
+    }
+  }, [selectedNodeId, id, setHoveredEntityId]);
 
   // handleContextMenu 제거 - ReactFlow의 onNodeContextMenu가 처리하도록
 
@@ -492,6 +538,8 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
           $isSelected={isSelected} 
           $darkMode={isDarkMode}
           onMouseDown={handleMouseDown}
+          onMouseEnter={handleEntityMouseEnter}
+          onMouseLeave={handleEntityMouseLeave}
         >
           {/* 보이지 않는 연결 핸들들 - 모든 핸들을 source와 target 둘 다 지원 */}
           <InvisibleHandle type="target" position={Position.Left} id="left" />
@@ -531,6 +579,8 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
           
           <ColumnsContainer $darkMode={isDarkMode}>
             {data.columns?.map((col: any, i: number) => {
+              const isColumnHighlighted = highlightedColumns.get(id)?.includes(col.name) || false;
+              
               return (
                 <Column 
                   key={i} 
@@ -538,6 +588,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
                   $isForeignKey={col.fk}
                   $isUniqueKey={col.uq}
                   $darkMode={isDarkMode}
+                  $isHighlighted={isColumnHighlighted}
                   onMouseEnter={(e) => handleMouseEnter(e, 'column', col)}
                   onMouseLeave={handleMouseLeave}
                   onClick={handleTooltipClick}

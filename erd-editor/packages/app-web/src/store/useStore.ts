@@ -40,6 +40,10 @@ type RFState = {
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
   hoveredEdgeId: string | null;
+  hoveredEntityId: string | null;
+  highlightedEntities: string[];
+  highlightedEdges: string[];
+  highlightedColumns: Map<string, string[]>; // entityId -> columnNames[]
   isBottomPanelOpen: boolean;
   connectionMode: string | null;
   connectingNodeId: string | null;
@@ -70,6 +74,14 @@ type RFState = {
   addNode: (type: string) => void;
   setSelectedNodeId: (id: string | null) => void;
   setSelectedEdgeId: (id: string | null) => void;
+  setHoveredEdgeId: (id: string | null) => void;
+  setHoveredEntityId: (id: string | null) => void;
+  setHighlightedEntities: (ids: string[]) => void;
+  setHighlightedEdges: (ids: string[]) => void;
+  setHighlightedColumns: (columns: Map<string, string[]>) => void;
+  updateEntityHighlights: (entityId: string | null) => void;
+  updateAllHighlights: () => void;
+  clearAllHighlights: () => void;
   setBottomPanelOpen: (isOpen: boolean) => void;
   deleteNode: (id: string) => void;
   deleteEdge: (id: string) => void;
@@ -211,6 +223,10 @@ const useStore = create<RFState>((set, get) => ({
   selectedNodeId: null,
   selectedEdgeId: null,
   hoveredEdgeId: null,
+  hoveredEntityId: null,
+  highlightedEntities: [],
+  highlightedEdges: [],
+  highlightedColumns: new Map(),
   isBottomPanelOpen: false,
   connectionMode: null,
   connectingNodeId: null,
@@ -267,9 +283,111 @@ const useStore = create<RFState>((set, get) => ({
     };
     set({ nodes: [...get().nodes, newNode] });
   },
-  setSelectedNodeId: (id) => set({ selectedNodeId: id }),
+  setSelectedNodeId: (id) => {
+    set({ selectedNodeId: id });
+    get().updateAllHighlights();
+  },
   setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
   setHoveredEdgeId: (id: string | null) => set({ hoveredEdgeId: id }),
+  setHoveredEntityId: (id: string | null) => {
+    set({ hoveredEntityId: id });
+    get().updateAllHighlights();
+  },
+  setHighlightedEntities: (ids: string[]) => set({ highlightedEntities: ids }),
+  setHighlightedEdges: (ids: string[]) => set({ highlightedEdges: ids }),
+  setHighlightedColumns: (columns: Map<string, string[]>) => set({ highlightedColumns: columns }),
+  updateEntityHighlights: (entityId: string | null) => {
+    if (!entityId) {
+      set({ 
+        highlightedEntities: [], 
+        highlightedEdges: [], 
+        highlightedColumns: new Map() 
+      });
+      return;
+    }
+
+    const state = get();
+    const currentEntity = state.nodes.find(n => n.id === entityId);
+    if (!currentEntity) return;
+
+    const relatedEdges = state.edges.filter(edge => 
+      edge.source === entityId || edge.target === entityId
+    );
+    const relatedEntityIds = new Set<string>();
+    const highlightedColumns = new Map<string, string[]>();
+
+    // 현재 엔티티의 컬럼들 분석 및 하이라이트
+    const currentEntityColumns: string[] = [];
+    
+    relatedEdges.forEach(edge => {
+      if (edge.source === entityId) {
+        // 현재 엔티티가 부모인 경우 - 본인의 PK 컬럼들 하이라이트
+        relatedEntityIds.add(edge.target);
+        
+        // 자식 엔티티의 FK 컬럼들 찾기
+        const targetEntity = state.nodes.find(n => n.id === edge.target);
+        if (targetEntity) {
+          const sourceLabel = currentEntity.data.label.toLowerCase();
+          const fkColumns = targetEntity.data.columns?.filter((col: any) => 
+            col.fk && col.name.startsWith(`${sourceLabel}_`)
+          ).map((col: any) => col.name) || [];
+          if (fkColumns.length > 0) {
+            highlightedColumns.set(edge.target, fkColumns);
+          }
+        }
+        
+        // 본인의 PK 컬럼들 추가
+        const pkColumns = currentEntity.data.columns?.filter((col: any) => col.pk)
+          .map((col: any) => col.name) || [];
+        currentEntityColumns.push(...pkColumns);
+        
+      } else {
+        // 현재 엔티티가 자식인 경우 - 본인의 FK 컬럼들 하이라이트
+        relatedEntityIds.add(edge.source);
+        
+        // 부모 엔티티의 PK 컬럼들 찾기
+        const sourceEntity = state.nodes.find(n => n.id === edge.source);
+        if (sourceEntity) {
+          const pkColumns = sourceEntity.data.columns?.filter((col: any) => col.pk)
+            .map((col: any) => col.name) || [];
+          if (pkColumns.length > 0) {
+            highlightedColumns.set(edge.source, pkColumns);
+          }
+          
+          // 본인의 FK 컬럼들 추가
+          const sourceLabel = sourceEntity.data.label.toLowerCase();
+          const fkColumns = currentEntity.data.columns?.filter((col: any) => 
+            col.fk && col.name.startsWith(`${sourceLabel}_`)
+          ).map((col: any) => col.name) || [];
+          currentEntityColumns.push(...fkColumns);
+        }
+      }
+    });
+
+    // 현재 엔티티의 컬럼들 하이라이트에 추가
+    if (currentEntityColumns.length > 0) {
+      // 중복 제거
+      const uniqueColumns = [...new Set(currentEntityColumns)];
+      highlightedColumns.set(entityId, uniqueColumns);
+    }
+
+    set({
+      highlightedEntities: Array.from(relatedEntityIds),
+      highlightedEdges: relatedEdges.map(edge => edge.id),
+      highlightedColumns
+    });
+  },
+  updateAllHighlights: () => {
+    const state = get();
+    const activeEntityId = state.selectedNodeId || state.hoveredEntityId;
+    get().updateEntityHighlights(activeEntityId);
+  },
+  clearAllHighlights: () => set({ 
+    highlightedEntities: [], 
+    highlightedEdges: [], 
+    highlightedColumns: new Map(),
+    hoveredEntityId: null
+  }),
   setBottomPanelOpen: (isOpen) => set({ isBottomPanelOpen: isOpen }),
   deleteNode: (id) => {
     set((state) => {
@@ -549,6 +667,11 @@ const useStore = create<RFState>((set, get) => ({
 
       return { nodes: updatedNodes, edges: updatedEdges };
     });
+    
+    // 관계 생성 후 현재 선택된 엔티티가 있으면 하이라이트 업데이트
+    setTimeout(() => {
+      get().updateAllHighlights();
+    }, 0);
   },
   setConnectionMode: (mode) => {
     set({ connectionMode: mode });
@@ -889,7 +1012,6 @@ const useStore = create<RFState>((set, get) => ({
                     id: targetColumns[fkColumnIndex].id || `${Date.now()}_${Math.random()}`,
                     name: newFkName
                   };
-                  toast.info(`${change.entityName}의 PK 컬럼명 변경으로 ${node.data.label}의 FK 컬럼명이 ${oldFkName} → ${newFkName}로 변경되었습니다.`);
                 }
               });
               

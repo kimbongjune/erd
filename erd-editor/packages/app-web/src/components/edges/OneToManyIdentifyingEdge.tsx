@@ -29,11 +29,13 @@ const OneToManyIdentifyingEdge: React.FC<OneToManyIdentifyingEdgeProps> = React.
   const theme = useStore((state) => state.theme);
   const selectedEdgeId = useStore((state) => state.selectedEdgeId);
   const hoveredEdgeId = useStore((state) => state.hoveredEdgeId);
+  const highlightedEdges = useStore((state) => state.highlightedEdges);
   
   const isDarkMode = theme === 'dark';
   const isSelected = selectedEdgeId === id;
   const isHovered = hoveredEdgeId === id;
-  const isActive = isSelected || isHovered;
+  const isHighlighted = highlightedEdges.includes(id);
+  const isActive = isSelected || isHovered || isHighlighted;
   
   const defaultStyle = useMemo(() => ({
     strokeWidth: isActive ? 2.5 : 1.5,

@@ -22,7 +22,6 @@ const ToolbarContainer = styled.div<{ $darkMode?: boolean }>`
   padding: 12px;
   gap: 6px;
   z-index: 0;
-  backdrop-filter: blur(10px);
 `;
 
 const ZoomDisplay = styled.div<{ $darkMode?: boolean }>`

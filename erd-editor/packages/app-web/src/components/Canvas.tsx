@@ -405,9 +405,9 @@ const Canvas = () => {
       }
     }
     
-    // 드래그 중에도 Handle 위치 업데이트 (깜빡임 방지를 위해 적당한 throttle)
+    // 드래그 중에도 Handle 위치 업데이트 (성능 최적화를 위해 throttle 증가)
     updateEdgeHandles();
-  }, 50), [calculateSnapGuides, setSnapGuides, nodes, updateEdgeHandles]); // 50ms throttle로 안정성 확보
+  }, 100), [calculateSnapGuides, setSnapGuides, nodes, updateEdgeHandles]); // 100ms throttle로 성능 개선
 
   const handleNodeDragStop = useCallback((event: any, node: any) => {
     // 모든 EntityNode에 드래그 종료 이벤트 전파
@@ -477,7 +477,7 @@ const Canvas = () => {
         }
       }
     }
-  }, 16), [connectingNodeId, temporaryEdge, flowToScreenPosition, nodes, reactFlowWrapper]); // 16ms = ~60fps
+  }, 32), [connectingNodeId, temporaryEdge, flowToScreenPosition, nodes, reactFlowWrapper]); // 32ms = ~30fps로 성능 개선
 
   const handleMouseUp = useCallback((event: MouseEvent) => {
     if (connectingNodeId && temporaryEdge) {

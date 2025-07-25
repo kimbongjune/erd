@@ -4,6 +4,7 @@ import { FaKey } from 'react-icons/fa';
 import useStore from '../../store/useStore';
 import React, { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { createHandleId } from '../../utils/handleUtils';
 
 interface Column {
   name: string;
@@ -35,32 +36,12 @@ const NodeContainer = styled.div<{ $isSelected: boolean; $darkMode?: boolean }>`
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  transform: ${props => props.$isSelected ? 'scale3d(1.02, 1.02, 1) translate3d(0, 0, 0)' : 'scale3d(1, 1, 1) translate3d(0, 0, 0)'};
-  will-change: transform;
   
   &:hover {
     border-color: ${props => props.$isSelected ? '#005999' : '#60a5fa'};
     box-shadow: ${props => props.$isSelected 
-      ? '0 12px 35px rgba(0, 122, 204, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.8)' 
-      : (props.$darkMode ? '0 4px 15px rgba(96, 165, 250, 0.3)' : '0 4px 15px rgba(96, 165, 250, 0.2)')};
-    transform: ${props => props.$isSelected ? 'scale3d(1.03, 1.03, 1) translate3d(0, 0, 0)' : 'scale3d(1.01, 1.01, 1) translate3d(0, 0, 0)'};
-  }
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: ${props => props.$isSelected ? 'linear-gradient(90deg, #007acc, #4da6ff, #007acc)' : 'transparent'};
-    background-size: 200% 100%;
-    animation: ${props => props.$isSelected ? 'shimmer 2s infinite' : 'none'};
-  }
-  
-  @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+      ? '0 6px 15px rgba(0, 122, 204, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.6)' 
+      : (props.$darkMode ? '0 2px 8px rgba(96, 165, 250, 0.2)' : '0 2px 8px rgba(96, 165, 250, 0.15)')};
   }
 `;
 
@@ -124,8 +105,8 @@ const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean; $i
   position: relative;
   background: ${props => {
     if (props.$isHighlighted) {
-      // 하이라이트된 경우의 배경색
-      return props.$darkMode ? '#1e3a5f' : '#e3f2fd';
+      // 하이라이트된 경우의 배경색 - 녹색 계열로 PK 색상과 구분
+      return props.$darkMode ? '#0f4c43' : '#d1fae5';
     }
     
     if (props.$darkMode) {
@@ -142,14 +123,14 @@ const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean; $i
   }};
   
   ${props => props.$isHighlighted && `
-    border-left: 3px solid ${props.$darkMode ? '#60a5fa' : '#3b82f6'};
-    box-shadow: ${props.$darkMode ? '0 0 8px rgba(96, 165, 250, 0.3)' : '0 0 8px rgba(59, 130, 246, 0.3)'};
+    border-left: 3px solid ${props.$darkMode ? '#10b981' : '#059669'};
+    box-shadow: ${props.$darkMode ? '0 0 8px rgba(16, 185, 129, 0.4)' : '0 0 8px rgba(5, 150, 105, 0.4)'};
   `}
   
   &:hover {
     background: ${props => {
       if (props.$isHighlighted) {
-        return props.$darkMode ? '#2563eb' : '#bfdbfe';
+        return props.$darkMode ? '#0d5748' : '#a7f3d0';
       }
       
       if (props.$darkMode) {
@@ -367,6 +348,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   const nodes = useStore((state) => state.nodes);
   const viewSettings = useStore((state) => state.viewSettings);
   const updateEdgeHandles = useStore((state) => state.updateEdgeHandles);
+  const connectionMode = useStore((state) => state.connectionMode);
   const theme = useStore((state) => state.theme);
   
   // ReactFlow 좌표 변환 함수
@@ -648,38 +630,36 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
                         key={`${id}-${col.name}-right-source`}
                         type="source"
                         position={Position.Right}
-                        id={`${col.name}-right`}
+                        id={createHandleId(col.name, 'right')}
                         style={{
                           position: 'absolute',
                           right: -8,
                           top: '50%',
                           transform: 'translateY(-50%)',
-                          width: 12,
-                          height: 12,
-                          backgroundColor: col.pk ? '#f1c40f' : '#2196f3',
-                          border: '3px solid white',
-                          borderRadius: '50%',
-                          zIndex: 100,
-                          cursor: 'crosshair'
+                          width: 1,
+                          height: 1,
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          opacity: 0,
+                          pointerEvents: 'none'
                         }}
                       />
                       <Handle
                         key={`${id}-${col.name}-right-target`}
                         type="target"
                         position={Position.Right}
-                        id={`${col.name}-right`}
+                        id={createHandleId(col.name, 'right')}
                         style={{
                           position: 'absolute',
                           right: -8,
                           top: '50%',
                           transform: 'translateY(-50%)',
-                          width: 12,
-                          height: 12,
-                          backgroundColor: col.pk ? '#f1c40f' : '#2196f3',
-                          border: '3px solid white',
-                          borderRadius: '50%',
-                          zIndex: 100,
-                          cursor: 'crosshair'
+                          width: 1,
+                          height: 1,
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          opacity: 0,
+                          pointerEvents: 'none'
                         }}
                       />
                       
@@ -688,38 +668,36 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
                         key={`${id}-${col.name}-left-source`}
                         type="source"
                         position={Position.Left}
-                        id={`${col.name}-left`}
+                        id={createHandleId(col.name, 'left')}
                         style={{
                           position: 'absolute',
                           left: -8,
                           top: '50%',
                           transform: 'translateY(-50%)',
-                          width: 12,
-                          height: 12,
-                          backgroundColor: col.pk ? '#f1c40f' : '#2196f3',
-                          border: '3px solid white',
-                          borderRadius: '50%',
-                          zIndex: 100,
-                          cursor: 'crosshair'
+                          width: 1,
+                          height: 1,
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          opacity: 0,
+                          pointerEvents: 'none'
                         }}
                       />
                       <Handle
                         key={`${id}-${col.name}-left-target`}
                         type="target"
                         position={Position.Left}
-                        id={`${col.name}-left`}
+                        id={createHandleId(col.name, 'left')}
                         style={{
                           position: 'absolute',
                           left: -8,
                           top: '50%',
                           transform: 'translateY(-50%)',
-                          width: 12,
-                          height: 12,
-                          backgroundColor: col.pk ? '#f1c40f' : '#2196f3',
-                          border: '3px solid white',
-                          borderRadius: '50%',
-                          zIndex: 100,
-                          cursor: 'crosshair'
+                          width: 1,
+                          height: 1,
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          opacity: 0,
+                          pointerEvents: 'none'
                         }}
                       />
                     </>

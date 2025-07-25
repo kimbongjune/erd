@@ -14,7 +14,6 @@ const PopupContainer = styled.div<{ $darkMode?: boolean }>`
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   padding: 16px;
   z-index: 1000;
-  backdrop-filter: blur(10px);
   min-width: 280px;
 `;
 

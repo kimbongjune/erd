@@ -135,9 +135,6 @@ const OneToManyIdentifyingEdge: React.FC<OneToManyIdentifyingEdgeProps> = React.
                 r="4"
                 fill="#3b82f6"
                 fillOpacity="0.8"
-                style={{
-                  filter: 'drop-shadow(0 0 4px rgba(59, 130, 246, 0.6))',
-                }}
               >
                 <animateMotion
                   dur={`${animationData.animationDuration}s`}

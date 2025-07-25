@@ -13,16 +13,14 @@ const NodeContainer = styled.div<{ selected?: boolean }>`
   max-width: 400px;
   min-height: 40px;
   box-shadow: ${props => props.selected 
-    ? '0 6px 20px rgba(251, 191, 36, 0.5), 0 0 0 3px rgba(251, 191, 36, 0.3)' 
+    ? '0 4px 12px rgba(251, 191, 36, 0.3), 0 0 0 2px rgba(251, 191, 36, 0.2)' 
     : '0 2px 8px rgba(0, 0, 0, 0.1)'};
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
-  transform: ${props => props.selected ? 'scale(1.02)' : 'scale(1)'};
   
   &:hover {
-    box-shadow: 0 4px 15px rgba(251, 191, 36, 0.2);
+    box-shadow: 0 3px 10px rgba(251, 191, 36, 0.15);
     border-color: #facc15;
-    transform: scale(1.01);
   }
 `;
 

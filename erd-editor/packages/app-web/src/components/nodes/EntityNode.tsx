@@ -34,17 +34,16 @@ const NodeContainer = styled.div<{ $isSelected: boolean; $darkMode?: boolean }>`
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   cursor: pointer;
-  transition: all 0.3s ease;
-  transform: ${props => props.$isSelected ? 'scale(1.02) translateZ(0)' : 'scale(1) translateZ(0)'};
-  will-change: transform, box-shadow;
-  backface-visibility: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transform: ${props => props.$isSelected ? 'scale3d(1.02, 1.02, 1) translate3d(0, 0, 0)' : 'scale3d(1, 1, 1) translate3d(0, 0, 0)'};
+  will-change: transform;
   
   &:hover {
     border-color: ${props => props.$isSelected ? '#005999' : '#60a5fa'};
     box-shadow: ${props => props.$isSelected 
       ? '0 12px 35px rgba(0, 122, 204, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.8)' 
       : (props.$darkMode ? '0 4px 15px rgba(96, 165, 250, 0.3)' : '0 4px 15px rgba(96, 165, 250, 0.2)')};
-    transform: ${props => props.$isSelected ? 'scale(1.03) translateZ(0)' : 'scale(1.01) translateZ(0)'};
+    transform: ${props => props.$isSelected ? 'scale3d(1.03, 1.03, 1) translate3d(0, 0, 0)' : 'scale3d(1.01, 1.01, 1) translate3d(0, 0, 0)'};
   }
   
   &::before {
@@ -57,7 +56,6 @@ const NodeContainer = styled.div<{ $isSelected: boolean; $darkMode?: boolean }>`
     background: ${props => props.$isSelected ? 'linear-gradient(90deg, #007acc, #4da6ff, #007acc)' : 'transparent'};
     background-size: 200% 100%;
     animation: ${props => props.$isSelected ? 'shimmer 2s infinite' : 'none'};
-    will-change: background-position;
   }
   
   @keyframes shimmer {

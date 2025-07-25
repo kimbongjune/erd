@@ -786,44 +786,128 @@ const useStore = create<RFState>((set, get) => ({
       const oldColumns = oldNode.data.columns || [];
       const newColumns = newData.columns || [];
       
-      // 컬럼 이름을 기반으로 변경사항 감지
-      const oldColumnMap = new Map(oldColumns.map((col: any) => [col.name, col]));
-      const newColumnMap = new Map(newColumns.map((col: any) => [col.name, col]));
+      // PK 컬럼 이름 변경 감지 (이름으로 비교)
+      const pkNameChanges: Array<{oldName: string, newName: string, entityName: string}> = [];
       
-      // PK 변경사항 분석
+      // 기존 PK 컬럼들
+      const oldPkColumns = oldColumns.filter((col: any) => col.pk);
+      const newPkColumns = newColumns.filter((col: any) => col.pk);
+      
+      // PK 컬럼의 이름 변경 감지
+      oldPkColumns.forEach((oldPkCol: any) => {
+        // 같은 위치의 새 PK 컬럼과 비교 (ID가 같거나 순서가 같은 경우)
+        const matchingNewPk = newPkColumns.find((newPkCol: any) => 
+          (newPkCol.id && oldPkCol.id && newPkCol.id === oldPkCol.id) ||
+          (!newPkCol.id || !oldPkCol.id) // ID가 없는 경우는 이름으로만 비교
+        );
+        
+        if (matchingNewPk && oldPkCol.name !== matchingNewPk.name) {
+          pkNameChanges.push({
+            oldName: oldPkCol.name,
+            newName: matchingNewPk.name,
+            entityName: oldNode.data.label
+          });
+        }
+      });
+      
+      // 만약 ID 기반 매칭이 실패하면 이름 기반으로 다시 시도
+      if (pkNameChanges.length === 0 && oldPkColumns.length === newPkColumns.length) {
+        for (let i = 0; i < oldPkColumns.length; i++) {
+          if (oldPkColumns[i].name !== newPkColumns[i].name) {
+            pkNameChanges.push({
+              oldName: oldPkColumns[i].name,
+              newName: newPkColumns[i].name,
+              entityName: oldNode.data.label
+            });
+          }
+        }
+      }
+      
+      // PK 상태 변경사항 분석 (실제로 PK 상태가 변경된 경우만)
       const pkChanges: Array<{type: 'added' | 'removed', column: any, entityName: string}> = [];
       
-      // 제거된 PK 찾기
-      for (const [colName, oldCol] of oldColumnMap) {
-        const newCol = newColumnMap.get(colName);
-        if ((oldCol as any).pk && (!newCol || !(newCol as any).pk)) {
+      // 제거된 PK 찾기 (컬럼이 삭제되거나 PK 상태가 false로 변경된 경우)
+      oldColumns.forEach((oldCol: any) => {
+        const newCol = newColumns.find((col: any) => 
+          (col.id && oldCol.id && col.id === oldCol.id) || 
+          (col.name === oldCol.name && !pkNameChanges.some(change => change.oldName === oldCol.name))
+        );
+        if (oldCol.pk && (!newCol || !newCol.pk)) {
+          // 컬럼이 완전히 삭제되었거나 PK 상태만 변경된 경우
           pkChanges.push({ type: 'removed', column: oldCol, entityName: oldNode.data.label });
         }
-      }
+      });
       
-      // 추가된 PK 찾기  
-      for (const [colName, newCol] of newColumnMap) {
-        const oldCol = oldColumnMap.get(colName);
-        if ((newCol as any).pk && (!oldCol || !(oldCol as any).pk)) {
+      // 추가된 PK 찾기 (새로운 컬럼이 PK로 추가되거나 기존 컬럼이 PK로 변경된 경우)
+      newColumns.forEach((newCol: any) => {
+        const oldCol = oldColumns.find((col: any) => 
+          (col.id && newCol.id && col.id === newCol.id) || 
+          (col.name === newCol.name && !pkNameChanges.some(change => change.newName === newCol.name))
+        );
+        if (newCol.pk && (!oldCol || !oldCol.pk)) {
+          // 새로운 컬럼이 PK로 추가되었거나 기존 컬럼이 PK로 변경된 경우
           pkChanges.push({ type: 'added', column: newCol, entityName: oldNode.data.label });
         }
-      }
+      });
 
       // FK 변경사항 분석 (자식 엔티티에서 FK 삭제 시)
       const fkChanges: Array<{type: 'removed', column: any, entityName: string}> = [];
       
-      // 제거된 FK 찾기
-      for (const [colName, oldCol] of oldColumnMap) {
-        const newCol = newColumnMap.get(colName);
-        if ((oldCol as any).fk && (!newCol || !(newCol as any).fk)) {
+      // 제거된 FK 찾기 (컬럼이 삭제되거나 FK 상태가 false로 변경된 경우)
+      oldColumns.forEach((oldCol: any) => {
+        const newCol = newColumns.find((col: any) => 
+          (col.id && oldCol.id && col.id === oldCol.id) || col.name === oldCol.name
+        );
+        if (oldCol.fk && (!newCol || !newCol.fk)) {
           fkChanges.push({ type: 'removed', column: oldCol, entityName: oldNode.data.label });
         }
-      }
+      });
 
       let finalNodes = updatedNodes;
       let finalEdges = state.edges;
 
-      // PK 변경 처리 (부모 엔티티에서)
+      // PK 컬럼 이름 변경 처리 (우선 처리)
+      if (pkNameChanges.length > 0) {
+        const relatedEdges = state.edges.filter(edge => edge.source === nodeId);
+        
+        relatedEdges.forEach(edge => {
+          const targetNodeId = edge.target;
+          
+          finalNodes = finalNodes.map(node => {
+            if (node.id === targetNodeId && node.type === 'entity') {
+              let targetColumns = [...(node.data.columns || [])];
+              
+              pkNameChanges.forEach(change => {
+                const oldFkName = `${change.entityName.toLowerCase()}_${change.oldName}`;
+                const newFkName = `${change.entityName.toLowerCase()}_${change.newName}`;
+                
+                // 기존 FK 컬럼 찾아서 이름 업데이트
+                const fkColumnIndex = targetColumns.findIndex(col => col.name === oldFkName && col.fk);
+                if (fkColumnIndex !== -1) {
+                  targetColumns[fkColumnIndex] = {
+                    ...targetColumns[fkColumnIndex],
+                    id: targetColumns[fkColumnIndex].id || `${Date.now()}_${Math.random()}`,
+                    name: newFkName
+                  };
+                  toast.info(`${change.entityName}의 PK 컬럼명 변경으로 ${node.data.label}의 FK 컬럼명이 ${oldFkName} → ${newFkName}로 변경되었습니다.`);
+                }
+              });
+              
+              return { ...node, data: { ...node.data, columns: targetColumns } };
+            }
+            return node;
+          });
+        });
+        
+        // PK 컬럼 이름 변경이 있었으면 PK 상태 변경 처리를 건너뛰기 위해 리턴
+        return {
+          ...state,
+          nodes: finalNodes,
+          edges: finalEdges
+        };
+      }
+
+      // PK 상태 변경 처리 (PK 컬럼 이름 변경이 없을 때만 실행)
       if (pkChanges.length > 0) {
         // 현재 엔티티를 참조하는 모든 관계선 찾기
         const relatedEdges = state.edges.filter(edge => edge.source === nodeId);
@@ -850,11 +934,13 @@ const useStore = create<RFState>((set, get) => ({
                     const isIdentifying = edge.type?.includes('identifying') || false;
                     
                     targetColumns.push({
+                      id: `${Date.now()}_${Math.random()}`,
                       name: fkColumnName,
                       type: change.column.type,
                       pk: isIdentifying,
                       fk: true,
                       uq: false,
+                      nn: isIdentifying,
                       comment: `Foreign key from ${change.entityName}.${change.column.name}`
                     });
                     toast.info(`${change.entityName}의 PK 추가로 인해 ${node.data.label}에 ${fkColumnName} FK가 추가되었습니다.`);

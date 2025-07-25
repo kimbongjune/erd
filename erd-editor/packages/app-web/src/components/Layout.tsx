@@ -448,6 +448,7 @@ const Layout = () => {
   const [columns, setColumns] = useState<any[]>([]);
   const [selectedColumn, setSelectedColumn] = useState<any>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
+  const [isComposing, setIsComposing] = useState(false);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
   // 선택된 엔티티의 데이터를 가져오기
@@ -768,6 +769,29 @@ const Layout = () => {
     setEditingCell(null);
   };
 
+  const handleCellKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !isComposing) {
+      e.preventDefault();
+      e.stopPropagation();
+      setEditingCell(null);
+      (e.target as HTMLInputElement).blur();
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      setEditingCell(null);
+      (e.target as HTMLInputElement).blur();
+    }
+  };
+
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = () => {
+    setIsComposing(false);
+  };
+
   // 컬럼 순서 변경 함수
   const moveColumn = (columnId: string, direction: 'up' | 'down') => {
     const currentIndex = columns.findIndex(col => col.id === columnId);
@@ -955,6 +979,9 @@ const Layout = () => {
                         value={column.name || ''}
                         onChange={(e) => updateColumnField(column.id, 'name', e.target.value)}
                         onBlur={handleCellBlur}
+                        onKeyDown={handleCellKeyDown}
+                        onCompositionStart={handleCompositionStart}
+                        onCompositionEnd={handleCompositionEnd}
                         readOnly={editingCell !== `${column.id}-name`}
                       />
                     </TableCell>
@@ -966,6 +993,9 @@ const Layout = () => {
                         value={column.logicalName || ''}
                         onChange={(e) => updateColumnField(column.id, 'logicalName', e.target.value)}
                         onBlur={handleCellBlur}
+                        onKeyDown={handleCellKeyDown}
+                        onCompositionStart={handleCompositionStart}
+                        onCompositionEnd={handleCompositionEnd}
                         readOnly={editingCell !== `${column.id}-logicalName`}
                       />
                     </TableCell>
@@ -977,6 +1007,9 @@ const Layout = () => {
                         value={column.dataType || ''}
                         onChange={(e) => updateColumnField(column.id, 'dataType', e.target.value.toUpperCase())}
                         onBlur={handleCellBlur}
+                        onKeyDown={handleCellKeyDown}
+                        onCompositionStart={handleCompositionStart}
+                        onCompositionEnd={handleCompositionEnd}
                         readOnly={editingCell !== `${column.id}-dataType`}
                       />
                     </TableCell>
@@ -1022,6 +1055,9 @@ const Layout = () => {
                         value={column.defaultValue || ''}
                         onChange={(e) => updateColumnField(column.id, 'defaultValue', e.target.value)}
                         onBlur={handleCellBlur}
+                        onKeyDown={handleCellKeyDown}
+                        onCompositionStart={handleCompositionStart}
+                        onCompositionEnd={handleCompositionEnd}
                         readOnly={editingCell !== `${column.id}-defaultValue`}
                         placeholder="Default value"
                       />
@@ -1085,6 +1121,15 @@ const Layout = () => {
                 type="text" 
                 value={selectedColumn?.name || ''} 
                 onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'name', e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isComposing) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                onCompositionStart={handleCompositionStart}
+                onCompositionEnd={handleCompositionEnd}
               />
             </BottomField>
             <BottomField>
@@ -1094,6 +1139,15 @@ const Layout = () => {
                 type="text" 
                 value={selectedColumn?.dataType || ''} 
                 onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'dataType', e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isComposing) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                onCompositionStart={handleCompositionStart}
+                onCompositionEnd={handleCompositionEnd}
               />
             </BottomField>
             <BottomField>
@@ -1103,6 +1157,15 @@ const Layout = () => {
                 type="text" 
                 value={selectedColumn?.defaultValue || ''} 
                 onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'defaultValue', e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isComposing) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                onCompositionStart={handleCompositionStart}
+                onCompositionEnd={handleCompositionEnd}
                 placeholder="Default value"
               />
             </BottomField>
@@ -1113,6 +1176,15 @@ const Layout = () => {
                 type="text" 
                 value={selectedColumn?.comment || ''} 
                 onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'comment', e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isComposing) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                onCompositionStart={handleCompositionStart}
+                onCompositionEnd={handleCompositionEnd}
               />
             </BottomField>
           </BottomSection>

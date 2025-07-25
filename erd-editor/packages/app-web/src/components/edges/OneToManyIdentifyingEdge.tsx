@@ -53,6 +53,7 @@ const OneToManyIdentifyingEdge: React.FC<OneToManyIdentifyingEdgeProps> = React.
     targetX,
     targetY,
     targetPosition,
+    borderRadius: 5,
   });
 
   // 애니메이션을 위한 계산

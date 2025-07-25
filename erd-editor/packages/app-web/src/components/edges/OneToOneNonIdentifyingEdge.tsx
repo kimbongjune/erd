@@ -54,6 +54,7 @@ const OneToOneNonIdentifyingEdge: React.FC<OneToOneNonIdentifyingEdgeProps> = Re
     targetX,
     targetY,
     targetPosition,
+    borderRadius: 5,
   });
 
   // 애니메이션 데이터 계산

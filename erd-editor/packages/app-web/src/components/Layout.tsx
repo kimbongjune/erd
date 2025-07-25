@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import Header from './Header';
 import Toolbox from './Toolbox';
@@ -6,6 +7,7 @@ import Canvas from './Canvas';
 import Properties from './Properties';
 import useStore from '../store/useStore';
 import { toast } from 'react-toastify';
+import { MYSQL_DATATYPES, validateEnglishOnly, validateDataType } from '../utils/mysqlTypes';
 
 const Container = styled.div<{ $darkMode?: boolean }>`
   display: flex;
@@ -149,8 +151,10 @@ const CloseButton = styled.button<{ $darkMode?: boolean }>`
 
 const TableContainer = styled.div<{ $darkMode?: boolean }>`
   flex: 1;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
   background-color: ${props => props.$darkMode ? '#1E1E1E' : '#ffffff'};
+  position: relative;
 `;
 
 const Table = styled.table<{ $darkMode?: boolean }>`
@@ -187,6 +191,8 @@ const TableRow = styled.tr<{ $selected?: boolean; $darkMode?: boolean }>`
   border-bottom: 1px solid ${props => props.$darkMode ? '#404040' : '#f0f0f0'};
   background-color: ${props => props.$selected ? (props.$darkMode ? '#1a365d' : '#e6f3ff') : 'transparent'};
   cursor: pointer;
+  position: relative;
+  z-index: 1;
   
   &:hover {
     background-color: ${props => props.$selected ? (props.$darkMode ? '#1a365d' : '#e6f3ff') : (props.$darkMode ? '#2d3748' : '#f8f8ff')};
@@ -200,6 +206,9 @@ const TableCell = styled.td<{ $darkMode?: boolean }>`
   position: relative;
   cursor: pointer;
   color: ${props => props.$darkMode ? '#e2e8f0' : 'inherit'};
+  width: 120px; /* 고정 폭 설정 */
+  max-width: 120px;
+  overflow: hidden;
 `;
 
 const EditableCell = styled.input<{ $darkMode?: boolean }>`
@@ -235,6 +244,217 @@ const EditableCell = styled.input<{ $darkMode?: boolean }>`
     }
   }
 `;
+
+// 데이터타입 입력을 위한 combobox 컴포넌트
+const DataTypeInputContainer = styled.div<{ $isOpen?: boolean }>`
+  position: relative;
+  width: 100%;
+  overflow: visible; /* 드롭다운이 보이도록 */
+  z-index: ${props => props.$isOpen ? 99999998 : 10};
+`;
+
+const DataTypeInput = styled.input<{ $darkMode?: boolean; $showDropdown?: boolean }>`
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 2px;
+  pointer-events: none;
+  cursor: default;
+  color: ${props => props.$darkMode ? '#e2e8f0' : 'inherit'};
+  box-sizing: border-box;
+  
+  &::placeholder {
+    color: ${props => props.$darkMode ? '#9ca3af' : '#999'};
+  }
+  
+  &.editing {
+    pointer-events: auto;
+    cursor: text;
+    border-color: ${props => props.$darkMode ? '#4a5568' : '#ccc'};
+    background-color: ${props => props.$darkMode ? '#2d3748' : '#fafafa'};
+    padding-right: 20px; /* 드롭다운 아이콘 공간 */
+    
+    &:focus {
+      background-color: ${props => props.$darkMode ? '#374151' : 'white'};
+      border: 1px solid #007acc;
+      outline: none;
+      box-shadow: 0 0 2px rgba(0,122,204,0.3);
+    }
+    
+    &::placeholder {
+      color: ${props => props.$darkMode ? '#6b7280' : '#aaa'};
+    }
+  }
+`;
+
+const DropdownButton = styled.button<{ $darkMode?: boolean; $visible?: boolean }>`
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: ${props => props.$visible ? 'flex' : 'none'};
+  align-items: center;
+  justify-content: center;
+  color: ${props => props.$darkMode ? '#9ca3af' : '#666'};
+  font-size: 10px;
+  
+  &:hover {
+    color: ${props => props.$darkMode ? '#e2e8f0' : '#333'};
+  }
+`;
+
+const DropdownList = styled.div<{ $darkMode?: boolean; $show?: boolean }>`
+  position: fixed;
+  width: 120px;
+  max-height: 150px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: ${props => props.$darkMode ? '#374151' : 'white'};
+  border: 1px solid ${props => props.$darkMode ? '#4a5568' : '#ccc'};
+  border-radius: 4px;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 99999999;
+  display: block;
+  opacity: 1;
+  visibility: visible;
+  
+  /* 커스텀 스크롤바 */
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: ${props => props.$darkMode ? '#2d3748' : '#f1f1f1'};
+    border-radius: 2px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: ${props => props.$darkMode ? '#4a5568' : '#c1c1c1'};
+    border-radius: 2px;
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: ${props => props.$darkMode ? '#5a6578' : '#a1a1a1'};
+  }
+`;
+
+// Portal로 렌더링되는 드롭다운 컴포넌트
+const PortalDropdown: React.FC<{
+  isOpen: boolean;
+  position: { top: number; left: number } | null;
+  onClose: () => void;
+  onSelect: (type: string) => void;
+  darkMode: boolean;
+}> = ({ isOpen, position, onClose, onSelect, darkMode }) => {
+  if (!isOpen || !position) return null;
+
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed',
+        top: position.top,
+        left: position.left,
+        width: '120px',
+        maxHeight: '150px',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        background: darkMode ? '#374151' : 'white',
+        border: `1px solid ${darkMode ? '#4a5568' : '#ccc'}`,
+        borderRadius: '4px',
+        boxShadow: '0 -8px 24px rgba(0, 0, 0, 0.4)',
+        zIndex: 2147483647, // 최대 z-index 값
+      }}
+      data-dropdown="true"
+    >
+      {MYSQL_DATATYPES.map(type => (
+        <div
+          key={type}
+          style={{
+            padding: '8px 16px',
+            fontSize: '11px',
+            cursor: 'pointer',
+            color: darkMode ? '#e2e8f0' : '#333',
+            borderBottom: `1px solid ${darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+            transition: 'all 0.2s ease',
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault(); // blur 방지
+          }}
+          onClick={() => {
+            onSelect(type);
+            onClose();
+          }}
+          onMouseEnter={(e) => {
+            const target = e.target as HTMLElement;
+            target.style.background = `linear-gradient(135deg, ${darkMode ? '#4a90e2' : '#007acc'} 0%, ${darkMode ? '#357abd' : '#0056a3'} 100%)`;
+            target.style.color = '#ffffff';
+            target.style.transform = 'translateX(2px)';
+            target.style.boxShadow = 'inset 0 0 0 1px rgba(255,255,255,0.2)';
+          }}
+          onMouseLeave={(e) => {
+            const target = e.target as HTMLElement;
+            target.style.background = 'transparent';
+            target.style.color = darkMode ? '#e2e8f0' : '#333';
+            target.style.transform = 'translateX(0)';
+            target.style.boxShadow = 'none';
+          }}
+        >
+          {type}
+        </div>
+      ))}
+      {/* 커스텀 스크롤바 스타일 */}
+      <style>{`
+        [data-dropdown]::-webkit-scrollbar {
+          width: 4px;
+        }
+        [data-dropdown]::-webkit-scrollbar-track {
+          background: ${darkMode ? '#2d3748' : '#f1f1f1'};
+          border-radius: 2px;
+        }
+        [data-dropdown]::-webkit-scrollbar-thumb {
+          background: ${darkMode ? '#4a5568' : '#c1c1c1'};
+          border-radius: 2px;
+        }
+        [data-dropdown]::-webkit-scrollbar-thumb:hover {
+          background: ${darkMode ? '#5a6578' : '#a1a1a1'};
+        }
+      `}</style>
+    </div>,
+    document.body
+  );
+};
+
+const DropdownItem = styled.div<{ $darkMode?: boolean }>`
+  padding: 8px 16px;
+  font-size: 11px;
+  cursor: pointer;
+  color: ${props => props.$darkMode ? '#e2e8f0' : '#333'};
+  border-bottom: 1px solid ${props => props.$darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'};
+  transition: all 0.2s ease;
+  
+  &:last-child {
+    border-bottom: none;
+  }
+  
+  &:hover {
+    background: linear-gradient(135deg, 
+      ${props => props.$darkMode ? '#4a90e2' : '#007acc'} 0%, 
+      ${props => props.$darkMode ? '#357abd' : '#0056a3'} 100%);
+    color: #ffffff;
+    transform: translateX(2px);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2);
+  }
+`;
+
+
 
 const CheckboxCell = styled(TableCell)`
   text-align: center;
@@ -429,6 +649,8 @@ const TableCommentTextarea = styled.textarea<{ $darkMode?: boolean }>`
 `;
 
 const Layout = () => {
+  const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
   const { 
     isBottomPanelOpen, 
     setBottomPanelOpen, 
@@ -450,6 +672,26 @@ const Layout = () => {
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [isComposing, setIsComposing] = useState(false);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  // 드롭다운 외부 클릭 감지
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-dropdown]') && !target.closest('[data-dropdown-button]') && !target.closest('[data-editing]')) {
+        setDropdownOpen(null);
+        setDropdownPosition(null);
+        // editing 상태도 해제하여 border 제거
+        setEditingCell(null);
+      }
+    };
+
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [dropdownOpen]);
 
   // 선택된 엔티티의 데이터를 가져오기
   React.useEffect(() => {
@@ -474,6 +716,16 @@ const Layout = () => {
     }
   }, [selectedNodeId, isBottomPanelOpen]);
 
+  // columns 변경 시 selectedColumn 동기화
+  React.useEffect(() => {
+    if (selectedColumn && columns.length > 0) {
+      const updatedSelectedColumn = columns.find(col => col.id === selectedColumn.id);
+      if (updatedSelectedColumn && JSON.stringify(updatedSelectedColumn) !== JSON.stringify(selectedColumn)) {
+        setSelectedColumn(updatedSelectedColumn);
+      }
+    }
+  }, [columns]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -497,6 +749,32 @@ const Layout = () => {
     const newHeight = Math.max(150, Math.min(600, dragRef.current.startHeight + deltaY));
     setBottomPanelHeight(newHeight);
   }, [isDragging]);
+
+  // 드롭다운 위치 계산 함수
+  const calculateDropdownPosition = (element: HTMLElement) => {
+    const rect = element.getBoundingClientRect();
+    const dropdownHeight = 150; // max-height
+    const dropdownWidth = 120; // fixed width
+    const windowHeight = window.innerHeight;
+    const windowWidth = window.innerWidth;
+    
+    let top = rect.top - dropdownHeight - 5; // 위쪽에 표시
+    if (top < 0) {
+      top = rect.bottom + 5; // 공간이 없으면 아래쪽에 표시
+    }
+    
+    let left = rect.left;
+    // 오른쪽 경계를 넘지 않도록 조정
+    if (left + dropdownWidth > windowWidth) {
+      left = windowWidth - dropdownWidth - 10;
+    }
+    // 왼쪽 경계를 넘지 않도록 조정
+    if (left < 10) {
+      left = 10;
+    }
+    
+    setDropdownPosition({ top, left });
+  };
 
   const handleMouseUp = useCallback((e?: MouseEvent) => {
     setIsDragging(false);
@@ -545,6 +823,87 @@ const Layout = () => {
   };
 
   const deleteColumn = (columnId: string) => {
+    const columnToDelete = columns.find(col => col.id === columnId);
+    
+    if (columnToDelete) {
+      const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
+      if (currentEntity?.type === 'entity') {
+        const allEdges = useStore.getState().edges;
+        let deletedEdgesCount = 0;
+        
+        // 1. PK 컬럼 삭제 시 - 현재 엔티티를 소스로 하는 모든 관계선 삭제
+        if (columnToDelete.pk) {
+          const relatedEdges = allEdges.filter(edge => edge.source === selectedNodeId);
+          
+          relatedEdges.forEach(edge => {
+            useStore.getState().deleteEdge(edge.id);
+            deletedEdgesCount++;
+          });
+        }
+        
+        // 2. FK 컬럼 삭제 시 - 컬럼명 패턴으로 관계 찾기
+        if (columnToDelete.fk || columnToDelete.name.includes('_')) {
+          // FK 컬럼명 패턴: {parent_table}_{pk_column} 형태
+          const columnName = columnToDelete.name;
+          const parts = columnName.split('_');
+          
+          if (parts.length >= 2) {
+            const parentEntityNameLower = parts[0];
+            const pkColumnName = parts.slice(1).join('_'); // 나머지 부분을 PK 컬럼명으로 처리
+            
+            // 부모 엔티티 찾기 (대소문자 무시)
+            const parentEntity = useStore.getState().nodes.find(node => 
+              node.type === 'entity' && node.data.label.toLowerCase() === parentEntityNameLower
+            );
+            
+            if (parentEntity) {
+              // 부모 엔티티의 PK 컬럼 확인
+              const parentPkColumn = parentEntity.data.columns?.find((col: any) => 
+                col.pk && col.name === pkColumnName
+              );
+              
+              if (parentPkColumn) {
+                // 해당 부모 엔티티와 현재 엔티티 간의 관계선 찾기
+                const relatedEdges = allEdges.filter(edge => 
+                  edge.source === parentEntity.id && edge.target === selectedNodeId
+                );
+                
+                relatedEdges.forEach(edge => {
+                  useStore.getState().deleteEdge(edge.id);
+                  deletedEdgesCount++;
+                });
+              }
+            }
+          }
+        }
+        
+        // 3. 추가적으로 현재 엔티티와 관련된 모든 관계에서 해당 컬럼을 참조하는 관계 찾기
+        const relatedEdgesByEntity = allEdges.filter(edge => 
+          (edge.source === selectedNodeId || edge.target === selectedNodeId)
+        );
+        
+        relatedEdgesByEntity.forEach(edge => {
+          // 이미 삭제된 관계인지 확인
+          const stillExists = useStore.getState().edges.find(e => e.id === edge.id);
+          if (!stillExists) return;
+          
+          // sourceHandle 또는 targetHandle에 해당 컬럼명이 포함되어 있는지 확인
+          const handleIncludesColumn = 
+            edge.sourceHandle?.includes(columnToDelete.name) ||
+            edge.targetHandle?.includes(columnToDelete.name);
+          
+          if (handleIncludesColumn) {
+            useStore.getState().deleteEdge(edge.id);
+            deletedEdgesCount++;
+          }
+        });
+        
+        if (deletedEdgesCount > 0) {
+          toast.warning(`컬럼 삭제로 인해 ${deletedEdgesCount}개의 관계가 해제되었습니다.`);
+        }
+      }
+    }
+    
     const newColumns = columns.filter(col => col.id !== columnId);
     setColumns(newColumns);
     updateNodeColumns(newColumns);
@@ -567,6 +926,17 @@ const Layout = () => {
   };
 
   const updateColumnField = (columnId: string, field: string, value: any) => {
+    // 물리명과 데이터타입은 영어만 허용
+    if ((field === 'name' || field === 'dataType') && typeof value === 'string') {
+      if (!validateEnglishOnly(value)) {
+        toast.error(field === 'name' ? 
+          '물리명은 영어, 숫자, 언더스코어, 괄호만 입력할 수 있습니다.' : 
+          '데이터타입은 영어, 숫자, 언더스코어, 괄호만 입력할 수 있습니다.'
+        );
+        return;
+      }
+    }
+    
     // 컬럼명 중복 체크
     if (field === 'name' && value && value.trim() !== '') {
       const existingColumn = columns.find(col => col.id !== columnId && col.name === value.trim());
@@ -584,6 +954,75 @@ const Layout = () => {
         if (field === 'pk' && value === true) {
           updatedCol.nn = true;
           updatedCol.uq = false; // PK 체크하면 UQ 해제
+        } else if (field === 'pk' && value === false) {
+          // PK 해제 시 - FK 컬럼인지 확인하여 처리 방식 결정
+          const isFkColumn = updatedCol.fk || updatedCol.name.includes('_');
+          
+          if (isFkColumn) {
+            // FK 컬럼의 PK 해제 시: 식별자 관계를 비식별자 관계로 변경
+            const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
+            if (currentEntity?.type === 'entity') {
+              const allEdges = useStore.getState().edges;
+              let changedEdgesCount = 0;
+              
+              // FK 컬럼명 패턴으로 부모 엔티티 찾기
+              const columnName = updatedCol.name;
+              const parts = columnName.split('_');
+              
+              if (parts.length >= 2) {
+                const parentEntityNameLower = parts[0];
+                
+                // 부모 엔티티 찾기
+                const parentEntity = useStore.getState().nodes.find(node => 
+                  node.type === 'entity' && node.data.label.toLowerCase() === parentEntityNameLower
+                );
+                
+                if (parentEntity) {
+                  // 해당 부모 엔티티와의 관계선 찾기
+                  const relatedEdges = allEdges.filter(edge => 
+                    edge.source === parentEntity.id && edge.target === selectedNodeId
+                  );
+                  
+                  relatedEdges.forEach(edge => {
+                    // 식별자 관계를 비식별자 관계로 변경
+                    let newType = edge.type;
+                    if (edge.type === 'one-to-one-identifying') {
+                      newType = 'one-to-one-non-identifying';
+                      changedEdgesCount++;
+                    } else if (edge.type === 'one-to-many-identifying') {
+                      newType = 'one-to-many-non-identifying';
+                      changedEdgesCount++;
+                    }
+                    
+                    if (newType !== edge.type) {
+                      // 관계 타입 변경
+                      const updatedEdges = useStore.getState().edges.map(e => 
+                        e.id === edge.id ? { ...e, type: newType } : e
+                      );
+                      useStore.getState().setEdges(updatedEdges);
+                    }
+                  });
+                  
+                  if (changedEdgesCount > 0) {
+                    toast.info(`FK 컬럼의 PK 해제로 인해 ${changedEdgesCount}개의 식별자 관계가 비식별자 관계로 변경되었습니다.`);
+                  }
+                }
+              }
+            }
+          } else {
+            // 일반 PK 컬럼의 PK 해제 시: 관계 삭제
+            const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
+            if (currentEntity?.type === 'entity') {
+              const relatedEdges = useStore.getState().edges.filter(edge => edge.source === selectedNodeId);
+              
+              if (relatedEdges.length > 0) {
+                relatedEdges.forEach(edge => {
+                  useStore.getState().deleteEdge(edge.id);
+                });
+                toast.warning(`PK 해제로 인해 ${relatedEdges.length}개의 관계가 해제되었습니다.`);
+              }
+            }
+          }
         } else if (field === 'uq' && value === true && col.pk === true) {
           updatedCol.pk = false; // UQ 체크하면 PK 해제
           updatedCol.nn = false; // PK 해제 시 NN도 해제 가능하게
@@ -647,36 +1086,12 @@ const Layout = () => {
     });
     setColumns(newColumns);
     
-    // 선택된 컬럼도 업데이트
+    // 선택된 컬럼도 즉시 업데이트 (newColumns 배열에서 직접 가져와서 동기화 확실히)
     if (selectedColumn?.id === columnId) {
-      const updatedSelectedColumn = { ...selectedColumn, [field]: value };
-      
-      // PK-UQ 상호 제약을 선택된 컬럼에도 적용
-      if (field === 'pk' && value === true) {
-        updatedSelectedColumn.nn = true;
-        updatedSelectedColumn.uq = false;
-      } else if (field === 'uq' && value === true) {
-        updatedSelectedColumn.pk = false;
-        updatedSelectedColumn.nn = false;
+      const updatedSelectedColumn = newColumns.find(col => col.id === columnId);
+      if (updatedSelectedColumn) {
+        setSelectedColumn({...updatedSelectedColumn}); // 새 객체로 업데이트하여 리렌더링 보장
       }
-      
-      if (field === 'dataType') {
-        updatedSelectedColumn.type = value;
-      }
-      
-      // AI 체크박스 변경 시 constraint도 함께 업데이트 (선택된 컬럼)
-      if (field === 'ai') {
-        if (value === true) {
-          updatedSelectedColumn.constraint = 'AUTO_INCREMENT';
-        } else {
-          // AI 해제 시 constraint에서 AUTO_INCREMENT 제거
-          if (updatedSelectedColumn.constraint === 'AUTO_INCREMENT') {
-            updatedSelectedColumn.constraint = null;
-          }
-        }
-      }
-      
-      setSelectedColumn(updatedSelectedColumn);
     }
     
     // 엔티티 노드의 데이터 업데이트
@@ -1000,18 +1415,66 @@ const Layout = () => {
                       />
                     </TableCell>
                     <TableCell $darkMode={isDarkMode} key={`${column.id}-datatype`} onDoubleClick={() => handleCellDoubleClick(column.id, 'dataType')}>
-                      <EditableCell 
-                        $darkMode={isDarkMode}
-                        className={editingCell === `${column.id}-dataType` ? 'editing' : ''}
-                        data-editing={editingCell === `${column.id}-dataType` ? `${column.id}-dataType` : ''}
-                        value={column.dataType || ''}
-                        onChange={(e) => updateColumnField(column.id, 'dataType', e.target.value.toUpperCase())}
-                        onBlur={handleCellBlur}
-                        onKeyDown={handleCellKeyDown}
-                        onCompositionStart={handleCompositionStart}
-                        onCompositionEnd={handleCompositionEnd}
-                        readOnly={editingCell !== `${column.id}-dataType`}
-                      />
+                      <DataTypeInputContainer $isOpen={dropdownOpen === `${column.id}-datatype`}>
+                        <DataTypeInput 
+                          $darkMode={isDarkMode}
+                          className={editingCell === `${column.id}-dataType` ? 'editing' : ''}
+                          data-editing={editingCell === `${column.id}-dataType` ? `${column.id}-dataType` : ''}
+                          value={column.dataType || ''}
+                          onChange={(e) => updateColumnField(column.id, 'dataType', e.target.value.toUpperCase())}
+                          onBlur={(e) => {
+                            // 드롭다운 아이템 클릭이나 버튼 클릭이 아닌 경우에만 blur 처리
+                            const relatedTarget = e.relatedTarget as HTMLElement;
+                            if (!relatedTarget || (!relatedTarget.closest('[data-dropdown]') && !relatedTarget.closest('[data-dropdown-button]'))) {
+                              handleCellBlur(e);
+                              setDropdownOpen(null);
+                            }
+                          }}
+                          onKeyDown={handleCellKeyDown}
+                          onCompositionStart={handleCompositionStart}
+                          onCompositionEnd={handleCompositionEnd}
+                          readOnly={editingCell !== `${column.id}-dataType`}
+                          placeholder="데이터타입 선택 또는 입력"
+                        />
+                        <DropdownButton 
+                          $darkMode={isDarkMode} 
+                          $visible={editingCell === `${column.id}-dataType`}
+                          data-dropdown-button="true"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (editingCell === `${column.id}-dataType`) {
+                              if (dropdownOpen === `${column.id}-datatype`) {
+                                setDropdownOpen(null);
+                                setDropdownPosition(null);
+                              } else {
+                                calculateDropdownPosition(e.currentTarget);
+                                setDropdownOpen(`${column.id}-datatype`);
+                              }
+                            }
+                          }}
+                        >
+                          ▼
+                        </DropdownButton>
+                        {dropdownOpen === `${column.id}-datatype` && editingCell === `${column.id}-dataType` && dropdownPosition && (
+                          <PortalDropdown
+                            isOpen={true}
+                            position={dropdownPosition}
+                            onClose={() => {
+                              setDropdownOpen(null);
+                              setDropdownPosition(null);
+                              setEditingCell(null);
+                            }}
+                            onSelect={(type) => {
+                              updateColumnField(column.id, 'dataType', type);
+                              setDropdownOpen(null);
+                              setDropdownPosition(null);
+                              setEditingCell(null);
+                            }}
+                            darkMode={isDarkMode}
+                          />
+                        )}
+                      </DataTypeInputContainer>
                     </TableCell>
                     <CheckboxCell $darkMode={isDarkMode} key={`${column.id}-pk`}>
                       <Checkbox 
@@ -1134,21 +1597,67 @@ const Layout = () => {
             </BottomField>
             <BottomField>
               <BottomLabel $darkMode={isDarkMode}>Data Type:</BottomLabel>
-              <BottomInput 
-                $darkMode={isDarkMode}
-                type="text" 
-                value={selectedColumn?.dataType || ''} 
-                onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'dataType', e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isComposing) {
+              <DataTypeInputContainer $isOpen={dropdownOpen === 'bottom-datatype'}>
+                <BottomInput 
+                  $darkMode={isDarkMode}
+                  type="text" 
+                  value={selectedColumn?.dataType || ''} 
+                  onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'dataType', e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !isComposing) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      (e.target as HTMLInputElement).blur();
+                      setDropdownOpen(null);
+                    }
+                  }}
+                  onCompositionStart={handleCompositionStart}
+                  onCompositionEnd={handleCompositionEnd}
+                  onBlur={(e) => {
+                    const relatedTarget = e.relatedTarget as HTMLElement;
+                    if (!relatedTarget || (!relatedTarget.closest('[data-dropdown]') && !relatedTarget.closest('[data-dropdown-button]'))) {
+                      setDropdownOpen(null);
+                    }
+                  }}
+                  placeholder="데이터타입 선택 또는 입력"
+                />
+                <DropdownButton 
+                  $darkMode={isDarkMode} 
+                  $visible={true}
+                  data-dropdown-button="true"
+                  onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    (e.target as HTMLInputElement).blur();
-                  }
-                }}
-                onCompositionStart={handleCompositionStart}
-                onCompositionEnd={handleCompositionEnd}
-              />
+                    if (dropdownOpen === 'bottom-datatype') {
+                      setDropdownOpen(null);
+                      setDropdownPosition(null);
+                    } else {
+                      calculateDropdownPosition(e.currentTarget);
+                      setDropdownOpen('bottom-datatype');
+                    }
+                  }}
+                >
+                  ▼
+                </DropdownButton>
+                {dropdownOpen === 'bottom-datatype' && dropdownPosition && (
+                  <PortalDropdown
+                    isOpen={true}
+                    position={dropdownPosition}
+                    onClose={() => {
+                      setDropdownOpen(null);
+                      setDropdownPosition(null);
+                    }}
+                    onSelect={(type) => {
+                      if (selectedColumn) {
+                        updateColumnField(selectedColumn.id, 'dataType', type);
+                      }
+                      setDropdownOpen(null);
+                      setDropdownPosition(null);
+                    }}
+                    darkMode={isDarkMode}
+                  />
+                )}
+              </DataTypeInputContainer>
             </BottomField>
             <BottomField>
               <BottomLabel $darkMode={isDarkMode}>Default:</BottomLabel>

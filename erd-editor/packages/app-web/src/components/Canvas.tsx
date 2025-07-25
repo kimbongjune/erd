@@ -572,7 +572,7 @@ const Canvas = () => {
             markerUnits="userSpaceOnUse"
             orient="auto"
           >
-            <path d="M 8 1 L 8 9" stroke={isDarkMode ? "#e2e8f0" : "#333333"} strokeWidth="1" fill="none" />
+            {/* 1:1 관계 자식쪽은 아무것도 표시하지 않음 */}
           </marker>
           <marker
             id="marker-one-active"
@@ -584,7 +584,7 @@ const Canvas = () => {
             markerUnits="userSpaceOnUse"
             orient="auto"
           >
-            <path d="M 8 1 L 8 9" stroke="#3b82f6" strokeWidth="1" fill="none" />
+            {/* 1:1 관계 자식쪽은 아무것도 표시하지 않음 */}
           </marker>
         </defs>
       </svg>

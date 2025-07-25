@@ -305,9 +305,13 @@ const DropdownButton = styled.button<{ $darkMode?: boolean; $visible?: boolean }
   justify-content: center;
   color: ${props => props.$darkMode ? '#9ca3af' : '#666'};
   font-size: 10px;
+  border-radius: 2px;
+  transition: all 0.2s ease;
   
   &:hover {
-    color: ${props => props.$darkMode ? '#e2e8f0' : '#333'};
+    background-color: ${props => props.$darkMode ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0, 122, 204, 0.1)'};
+    color: ${props => props.$darkMode ? '#60a5fa' : '#007acc'};
+    transform: translateY(-50%) scale(1.1);
   }
 `;
 

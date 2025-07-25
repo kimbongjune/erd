@@ -235,6 +235,13 @@ const Canvas = () => {
     setShowAlignPopup(false);
     setShowViewPopup(false);
     
+    // 색상 팔레트가 열려있을 때만 닫기
+    const showColorPalette = useStore.getState().showColorPalette;
+    if (showColorPalette) {
+      const hidePalette = useStore.getState().hidePalette;
+      hidePalette();
+    }
+    
     if (createMode) {
       const position = screenToFlowPosition({
         x: event.clientX,
@@ -268,7 +275,7 @@ const Canvas = () => {
         useStore.getState().setSelectMode(true);
       }
     } else {
-      // 캔버스 빈 공간 클릭 시 모든 선택 해제 및 패널 닫기
+      // 캔버스 빈 공간 클릭 시 모든 선택 해제
       setSelectedNodeId(null);
       setSelectedEdgeId(null);
       setBottomPanelOpen(false);

@@ -1,6 +1,35 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback, useRef } from 'react';
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath } from 'reactflow';
+import styled from 'styled-components';
+import { FaPalette } from 'react-icons/fa';
+import { createPortal } from 'react-dom';
 import useStore from '../../store/useStore';
+import ColorPalette from '../ColorPalette';
+
+const PaletteButton = styled.div<{ $isVisible: boolean; $color?: string }>`
+  display: ${props => props.$isVisible ? 'flex' : 'none'};
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: ${props => props.$color || '#4a90e2'};
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  
+  &:hover {
+    transform: scale(1.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  }
+  
+  svg {
+    width: 10px;
+    height: 10px;
+    color: white;
+  }
+`;
 
 interface OneToManyIdentifyingEdgeProps {
   id: string;
@@ -26,10 +55,20 @@ const OneToManyIdentifyingEdge: React.FC<OneToManyIdentifyingEdgeProps> = React.
   style = {},
   data,
 }) => {
+  const [previewColor, setPreviewColor] = useState<string | null>(null);
+  
   const theme = useStore((state) => state.theme);
   const selectedEdgeId = useStore((state) => state.selectedEdgeId);
+  const setSelectedEdgeId = useStore((state) => state.setSelectedEdgeId);
   const hoveredEdgeId = useStore((state) => state.hoveredEdgeId);
+  const setHoveredEdgeId = useStore((state) => state.setHoveredEdgeId);
   const highlightedEdges = useStore((state) => state.highlightedEdges);
+  const getEdgeColor = useStore((state) => state.getEdgeColor);
+  const setEdgeColor = useStore((state) => state.setEdgeColor);
+  const showColorPalette = useStore((state) => state.showColorPalette);
+  const paletteTarget = useStore((state) => state.paletteTarget);
+  const showPalette = useStore((state) => state.showPalette);
+  const hidePalette = useStore((state) => state.hidePalette);
   
   const isDarkMode = theme === 'dark';
   const isSelected = selectedEdgeId === id;
@@ -37,17 +76,55 @@ const OneToManyIdentifyingEdge: React.FC<OneToManyIdentifyingEdgeProps> = React.
   const isHighlighted = highlightedEdges.includes(id);
   const isActive = isSelected || isHovered || isHighlighted;
   
+  // 색상 가져오기
+  const edgeColor = getEdgeColor(id);
+  const actualColor = previewColor || edgeColor;
+  
+  // 통합된 색상 계산 - 활성화 상태에서는 실제 색상, 비활성화에서는 기본값 체크
+  const displayColor = isActive 
+    ? actualColor 
+    : (edgeColor === '#4a90e2' ? (isDarkMode ? '#e2e8f0' : '#666666') : actualColor);
+  
+  const strokeColor = displayColor;
+  const markerColor = displayColor;
+  
+  // 팔레트 핸들러들
+  const handlePaletteClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    showPalette(
+      { type: 'edge', id }, 
+      { x: 0, y: 0 }
+    );
+  }, [id, showPalette]);
+
+  const handleColorSelect = useCallback((color: string) => {
+    setEdgeColor(id, color);
+    setPreviewColor(null);
+    setSelectedEdgeId(null); // 색상 선택 후 선택 해제
+    setHoveredEdgeId(null); // 호버 상태도 해제
+  }, [id, setEdgeColor, setSelectedEdgeId, setHoveredEdgeId]);
+
+  const handlePreviewColor = useCallback((color: string) => {
+    setPreviewColor(color);
+  }, []);
+
+  const handleClearPreview = useCallback(() => {
+    setPreviewColor(null);
+  }, []);
+  
   const defaultStyle = useMemo(() => ({
     strokeWidth: isActive ? 2.5 : 1.5,
-    stroke: isActive ? '#3b82f6' : (isDarkMode ? '#e2e8f0' : '#333333'),
+    stroke: strokeColor,
     cursor: 'pointer',
     ...style
-  }), [isActive, isDarkMode, style]);
+  }), [isActive, strokeColor, style]);
   
   const markerStart = data?.markerStart ? `url(#${data.markerStart.id})` : 
-    `url(#${isActive ? 'marker-parent-active' : 'marker-parent'})`;
+    `url(#marker-parent-${id})`;
   const markerEnd = data?.markerEnd ? `url(#${data.markerEnd.id})` : 
-    `url(#${isActive ? 'marker-crow-many-active' : 'marker-crow-many'})`;
+    `url(#marker-crow-many-${id})`;
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -86,6 +163,34 @@ const OneToManyIdentifyingEdge: React.FC<OneToManyIdentifyingEdgeProps> = React.
 
   return (
     <>
+      {/* 이 엣지 전용 마커 정의 */}
+      <defs>
+        <marker
+          id={`marker-parent-${id}`}
+          markerWidth="12"
+          markerHeight="12"
+          viewBox="-6 -6 12 12"
+          refX="-8"
+          refY="0"
+          markerUnits="userSpaceOnUse"
+          orient="auto"
+        >
+          <path d="M-2,-6 L-2,6" stroke={markerColor} strokeWidth="1.5" fill="none" />
+        </marker>
+        <marker
+          id={`marker-crow-many-${id}`}
+          markerWidth="10"
+          markerHeight="10"
+          viewBox="0 0 10 10"
+          refX="8"
+          refY="5"
+          markerUnits="userSpaceOnUse"
+          orient="auto"
+        >
+          <path d="M 0 5 L 10 0 M 0 5 L 10 5 M 0 5 L 10 10" stroke={markerColor} strokeWidth="1.5" fill="none" />
+        </marker>
+      </defs>
+      
       {/* 그림자 효과를 위한 별도 경로 - 활성화 시에만 렌더링 */}
       {isActive && (
         <BaseEdge 
@@ -133,7 +238,7 @@ const OneToManyIdentifyingEdge: React.FC<OneToManyIdentifyingEdgeProps> = React.
               <circle
                 key={index}
                 r="4"
-                fill="#3b82f6"
+                fill={actualColor}
                 fillOpacity="0.8"
               >
                 <animateMotion
@@ -147,6 +252,47 @@ const OneToManyIdentifyingEdge: React.FC<OneToManyIdentifyingEdgeProps> = React.
           })}
         </g>
       )}
+      
+      {/* 팔레트 버튼 */}
+      <EdgeLabelRenderer>
+        <div
+          style={{
+            position: 'absolute',
+            transform: `translate(-50%, -50%)`,
+            left: labelX,
+            top: labelY,
+            pointerEvents: 'all',
+          }}
+        >
+          <PaletteButton
+            $isVisible={isSelected}
+            $color={actualColor}
+            onClick={handlePaletteClick}
+          >
+            <FaPalette />
+          </PaletteButton>
+        </div>
+        
+        {/* 팔레트 */}
+        {showColorPalette && paletteTarget?.type === 'edge' && paletteTarget?.id === id && (
+          <div style={{
+            position: 'absolute',
+            left: labelX + 30,
+            top: labelY - 150,
+            zIndex: 10000,
+            pointerEvents: 'all',
+          }}>
+            <ColorPalette
+              position={{ x: labelX + 30, y: labelY - 150 }}
+              onColorSelect={handleColorSelect}
+              onClose={hidePalette}
+              onPreview={handlePreviewColor}
+              onClearPreview={handleClearPreview}
+              darkMode={isDarkMode}
+            />
+          </div>
+        )}
+      </EdgeLabelRenderer>
     </>
   );
 });

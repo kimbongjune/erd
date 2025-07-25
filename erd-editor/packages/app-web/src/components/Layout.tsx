@@ -897,10 +897,23 @@ const Layout = () => {
         
         if (deletedEdgesCount > 0) {
           toast.warning(`컬럼 삭제로 인해 ${deletedEdgesCount}개의 관계가 해제되었습니다.`);
+          
+          // 관계 삭제 후 업데이트된 컬럼 정보 가져오기
+          const updatedEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
+          if (updatedEntity?.type === 'entity' && updatedEntity.data.columns) {
+            const updatedColumns = updatedEntity.data.columns.filter((col: any) => col.id !== columnId);
+            setColumns(updatedColumns);
+            updateNodeColumns(updatedColumns);
+            if (selectedColumn?.id === columnId) {
+              setSelectedColumn(updatedColumns[0] || null);
+            }
+            return; // 여기서 함수 종료
+          }
         }
       }
     }
     
+    // 관계가 삭제되지 않은 경우에만 일반적인 컬럼 삭제 진행
     const newColumns = columns.filter(col => col.id !== columnId);
     setColumns(newColumns);
     updateNodeColumns(newColumns);
@@ -951,6 +964,62 @@ const Layout = () => {
         if (field === 'pk' && value === true) {
           updatedCol.nn = true;
           updatedCol.uq = false; // PK 체크하면 UQ 해제
+          
+          // PK 추가 시 자식 엔티티에 FK 컬럼 추가
+          const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
+          if (currentEntity?.type === 'entity') {
+            const allEdges = useStore.getState().edges;
+            const childEdges = allEdges.filter(edge => edge.source === selectedNodeId);
+            
+            if (childEdges.length > 0) {
+              let addedFkCount = 0;
+              
+              childEdges.forEach(edge => {
+                const targetNode = useStore.getState().nodes.find(n => n.id === edge.target);
+                if (targetNode?.type === 'entity') {
+                  const fkColumnName = `${currentEntity.data.label.toLowerCase()}_${updatedCol.name}`;
+                  const targetColumns = targetNode.data.columns || [];
+                  
+                  // 이미 해당 FK 컬럼이 존재하는지 확인
+                  const existingFkIndex = targetColumns.findIndex((col: any) => col.name === fkColumnName);
+                  
+                  if (existingFkIndex === -1) {
+                    // 관계 타입에 따라 PK 여부 결정
+                    const isIdentifyingRelationship = edge.type === 'one-to-one-identifying' || edge.type === 'one-to-many-identifying';
+                    
+                    const newFkColumn = {
+                      id: Date.now().toString() + Math.random(),
+                      name: fkColumnName,
+                      type: updatedCol.dataType || updatedCol.type,
+                      dataType: updatedCol.dataType || updatedCol.type,
+                      pk: isIdentifyingRelationship, // 식별관계면 PK, 비식별관계면 일반 컬럼
+                      fk: true,
+                      nn: isIdentifyingRelationship, // 식별관계면 NN 필수
+                      uq: false,
+                      ai: false,
+                      comment: `Foreign key from ${currentEntity.data.label}.${updatedCol.name}`,
+                      defaultValue: ''
+                    };
+                    
+                    const updatedTargetColumns = [...targetColumns, newFkColumn];
+                    
+                    // 타겟 노드 업데이트
+                    const updatedNodes = useStore.getState().nodes.map(node => 
+                      node.id === edge.target 
+                        ? { ...node, data: { ...node.data, columns: updatedTargetColumns } }
+                        : node
+                    );
+                    useStore.getState().setNodes(updatedNodes);
+                    addedFkCount++;
+                  }
+                }
+              });
+              
+              if (addedFkCount > 0) {
+                toast.info(`PK 추가로 인해 ${addedFkCount}개의 자식 엔티티에 FK 컬럼이 추가되었습니다.`);
+              }
+            }
+          }
         } else if (field === 'pk' && value === false) {
           // PK 해제 시 - FK 컬럼인지 확인하여 처리 방식 결정
           const isFkColumn = updatedCol.fk || updatedCol.name.includes('_');

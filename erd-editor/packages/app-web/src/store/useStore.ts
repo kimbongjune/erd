@@ -54,9 +54,10 @@ type RFState = {
   // 색상 팔레트 관련
   nodeColors: Map<string, string>; // nodeId -> color
   edgeColors: Map<string, string>; // edgeId -> color
+  commentColors: Map<string, string>; // commentId -> color
   showColorPalette: boolean;
   palettePosition: { x: number; y: number };
-  paletteTarget: { type: 'node' | 'edge'; id: string } | null;
+  paletteTarget: { type: 'node' | 'edge' | 'comment'; id: string } | null;
   previewNodeColor: { nodeId: string; color: string } | null; // 미리보기 색상
   
   // 스냅 기능 관련
@@ -130,12 +131,14 @@ type RFState = {
   toggleTheme: () => void;
   
   // 색상 팔레트 함수들
-  showPalette: (target: { type: 'node' | 'edge'; id: string }, position: { x: number; y: number }) => void;
+  showPalette: (target: { type: 'node' | 'edge' | 'comment'; id: string }, position: { x: number; y: number }) => void;
   hidePalette: () => void;
   setNodeColor: (nodeId: string, color: string) => void;
   setEdgeColor: (edgeId: string, color: string) => void;
+  setCommentColor: (commentId: string, color: string) => void;
   getNodeColor: (nodeId: string) => string;
   getEdgeColor: (edgeId: string) => string;
+  getCommentColor: (commentId: string) => string;
   setPreviewNodeColor: (nodeId: string, color: string) => void;
   clearPreviewNodeColor: () => void;
 };
@@ -256,6 +259,7 @@ const useStore = create<RFState>((set, get) => ({
   // 색상 팔레트 관련 초기값
   nodeColors: new Map(),
   edgeColors: new Map(),
+  commentColors: new Map(),
   showColorPalette: false,
   palettePosition: { x: 0, y: 0 },
   paletteTarget: null,
@@ -897,10 +901,10 @@ const useStore = create<RFState>((set, get) => ({
     // 최고 우선순위 가이드만 반환
     const result: SnapGuide[] = [];
     if (bestVerticalGuide) {
-      result.push(bestVerticalGuide.guide);
+      result.push((bestVerticalGuide as { guide: SnapGuide; distance: number }).guide);
     }
     if (bestHorizontalGuide) {
-      result.push(bestHorizontalGuide.guide);
+      result.push((bestHorizontalGuide as { guide: SnapGuide; distance: number }).guide);
     }
     
     return result;
@@ -1294,7 +1298,7 @@ const useStore = create<RFState>((set, get) => ({
   },
   
   // 색상 팔레트 함수들
-  showPalette: (target: { type: 'node' | 'edge'; id: string }, position: { x: number; y: number }) => {
+  showPalette: (target: { type: 'node' | 'edge' | 'comment'; id: string }, position: { x: number; y: number }) => {
     set({ 
       showColorPalette: true, 
       paletteTarget: target, 
@@ -1303,10 +1307,12 @@ const useStore = create<RFState>((set, get) => ({
   },
   
   hidePalette: () => {
-    set({ 
+    set((state) => ({ 
       showColorPalette: false, 
-      paletteTarget: null 
-    });
+      paletteTarget: null,
+      // 엣지 관련 팔레트를 닫을 때만 선택 상태도 해제
+      selectedEdgeId: state.paletteTarget?.type === 'edge' ? null : state.selectedEdgeId
+    }));
   },
   
   setNodeColor: (nodeId: string, color: string) => {
@@ -1325,6 +1331,14 @@ const useStore = create<RFState>((set, get) => ({
     });
   },
   
+  setCommentColor: (commentId: string, color: string) => {
+    set((state) => {
+      const newCommentColors = new Map(state.commentColors);
+      newCommentColors.set(commentId, color);
+      return { commentColors: newCommentColors };
+    });
+  },
+  
   getNodeColor: (nodeId: string) => {
     const previewColor = get().previewNodeColor;
     if (previewColor && previewColor.nodeId === nodeId) {
@@ -1338,6 +1352,10 @@ const useStore = create<RFState>((set, get) => ({
   
   getEdgeColor: (edgeId: string) => {
     return get().edgeColors.get(edgeId) || '#4a90e2'; // 기본 색상
+  },
+  
+  getCommentColor: (commentId: string) => {
+    return get().commentColors.get(commentId) || '#fbbf24'; // 기본 노란색
   },
   
   // 미리보기 색상 관련

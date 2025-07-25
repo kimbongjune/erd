@@ -4,7 +4,6 @@ import styled from 'styled-components';
 import Header from './Header';
 import Toolbox from './Toolbox';
 import Canvas from './Canvas';
-import Properties from './Properties';
 import useStore from '../store/useStore';
 import { toast } from 'react-toastify';
 import { MYSQL_DATATYPES, validateEnglishOnly, validateDataType } from '../utils/mysqlTypes';
@@ -22,11 +21,11 @@ const TopContainer = styled.div<{ $darkMode?: boolean }>`
   display: grid;
   flex: 1;
   min-height: 0;
-  grid-template-columns: 80px 1fr 250px;
+  grid-template-columns: 80px 1fr;
   grid-template-rows: 50px 1fr;
   grid-template-areas:
-    'header header header'
-    'toolbox canvas properties';
+    'header header'
+    'toolbox canvas';
   background-color: ${props => props.$darkMode ? '#1E1E1E' : '#FFFFFF'};
 `;
 
@@ -46,12 +45,6 @@ const CanvasContainer = styled.main<{ $darkMode?: boolean }>`
   position: relative;
 `;
 
-const PropertiesContainer = styled.aside<{ $darkMode?: boolean }>`
-  grid-area: properties;
-  background-color: ${props => props.$darkMode ? '#2d3748' : '#f8f9fa'};
-  border-left: 1px solid ${props => props.$darkMode ? '#404040' : '#ddd'};
-  overflow-y: auto;
-`;
 const BottomPanelContainer = styled.div<{ $height: number; $darkMode?: boolean }>`
   background-color: ${props => props.$darkMode ? '#2d3748' : '#ffffff'};
   height: ${props => props.$height}px;
@@ -1261,9 +1254,6 @@ const Layout = () => {
         <CanvasContainer $darkMode={isDarkMode}>
           <Canvas />
         </CanvasContainer>
-        <PropertiesContainer $darkMode={isDarkMode}>
-          <Properties />
-        </PropertiesContainer>
       </TopContainer>
       {isBottomPanelOpen && (
         <BottomPanelContainer $height={bottomPanelHeight} $darkMode={isDarkMode}>

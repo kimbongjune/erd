@@ -1,10 +1,12 @@
 import styled from 'styled-components';
 import { Handle, Position, useReactFlow, useUpdateNodeInternals } from 'reactflow';
-import { FaKey } from 'react-icons/fa';
+import { FaKey, FaPalette } from 'react-icons/fa';
 import useStore from '../../store/useStore';
-import React, { useState, useEffect, memo, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, memo, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { createHandleId } from '../../utils/handleUtils';
+import ColorPalette from '../ColorPalette';
+import { getHoverColor, getActiveColor, getShadowColor } from '../../utils/colorUtils';
 
 interface Column {
   name: string;
@@ -23,31 +25,54 @@ interface Column {
   nullable?: boolean;
 }
 
-const NodeContainer = styled.div<{ $isSelected: boolean; $darkMode?: boolean }>`
+const NodeContainer = styled.div<{ $isSelected: boolean; $darkMode?: boolean; $color?: string }>`
+  position: relative;
   min-width: 240px;
   width: auto;
   min-height: 60px;
   height: fit-content;
-  border: 3px solid ${props => props.$isSelected ? '#007acc' : (props.$darkMode ? '#404040' : '#ddd')};
+  border: 3px solid ${props => {
+    if (props.$isSelected && props.$color) {
+      return getActiveColor(props.$color);
+    }
+    return props.$isSelected ? '#007acc' : (props.$darkMode ? '#404040' : '#ddd');
+  }};
   background-color: ${props => props.$isSelected ? (props.$darkMode ? '#1a2332' : '#f0f8ff') : (props.$darkMode ? '#2d3748' : '#fff')};
   border-radius: 8px;
-  box-shadow: ${props => props.$isSelected ? '0 8px 25px rgba(0, 122, 204, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.6)' : (props.$darkMode ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.1)')};
-  overflow: hidden;
+  box-shadow: ${props => {
+    if (props.$isSelected && props.$color) {
+      return `0 8px 25px ${getShadowColor(props.$color)}, inset 0 1px 0 rgba(255, 255, 255, 0.6)`;
+    }
+    return props.$isSelected ? '0 8px 25px rgba(0, 122, 204, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.6)' : (props.$darkMode ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.1)');
+  }};
+  overflow: visible;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   
   &:hover {
-    border-color: ${props => props.$isSelected ? '#005999' : '#60a5fa'};
-    box-shadow: ${props => props.$isSelected 
-      ? '0 6px 15px rgba(0, 122, 204, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.6)' 
-      : (props.$darkMode ? '0 2px 8px rgba(96, 165, 250, 0.2)' : '0 2px 8px rgba(96, 165, 250, 0.15)')};
+    border-color: ${props => {
+      if (props.$color) {
+        return props.$isSelected ? getActiveColor(props.$color) : getHoverColor(props.$color);
+      }
+      return props.$isSelected ? '#005999' : '#60a5fa';
+    }};
+    box-shadow: ${props => {
+      if (props.$color) {
+        return props.$isSelected 
+          ? `0 6px 15px ${getShadowColor(props.$color)}, inset 0 1px 0 rgba(255, 255, 255, 0.6)`
+          : `0 2px 8px ${getShadowColor(props.$color)}`;
+      }
+      return props.$isSelected 
+        ? '0 6px 15px rgba(0, 122, 204, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.6)' 
+        : (props.$darkMode ? '0 2px 8px rgba(96, 165, 250, 0.2)' : '0 2px 8px rgba(96, 165, 250, 0.15)');
+    }};
   }
 `;
 
-const Header = styled.div<{ $darkMode?: boolean }>`
+const Header = styled.div<{ $darkMode?: boolean; $color?: string }>`
   padding: 8px 12px;
-  background: linear-gradient(135deg, #007acc 0%, #005999 100%);
+  background: ${props => props.$color ? `linear-gradient(135deg, ${props.$color} 0%, ${getActiveColor(props.$color)} 100%)` : 'linear-gradient(135deg, #007acc 0%, #005999 100%)'};
   color: white;
   font-weight: 600;
   font-size: 16px;
@@ -76,6 +101,29 @@ const EntityLogicalName = styled.div`
   text-align: right;
 `;
 
+const PaletteIcon = styled.div<{ $isVisible: boolean }>`
+  display: ${props => props.$isVisible ? 'flex' : 'none'};
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
+  }
+  
+  svg {
+    width: 12px;
+    height: 12px;
+    color: white;
+  }
+`;
+
 const EditInput = styled.input`
   background: rgba(255, 255, 255, 0.9);
   border: none;
@@ -98,6 +146,8 @@ const ColumnsContainer = styled.div<{ $darkMode?: boolean }>`
   width: 100%;
   table-layout: auto;
   background: ${props => props.$darkMode ? '#2d3748' : '#fff'};
+  border-radius: 0 0 5px 5px;
+  overflow: hidden;
 `;
 
 const Column = styled.div<{ $isPrimaryKey?: boolean; $isForeignKey?: boolean; $isUniqueKey?: boolean; $darkMode?: boolean; $isHighlighted?: boolean }>`
@@ -351,12 +401,31 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   const connectionMode = useStore((state) => state.connectionMode);
   const theme = useStore((state) => state.theme);
   
+  // 색상 팔레트 관련
+  const showColorPalette = useStore((state) => state.showColorPalette);
+  const paletteTarget = useStore((state) => state.paletteTarget);
+  const showPalette = useStore((state) => state.showPalette);
+  const hidePalette = useStore((state) => state.hidePalette);
+  const setNodeColor = useStore((state) => state.setNodeColor);
+  const getNodeColor = useStore((state) => state.getNodeColor);
+  
+  const nodeColor = getNodeColor(id);
+  
   // ReactFlow 좌표 변환 함수
   const { flowToScreenPosition, getViewport } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   
+  // 헤더 참조를 위한 ref
+  const headerRef = useRef<HTMLDivElement>(null);
+  
   // 드래그 상태 추적
   const [isDragging, setIsDragging] = useState(false);
+  
+  // 로컬 미리보기 색상 상태
+  const [previewColor, setPreviewColor] = useState<string | null>(null);
+  
+  // 실제 사용할 색상 (미리보기 우선)
+  const actualNodeColor = previewColor || nodeColor;
   
   // 툴팁 상태 관리
   const [tooltip, setTooltip] = useState({
@@ -451,6 +520,29 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
     }
   }, [isDragging, setHoveredEntityId]);
 
+  // 팔레트 핸들러
+  const handlePaletteClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    showPalette(
+      { type: 'node', id }, 
+      { x: 0, y: 0 } // 상대 위치로 배치할 것이므로 의미없음
+    );
+  }, [id, showPalette]);
+
+  const handleColorSelect = useCallback((color: string) => {
+    setNodeColor(id, color);
+    setPreviewColor(null); // 미리보기 초기화
+  }, [id, setNodeColor]);
+
+  const handlePreviewColor = useCallback((color: string) => {
+    setPreviewColor(color);
+  }, []);
+
+  const handleClearPreview = useCallback(() => {
+    setPreviewColor(null);
+  }, []);
+
   // 선택 상태가 변경될 때 하이라이트 업데이트
   useEffect(() => {
     // 선택이 해제되면 호버 상태도 해제 (다른 엔티티가 선택된 경우 제외)
@@ -519,10 +611,29 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
         <NodeContainer 
           $isSelected={isSelected} 
           $darkMode={isDarkMode}
+          $color={actualNodeColor}
           onMouseDown={handleMouseDown}
           onMouseEnter={handleEntityMouseEnter}
           onMouseLeave={handleEntityMouseLeave}
         >
+          {/* 색상 팔레트 - 엔티티 내부에 상대 위치로 배치 */}
+          {showColorPalette && paletteTarget?.type === 'node' && paletteTarget.id === id && (
+            <div style={{ 
+              position: 'absolute', 
+              top: 0, 
+              right: -248, 
+              zIndex: 10000 
+            }}>
+              <ColorPalette
+                onColorSelect={handleColorSelect}
+                onClose={hidePalette}
+                position={{ x: 0, y: 0 }}
+                darkMode={isDarkMode}
+                onPreview={handlePreviewColor}
+                onClearPreview={handleClearPreview}
+              />
+            </div>
+          )}
           {/* 보이지 않는 연결 핸들들 - 모든 핸들을 source와 target 둘 다 지원 */}
           <InvisibleHandle type="target" position={Position.Left} id="left" />
           <InvisibleHandle type="source" position={Position.Left} id="left" />
@@ -530,7 +641,9 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
           <InvisibleHandle type="source" position={Position.Right} id="right" />
           
                     <Header 
+            ref={headerRef}
             $darkMode={isDarkMode}
+            $color={actualNodeColor}
             onMouseEnter={(e) => handleMouseEnter(e, 'entity')}
             onMouseLeave={handleMouseLeave}
             onClick={handleTooltipClick}
@@ -557,6 +670,11 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
                 </EntityLogicalName>
               </>
             )}
+            
+            {/* 팔레트 아이콘 - 선택된 상태일 때만 표시 */}
+            <PaletteIcon $isVisible={isSelected} onClick={handlePaletteClick}>
+              <FaPalette />
+            </PaletteIcon>
           </Header>
           
           <ColumnsContainer $darkMode={isDarkMode}>

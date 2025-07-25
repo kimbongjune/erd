@@ -51,6 +51,14 @@ type RFState = {
   createMode: string | null;
   selectMode: boolean;
   
+  // 색상 팔레트 관련
+  nodeColors: Map<string, string>; // nodeId -> color
+  edgeColors: Map<string, string>; // edgeId -> color
+  showColorPalette: boolean;
+  palettePosition: { x: number; y: number };
+  paletteTarget: { type: 'node' | 'edge'; id: string } | null;
+  previewNodeColor: { nodeId: string; color: string } | null; // 미리보기 색상
+  
   // 스냅 기능 관련
   isDragging: boolean;
   draggingNodeId: string | null;
@@ -120,6 +128,16 @@ type RFState = {
   // 테마 함수들
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
+  
+  // 색상 팔레트 함수들
+  showPalette: (target: { type: 'node' | 'edge'; id: string }, position: { x: number; y: number }) => void;
+  hidePalette: () => void;
+  setNodeColor: (nodeId: string, color: string) => void;
+  setEdgeColor: (edgeId: string, color: string) => void;
+  getNodeColor: (nodeId: string) => string;
+  getEdgeColor: (edgeId: string) => string;
+  setPreviewNodeColor: (nodeId: string, color: string) => void;
+  clearPreviewNodeColor: () => void;
 };
 
 const useStore = create<RFState>((set, get) => ({
@@ -235,6 +253,14 @@ const useStore = create<RFState>((set, get) => ({
   createMode: null,
   selectMode: true,
   
+  // 색상 팔레트 관련 초기값
+  nodeColors: new Map(),
+  edgeColors: new Map(),
+  showColorPalette: false,
+  palettePosition: { x: 0, y: 0 },
+  paletteTarget: null,
+  previewNodeColor: null,
+  
   onNodesChange: (changes: NodeChange[]) => {
     set((state) => {
       const newNodes = applyNodeChanges(changes, state.nodes);
@@ -286,6 +312,11 @@ const useStore = create<RFState>((set, get) => ({
     set({ nodes: [...get().nodes, newNode] });
   },
   setSelectedNodeId: (id) => {
+    const state = get();
+    // 선택이 해제되거나 다른 노드가 선택될 때 팔레트 숨김
+    if (state.selectedNodeId !== id) {
+      state.hidePalette();
+    }
     set({ selectedNodeId: id });
     get().updateAllHighlights();
   },
@@ -1260,6 +1291,62 @@ const useStore = create<RFState>((set, get) => ({
   clearAllEdges: () => {
     set({ edges: [] });
     toast.info('모든 관계가 삭제되었습니다. 새로운 관계를 생성해주세요.');
+  },
+  
+  // 색상 팔레트 함수들
+  showPalette: (target: { type: 'node' | 'edge'; id: string }, position: { x: number; y: number }) => {
+    set({ 
+      showColorPalette: true, 
+      paletteTarget: target, 
+      palettePosition: position 
+    });
+  },
+  
+  hidePalette: () => {
+    set({ 
+      showColorPalette: false, 
+      paletteTarget: null 
+    });
+  },
+  
+  setNodeColor: (nodeId: string, color: string) => {
+    set((state) => {
+      const newNodeColors = new Map(state.nodeColors);
+      newNodeColors.set(nodeId, color);
+      return { nodeColors: newNodeColors };
+    });
+  },
+  
+  setEdgeColor: (edgeId: string, color: string) => {
+    set((state) => {
+      const newEdgeColors = new Map(state.edgeColors);
+      newEdgeColors.set(edgeId, color);
+      return { edgeColors: newEdgeColors };
+    });
+  },
+  
+  getNodeColor: (nodeId: string) => {
+    const previewColor = get().previewNodeColor;
+    if (previewColor && previewColor.nodeId === nodeId) {
+      console.log('Using preview color:', previewColor.color, 'for node:', nodeId);
+      return previewColor.color;
+    }
+    const actualColor = get().nodeColors.get(nodeId) || '#4ECDC4';
+    console.log('Using actual color:', actualColor, 'for node:', nodeId);
+    return actualColor;
+  },
+  
+  getEdgeColor: (edgeId: string) => {
+    return get().edgeColors.get(edgeId) || '#4a90e2'; // 기본 색상
+  },
+  
+  // 미리보기 색상 관련
+  setPreviewNodeColor: (nodeId: string, color: string) => {
+    set({ previewNodeColor: { nodeId, color } });
+  },
+  
+  clearPreviewNodeColor: () => {
+    set({ previewNodeColor: null });
   },
 }));
 

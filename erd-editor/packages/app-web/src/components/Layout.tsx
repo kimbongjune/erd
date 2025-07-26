@@ -1134,6 +1134,18 @@ const Layout = () => {
           }
         }
         
+        // UQ 체크박스 변경 시 constraint도 함께 업데이트
+        if (field === 'uq') {
+          if (value === true) {
+            updatedCol.constraint = 'UNIQUE';
+          } else {
+            // UQ 해제 시 constraint에서 UNIQUE 제거
+            if (updatedCol.constraint === 'UNIQUE') {
+              updatedCol.constraint = null;
+            }
+          }
+        }
+
         // AI 체크박스 변경 시 constraint도 함께 업데이트
         if (field === 'ai') {
           if (value === true) {

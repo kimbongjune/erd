@@ -715,8 +715,11 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
                   
                   {/* 세 번째 컬럼: 제약조건 */}
                   <ColumnConstraints $darkMode={isDarkMode} style={{ display: viewSettings.showConstraints ? 'table-cell' : 'none' }}>
-                    {col.constraint && col.constraint !== 'AUTO_INCREMENT' && (
-                      <ColumnDetails $darkMode={isDarkMode}>{col.constraint}</ColumnDetails>
+                    {(col.uq || col.constraint === 'UNIQUE') && (
+                      <ColumnDetails $darkMode={isDarkMode}>UQ</ColumnDetails>
+                    )}
+                    {col.constraint === 'AUTO_INCREMENT' && (
+                      <ColumnDetails $darkMode={isDarkMode}>AI</ColumnDetails>
                     )}
                     {(col.nn || col.nullable === false) && (
                       <ColumnDetails $darkMode={isDarkMode}>NN</ColumnDetails>

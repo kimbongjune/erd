@@ -171,10 +171,10 @@ const useStore = create<RFState>((set, get) => ({
             type: 'VARCHAR(50)', 
             pk: false, 
             fk: false, 
-            uq: true, 
+            uq: false, 
             comment: '사용자명',
             logicalName: '사용자명',
-            constraint: 'UNIQUE',
+            constraint: null,
             defaultValue: null,
             options: 'NOT NULL'
           },

@@ -25,12 +25,14 @@ interface Column {
   nullable?: boolean;
 }
 
-const NodeContainer = styled.div<{ $isSelected: boolean; $darkMode?: boolean; $color?: string }>`
+const NodeContainer = styled.div<{ $isSelected: boolean; $darkMode?: boolean; $color?: string; $isHidden?: boolean }>`
   position: relative;
   min-width: 240px;
   width: auto;
   min-height: 60px;
   height: fit-content;
+  opacity: ${props => props.$isHidden ? 0.3 : 1};
+  filter: ${props => props.$isHidden ? 'grayscale(0.5)' : 'none'};
   border: 3px solid ${props => {
     if (props.$isSelected && props.$color) {
       return getActiveColor(props.$color);
@@ -401,6 +403,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   const updateEdgeHandles = useStore((state) => state.updateEdgeHandles);
   const connectionMode = useStore((state) => state.connectionMode);
   const theme = useStore((state) => state.theme);
+  const hiddenEntities = useStore((state) => state.hiddenEntities);
   
   // 색상 팔레트 관련
   const showColorPalette = useStore((state) => state.showColorPalette);
@@ -411,6 +414,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   const getNodeColor = useStore((state) => state.getNodeColor);
   
   const nodeColor = getNodeColor(id);
+  const isHidden = hiddenEntities.has(id);
   
   // ReactFlow 좌표 변환 함수
   const { flowToScreenPosition, getViewport } = useReactFlow();
@@ -616,6 +620,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
           $isSelected={isSelected} 
           $darkMode={isDarkMode}
           $color={actualNodeColor}
+          $isHidden={isHidden}
           onMouseDown={handleMouseDown}
           onMouseEnter={handleEntityMouseEnter}
           onMouseLeave={handleEntityMouseLeave}

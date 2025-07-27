@@ -148,6 +148,34 @@ const TableContainer = styled.div<{ $darkMode?: boolean }>`
   overflow-y: auto;
   background-color: ${props => props.$darkMode ? '#1E1E1E' : '#ffffff'};
   position: relative;
+  
+  /* 커스텀 스크롤바 스타일 */
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: ${props => props.$darkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)'};
+    border-radius: 3px;
+    transition: background 0.2s ease;
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: ${props => props.$darkMode ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)'};
+  }
+  
+  &::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: ${props => props.$darkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)'} transparent;
 `;
 
 const Table = styled.table<{ $darkMode?: boolean }>`
@@ -320,6 +348,29 @@ const DropdownList = styled.div<{ $darkMode?: boolean; $show?: boolean }>`
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
   z-index: 99999999;
   display: block;
+  
+  /* 커스텀 스크롤바 스타일 */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: ${props => props.$darkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)'};
+    border-radius: 3px;
+    transition: background 0.2s ease;
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: ${props => props.$darkMode ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)'};
+  }
+  
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: ${props => props.$darkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)'} transparent;
   opacity: 1;
   visibility: visible;
   

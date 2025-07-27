@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { FaTh, FaArrowsAltH, FaCompress } from 'react-icons/fa';
+import { useReactFlow } from 'reactflow';
 import useStore from '../store/useStore';
 
 const PopupContainer = styled.div<{ $darkMode: boolean }>`
@@ -87,6 +88,7 @@ interface AlignPopupProps {
 
 const AlignPopup: React.FC<AlignPopupProps> = ({ visible, onClose, onSelect }) => {
   const { theme } = useStore();
+  const { fitView } = useReactFlow();
   
   if (!visible) return null;
 
@@ -94,6 +96,14 @@ const AlignPopup: React.FC<AlignPopupProps> = ({ visible, onClose, onSelect }) =
 
   const handleSelect = (type: 'left-right' | 'snowflake' | 'compact') => {
     onSelect(type);
+    
+    // 정렬 완료 후 잠시 기다린 다음 zoom to fit 실행
+    setTimeout(() => {
+      fitView({
+        duration: 800,
+        padding: 0.1,
+      });
+    }, 100);
   };
 
   return (

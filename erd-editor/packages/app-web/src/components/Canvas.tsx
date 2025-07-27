@@ -1,5 +1,5 @@
 import ReactFlow, { Node, useReactFlow, Edge, MiniMap, useViewport, Panel, Background, BackgroundVariant, useUpdateNodeInternals } from 'reactflow';
-import React, { useCallback, useRef, useState, MouseEvent, useEffect } from 'react';
+import React, { useCallback, useRef, useState, MouseEvent, useEffect, useMemo } from 'react';
 import 'reactflow/dist/style.css';
 import throttle from 'lodash.throttle';
 import useStore from '../store/useStore';
@@ -15,6 +15,7 @@ import CustomConnectionLine from './CustomConnectionLine';
 import ContextMenu from './ContextMenu';
 import CanvasToolbar from './CanvasToolbar';
 import SnapGuides from './SnapGuides';
+import SearchPanel from './SearchPanel';
 
 const edgeTypes = {
   'one-to-one-identifying': OneToOneIdentifyingEdge,
@@ -72,6 +73,7 @@ const Canvas = () => {
   const addNode = useStore((state) => state.addNode);
   const deleteSelected = useStore((state) => state.deleteSelected);
   const theme = useStore((state) => state.theme);
+  const hiddenEntities = useStore((state) => state.hiddenEntities);
   
   // 스냅 기능 관련
   const setIsDragging = useStore((state) => state.setIsDragging);
@@ -93,6 +95,13 @@ const Canvas = () => {
   const [temporaryEdge, setTemporaryEdge] = useState<Edge | null>(null);
   
   const isDarkMode = theme === 'dark';
+  
+  // 숨겨진 엔티티와 연결된 엣지들을 필터링
+  const visibleEdges = useMemo(() => {
+    return edges.filter(edge => {
+      return !hiddenEntities.has(edge.source) && !hiddenEntities.has(edge.target);
+    });
+  }, [edges, hiddenEntities]);
   
   // 컨텍스트 메뉴 상태
   const [contextMenu, setContextMenu] = useState({
@@ -242,6 +251,10 @@ const Canvas = () => {
       const hidePalette = useStore.getState().hidePalette;
       hidePalette();
     }
+    
+    // 검색에서 선택된 엔티티 해제
+    const setSelectedSearchEntity = useStore.getState().setSelectedSearchEntity;
+    setSelectedSearchEntity(null);
     
     if (createMode) {
       const position = screenToFlowPosition({
@@ -666,7 +679,7 @@ const Canvas = () => {
       
       <ReactFlow
         nodes={nodes}
-        edges={temporaryEdge ? [...edges, temporaryEdge] : edges}
+        edges={temporaryEdge ? [...visibleEdges, temporaryEdge] : visibleEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
@@ -753,6 +766,9 @@ const Canvas = () => {
         onDelete={handleContextMenuDelete}
         onClose={handleContextMenuClose}
       />
+      
+      {/* 검색 패널 */}
+      <SearchPanel />
     </div>
   );
 };

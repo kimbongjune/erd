@@ -102,6 +102,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   
   // Store에서 상태 가져오기
   const searchActive = useStore((state) => state.searchActive);
+  const isSearchPanelOpen = useStore((state) => state.isSearchPanelOpen);
   const relationsHighlight = useStore((state) => state.relationsHighlight);
   const showGrid = useStore((state) => state.showGrid);
   const showAlignPopup = useStore((state) => state.showAlignPopup);
@@ -112,6 +113,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   
   // Store 액션들
   const setSearchActive = useStore((state) => state.setSearchActive);
+  const toggleSearchPanel = useStore((state) => state.toggleSearchPanel);
   const setRelationsHighlight = useStore((state) => state.setRelationsHighlight);
   const setShowGrid = useStore((state) => state.setShowGrid);
   const setShowAlignPopup = useStore((state) => state.setShowAlignPopup);
@@ -135,7 +137,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   };
 
   const handleSearch = () => {
-    setSearchActive(!searchActive);
+    toggleSearchPanel();
   };
 
   const handleAlign = () => {
@@ -230,7 +232,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
         <Divider $darkMode={isDarkMode} />
         
         <Tooltip text="검색">
-          <ToolbarButton onClick={handleSearch} $active={searchActive} $darkMode={isDarkMode}>
+          <ToolbarButton onClick={handleSearch} $active={isSearchPanelOpen} $darkMode={isDarkMode}>
             <FaSearch size={16} />
           </ToolbarButton>
         </Tooltip>

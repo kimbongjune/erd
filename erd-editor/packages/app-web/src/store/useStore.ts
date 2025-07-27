@@ -118,6 +118,12 @@ type RFState = {
   showAlignPopup: boolean;
   showViewPopup: boolean;
   
+  // 검색 패널 관련
+  isSearchPanelOpen: boolean;
+  searchQuery: string;
+  hiddenEntities: Set<string>;
+  selectedSearchEntity: string | null;
+  
   // 뷰 설정
   viewSettings: ViewSettings;
   
@@ -168,6 +174,17 @@ type RFState = {
   setShowViewPopup: (show: boolean) => void;
   updateEdgeHandles: () => void;
   clearAllEdges: () => void;
+  
+  // 검색 패널 관련 함수들
+  toggleSearchPanel: () => void;
+  setSearchQuery: (query: string) => void;
+  hideEntity: (entityId: string) => void;
+  showEntity: (entityId: string) => void;
+  hideAllEntities: () => void;
+  showAllEntities: () => void;
+  setSelectedSearchEntity: (entityId: string | null) => void;
+  focusOnEntity: (entityId: string) => void;
+  closeSearchPanel: () => void;
   
   // 뷰 설정 함수들
   updateViewSettings: (settings: Partial<ViewSettings>) => void;
@@ -885,6 +902,12 @@ const useStore = create<RFState>((set, get) => ({
   showAlignPopup: false,
   showViewPopup: false,
   
+  // 검색 패널 관련 상태 초기값
+  isSearchPanelOpen: false,
+  searchQuery: '',
+  hiddenEntities: new Set(),
+  selectedSearchEntity: null,
+  
   // 뷰 설정 초기값
   viewSettings: {
     entityView: 'logical',
@@ -1021,6 +1044,43 @@ const useStore = create<RFState>((set, get) => ({
   setShowGrid: (show: boolean) => set({ showGrid: show }),
   setShowAlignPopup: (show: boolean) => set({ showAlignPopup: show }),
   setShowViewPopup: (show: boolean) => set({ showViewPopup: show }),
+  
+  // 검색 패널 관련 함수들
+  toggleSearchPanel: () => set((state) => ({ 
+    isSearchPanelOpen: !state.isSearchPanelOpen,
+    searchActive: !state.isSearchPanelOpen 
+  })),
+  setSearchQuery: (query: string) => set({ searchQuery: query }),
+  hideEntity: (entityId: string) => set((state) => {
+    const newHidden = new Set([...state.hiddenEntities, entityId]);
+    return { hiddenEntities: newHidden };
+  }),
+  showEntity: (entityId: string) => set((state) => {
+    const newHidden = new Set(state.hiddenEntities);
+    newHidden.delete(entityId);
+    return { hiddenEntities: newHidden };
+  }),
+  hideAllEntities: () => set((state) => ({
+    hiddenEntities: new Set(state.nodes.filter(n => n.type === 'entity').map(n => n.id))
+  })),
+  showAllEntities: () => set({ hiddenEntities: new Set() }),
+  setSelectedSearchEntity: (entityId: string | null) => set({ selectedSearchEntity: entityId }),
+  focusOnEntity: (entityId: string) => {
+    const { nodes, setSelectedNodeId } = get();
+    const entity = nodes.find(n => n.id === entityId && n.type === 'entity');
+    if (entity) {
+      // 엔티티로 포커스 이동 (이 부분은 나중에 ReactFlow의 fitView 등을 사용해 구현)
+      setSelectedNodeId(entityId);
+      set({ selectedSearchEntity: entityId });
+    }
+  },
+  closeSearchPanel: () => set({ 
+    isSearchPanelOpen: false, 
+    searchActive: false,
+    searchQuery: '',
+    selectedSearchEntity: null,
+    hiddenEntities: new Set()
+  }),
   
   // 뷰 설정 함수들
   updateViewSettings: (settings: Partial<ViewSettings>) => 

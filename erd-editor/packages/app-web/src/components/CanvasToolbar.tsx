@@ -118,6 +118,9 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   const setShowViewPopup = useStore((state) => state.setShowViewPopup);
   const setHighlightedEdges = useStore((state) => state.setHighlightedEdges);
   const setHighlightedColumns = useStore((state) => state.setHighlightedColumns);
+  const arrangeLeftRight = useStore((state) => state.arrangeLeftRight);
+  const arrangeSnowflake = useStore((state) => state.arrangeSnowflake);
+  const arrangeCompact = useStore((state) => state.arrangeCompact);
 
   const handleZoomToFit = () => {
     fitView({ padding: 0.1, duration: 500 });
@@ -193,7 +196,18 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
 
   const handleAlignSelect = (type: 'left-right' | 'snowflake' | 'compact') => {
     setShowAlignPopup(false);
-    // TODO: 실제 정렬 로직 구현
+    
+    switch (type) {
+      case 'left-right':
+        arrangeLeftRight();
+        break;
+      case 'snowflake':
+        arrangeSnowflake();
+        break;
+      case 'compact':
+        arrangeCompact();
+        break;
+    }
   };
 
   return (

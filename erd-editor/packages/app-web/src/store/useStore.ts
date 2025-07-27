@@ -187,6 +187,11 @@ type RFState = {
   getCommentColor: (commentId: string) => string;
   setPreviewNodeColor: (nodeId: string, color: string) => void;
   clearPreviewNodeColor: () => void;
+  
+  // 자동 배치 함수들
+  arrangeLeftRight: () => void;
+  arrangeSnowflake: () => void;
+  arrangeCompact: () => void;
 };
 
 const useStore = create<RFState>((set, get) => ({
@@ -1477,6 +1482,187 @@ const useStore = create<RFState>((set, get) => ({
   
   clearPreviewNodeColor: () => {
     set({ previewNodeColor: null });
+  },
+  
+  // 자동 배치 함수들
+  arrangeLeftRight: () => {
+    set((state) => {
+      const entityNodes = state.nodes.filter(node => node.type === 'entity');
+      if (entityNodes.length === 0) return state;
+      
+      // 위상 정렬을 위한 그래프 구조 생성
+      const inDegree = new Map<string, number>();
+      const adjacencyList = new Map<string, string[]>();
+      
+      // 모든 엔티티 노드 초기화
+      entityNodes.forEach(node => {
+        inDegree.set(node.id, 0);
+        adjacencyList.set(node.id, []);
+      });
+      
+      // 관계선을 기반으로 그래프 구성 (부모 -> 자식)
+      state.edges.forEach(edge => {
+        if (adjacencyList.has(edge.source) && inDegree.has(edge.target)) {
+          adjacencyList.get(edge.source)!.push(edge.target);
+          inDegree.set(edge.target, inDegree.get(edge.target)! + 1);
+        }
+      });
+      
+      // 위상 정렬 (Kahn's algorithm)
+      const queue = entityNodes.filter(node => inDegree.get(node.id) === 0);
+      const sortedLevels: string[][] = [];
+      const visited = new Set<string>();
+      
+      while (queue.length > 0) {
+        const currentLevel = [...queue];
+        queue.length = 0;
+        sortedLevels.push(currentLevel.map(node => node.id));
+        
+        currentLevel.forEach(node => {
+          visited.add(node.id);
+          const neighbors = adjacencyList.get(node.id) || [];
+          neighbors.forEach(neighbor => {
+            if (!visited.has(neighbor)) {
+              const newInDegree = inDegree.get(neighbor)! - 1;
+              inDegree.set(neighbor, newInDegree);
+              if (newInDegree === 0) {
+                const neighborNode = entityNodes.find(n => n.id === neighbor);
+                if (neighborNode) queue.push(neighborNode);
+              }
+            }
+          });
+        });
+      }
+      
+      // 연결되지 않은 노드들 처리
+      const unconnectedNodes = entityNodes.filter(node => !visited.has(node.id));
+      if (unconnectedNodes.length > 0) {
+        sortedLevels.push(unconnectedNodes.map(node => node.id));
+      }
+      
+      // 레벨별로 좌우 배치
+      const LEVEL_WIDTH = 500; // 350 → 500으로 증가
+      const NODE_HEIGHT = 120; // 80 → 120으로 증가  
+      const VERTICAL_SPACING = 150; // 50 → 150으로 증가
+      const START_X = 100;
+      const START_Y = 100;
+      
+      const updatedNodes = state.nodes.map(node => {
+        if (node.type !== 'entity') return node;
+        
+        let levelIndex = -1;
+        let nodeIndex = -1;
+        
+        for (let i = 0; i < sortedLevels.length; i++) {
+          nodeIndex = sortedLevels[i].indexOf(node.id);
+          if (nodeIndex !== -1) {
+            levelIndex = i;
+            break;
+          }
+        }
+        
+        if (levelIndex === -1) return node;
+        
+        const x = START_X + levelIndex * LEVEL_WIDTH;
+        const y = START_Y + nodeIndex * (NODE_HEIGHT + VERTICAL_SPACING);
+        
+        return { ...node, position: { x, y } };
+      });
+      
+      // 엔티티 배치 후 관계선 방향 업데이트
+      setTimeout(() => {
+        get().updateEdgeHandles();
+      }, 50);
+      
+      return { nodes: updatedNodes };
+    });
+  },
+  
+  arrangeSnowflake: () => {
+    set((state) => {
+      const entityNodes = state.nodes.filter(node => node.type === 'entity');
+      if (entityNodes.length === 0) return state;
+      
+      // 각 노드의 연결 수 계산
+      const connectionCount = new Map<string, number>();
+      entityNodes.forEach(node => connectionCount.set(node.id, 0));
+      
+      state.edges.forEach(edge => {
+        connectionCount.set(edge.source, (connectionCount.get(edge.source) || 0) + 1);
+        connectionCount.set(edge.target, (connectionCount.get(edge.target) || 0) + 1);
+      });
+      
+      // 연결 수에 따라 정렬
+      const sortedByConnections = [...entityNodes].sort((a, b) => 
+        (connectionCount.get(b.id) || 0) - (connectionCount.get(a.id) || 0)
+      );
+      
+      const CENTER_X = 500; // 400 → 500으로 이동
+      const CENTER_Y = 400; // 300 → 400으로 이동
+      
+      const updatedNodes = state.nodes.map(node => {
+        if (node.type !== 'entity') return node;
+        
+        const nodeIndex = sortedByConnections.findIndex(n => n.id === node.id);
+        if (nodeIndex === -1) return node;
+        
+        if (nodeIndex === 0) {
+          // 가장 연결이 많은 노드를 중심에 배치
+          return { ...node, position: { x: CENTER_X, y: CENTER_Y } };
+        } else {
+          // 나머지는 원형으로 배치
+          const angle = (2 * Math.PI * (nodeIndex - 1)) / (sortedByConnections.length - 1);
+          const radius = 300 + Math.floor((nodeIndex - 1) / 6) * 200; // 200 → 300, 150 → 200으로 증가
+          const x = CENTER_X + radius * Math.cos(angle);
+          const y = CENTER_Y + radius * Math.sin(angle);
+          
+          return { ...node, position: { x, y } };
+        }
+      });
+      
+      // 엔티티 배치 후 관계선 방향 업데이트
+      setTimeout(() => {
+        get().updateEdgeHandles();
+      }, 50);
+      
+      return { nodes: updatedNodes };
+    });
+  },
+  
+  arrangeCompact: () => {
+    set((state) => {
+      const entityNodes = state.nodes.filter(node => node.type === 'entity');
+      if (entityNodes.length === 0) return state;
+      
+      // 격자 형태로 배치
+      const COLS = Math.ceil(Math.sqrt(entityNodes.length));
+      const NODE_WIDTH = 400; // 250 → 400으로 증가
+      const NODE_HEIGHT = 300; // 200 → 300으로 증가
+      const START_X = 100;
+      const START_Y = 100;
+      
+      const updatedNodes = state.nodes.map(node => {
+        if (node.type !== 'entity') return node;
+        
+        const nodeIndex = entityNodes.findIndex(n => n.id === node.id);
+        if (nodeIndex === -1) return node;
+        
+        const row = Math.floor(nodeIndex / COLS);
+        const col = nodeIndex % COLS;
+        
+        const x = START_X + col * NODE_WIDTH;
+        const y = START_Y + row * NODE_HEIGHT;
+        
+        return { ...node, position: { x, y } };
+      });
+      
+      // 엔티티 배치 후 관계선 방향 업데이트
+      setTimeout(() => {
+        get().updateEdgeHandles();
+      }, 50);
+      
+      return { nodes: updatedNodes };
+    });
   },
 }));
 

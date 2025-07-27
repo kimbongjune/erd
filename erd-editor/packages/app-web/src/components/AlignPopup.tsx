@@ -98,18 +98,17 @@ const AlignPopup: React.FC<AlignPopupProps> = ({ visible, onClose, onSelect }) =
 
   return (
     <PopupContainer $darkMode={isDarkMode} onClick={(e) => e.stopPropagation()}>
-      <PopupTitle $darkMode={isDarkMode}>Choose auto arrange algorithm</PopupTitle>
+      <PopupTitle $darkMode={isDarkMode}>자동 배치 알고리즘 선택</PopupTitle>
       
       <AlignOption $darkMode={isDarkMode} onClick={() => handleSelect('left-right')}>
         <IconContainer $darkMode={isDarkMode}>
           <FaArrowsAltH size={16} />
         </IconContainer>
         <OptionContent>
-          <OptionTitle $darkMode={isDarkMode}>Left-right</OptionTitle>
+          <OptionTitle $darkMode={isDarkMode}>왼쪽-오른쪽 배치</OptionTitle>
           <OptionDescription $darkMode={isDarkMode}>
-            Arrange tables from left to right based on their
-            relationship direction. Ideal for diagrams with
-            long relationship lineage like ETL pipelines.
+            관계 방향에 따라 테이블을 왼쪽에서 오른쪽으로 배치합니다.
+            ETL 파이프라인과 같은 긴 관계 계보가 있는 다이어그램에 이상적입니다.
           </OptionDescription>
         </OptionContent>
         <OptionNumber $darkMode={isDarkMode}>1</OptionNumber>
@@ -120,12 +119,10 @@ const AlignPopup: React.FC<AlignPopupProps> = ({ visible, onClose, onSelect }) =
           <FaTh size={16} />
         </IconContainer>
         <OptionContent>
-          <OptionTitle $darkMode={isDarkMode}>Snowflake</OptionTitle>
+          <OptionTitle $darkMode={isDarkMode}>스노우플레이크 배치</OptionTitle>
           <OptionDescription $darkMode={isDarkMode}>
-            Arrange tables in a snowflake shape, with the
-            most connected tables in the center. Ideal for
-            densely connected diagrams like data
-            warehouses.
+            가장 연결이 많은 테이블을 중심으로 스노우플레이크 모양으로 배치합니다.
+            데이터 웨어하우스처럼 밀접하게 연결된 다이어그램에 이상적입니다.
           </OptionDescription>
         </OptionContent>
         <OptionNumber $darkMode={isDarkMode}>2</OptionNumber>
@@ -136,11 +133,10 @@ const AlignPopup: React.FC<AlignPopupProps> = ({ visible, onClose, onSelect }) =
           <FaCompress size={16} />
         </IconContainer>
         <OptionContent>
-          <OptionTitle $darkMode={isDarkMode}>Compact</OptionTitle>
+          <OptionTitle $darkMode={isDarkMode}>컴팩트 배치</OptionTitle>
           <OptionDescription $darkMode={isDarkMode}>
-            Arrange tables in a compact rectangle layout.
-            Ideal for diagrams with few relationships and
-            tables.
+            테이블을 컴팩트한 직사각형 레이아웃으로 배치합니다.
+            관계와 테이블이 적은 다이어그램에 이상적입니다.
           </OptionDescription>
         </OptionContent>
         <OptionNumber $darkMode={isDarkMode}>3</OptionNumber>

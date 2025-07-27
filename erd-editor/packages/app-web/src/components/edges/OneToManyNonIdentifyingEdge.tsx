@@ -68,6 +68,7 @@ const OneToManyNonIdentifyingEdge: React.FC<OneToManyNonIdentifyingEdgeProps> = 
   const paletteTarget = useStore((state) => state.paletteTarget);
   const showPalette = useStore((state) => state.showPalette);
   const hidePalette = useStore((state) => state.hidePalette);
+  const clearRelationsHighlight = useStore((state) => state.clearRelationsHighlight);
   
   const isDarkMode = theme === 'dark';
   const isSelected = selectedEdgeId === id;

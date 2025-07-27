@@ -395,6 +395,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   const highlightedColumns = useStore((state) => state.highlightedColumns);
   const clearAllHighlights = useStore((state) => state.clearAllHighlights);
   const updateAllHighlights = useStore((state) => state.updateAllHighlights);
+  const clearRelationsHighlight = useStore((state) => state.clearRelationsHighlight);
   const nodes = useStore((state) => state.nodes);
   const viewSettings = useStore((state) => state.viewSettings);
   const updateEdgeHandles = useStore((state) => state.updateEdgeHandles);
@@ -484,6 +485,9 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
     
     const connectionMode = useStore.getState().connectionMode;
     const isBottomPanelOpen = useStore.getState().isBottomPanelOpen;
+    
+    // 엔티티 클릭 시 관계선 하이라이트 해제
+    clearRelationsHighlight();
     
     // 관계선 연결 모드이거나 하단 패널이 열려있을 때는 관계선 생성을 우선시
     if (connectionMode) {

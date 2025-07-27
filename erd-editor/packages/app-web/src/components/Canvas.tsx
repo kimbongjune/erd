@@ -79,6 +79,7 @@ const Canvas = () => {
   const setSnapGuides = useStore((state) => state.setSnapGuides);
   const calculateSnapGuides = useStore((state) => state.calculateSnapGuides);
   const updateEdgeHandles = useStore((state) => state.updateEdgeHandles);
+  const clearRelationsHighlight = useStore((state) => state.clearRelationsHighlight);
   
   // 툴바 관련
   const showGrid = useStore((state) => state.showGrid);
@@ -294,7 +295,10 @@ const Canvas = () => {
     setSelectedEdgeId(currentSelectedEdgeId === edge.id ? null : edge.id);
     setSelectedNodeId(null); // Clear node selection when edge is selected
     setBottomPanelOpen(false); // Close bottom panel when edge is selected
-  }, [setSelectedEdgeId, setSelectedNodeId, setBottomPanelOpen]);
+    
+    // 관계선 클릭 시 관계선 하이라이트 해제
+    clearRelationsHighlight();
+  }, [setSelectedEdgeId, setSelectedNodeId, setBottomPanelOpen, clearRelationsHighlight]);
 
   const handleEdgeMouseEnter = useCallback((_: MouseEvent, edge: Edge) => {
     setHoveredEdgeId(edge.id);

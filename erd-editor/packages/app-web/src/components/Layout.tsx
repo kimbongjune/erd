@@ -882,8 +882,6 @@ const Layout = () => {
                     : e
                 );
                 useStore.getState().setEdges(updatedEdges);
-                
-                console.log(`복합키에서 PK 삭제: 관계 유지, FK만 제거, Handle 업데이트`);
               } else {
                 // 단일키인 경우에만 관계 삭제 고려
                 const remainingFKs = updatedTargetColumns.filter(col => 
@@ -976,8 +974,6 @@ const Layout = () => {
               // 단일키 관계에서만 Handle 참조로 관계 삭제
               useStore.getState().deleteEdge(edge.id);
               deletedEdgesCount++;
-            } else {
-              console.log(`복합키 관계에서 Handle 참조 발견: 관계 유지`);
             }
           }
         });

@@ -109,14 +109,12 @@ const ColorPalette: React.FC<ColorPaletteProps> = ({
   };
 
   const handleColorHover = (color: string) => {
-    console.log('Color hover:', color);
     if (onPreview) {
       onPreview(color);
     }
   };
 
   const handleColorLeave = () => {
-    console.log('Color leave, clearing preview');
     if (onClearPreview) {
       onClearPreview();
     }

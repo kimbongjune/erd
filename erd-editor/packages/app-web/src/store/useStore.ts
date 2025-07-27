@@ -10,6 +10,51 @@ type SnapGuide = {
   priority?: number;
 };
 
+// 엔티티 간의 최적 handle 위치를 결정하는 함수
+const determineHandlePositions = (sourceNode: Node, targetNode: Node) => {
+  const sourceWidth = sourceNode.width || 200;
+  const targetWidth = targetNode.width || 200;
+  
+  const sourceLeft = sourceNode.position.x;
+  const sourceRight = sourceLeft + sourceWidth;
+  const sourceCenterX = sourceLeft + sourceWidth / 2;
+  
+  const targetLeft = targetNode.position.x;
+  const targetRight = targetLeft + targetWidth;
+  const targetCenterX = targetLeft + targetWidth / 2;
+  
+  // 겹침 여부 확인
+  const isOverlapping = !(sourceRight <= targetLeft || targetRight <= sourceLeft);
+  
+  // 중심점 간 거리
+  const centerDistance = Math.abs(sourceCenterX - targetCenterX);
+  const minDistance = (sourceWidth + targetWidth) / 2 + 50; // 50px 여유 공간
+  
+  let sourceHandle: string, targetHandle: string;
+  
+  if (isOverlapping || centerDistance < minDistance) {
+    // 겹치거나 매우 가까운 경우: 같은 방향으로 배치해서 겹침 방지
+    if (sourceCenterX <= targetCenterX) {
+      sourceHandle = 'right';
+      targetHandle = 'right'; // target을 오른쪽으로
+    } else {
+      sourceHandle = 'left';
+      targetHandle = 'left'; // target을 왼쪽으로
+    }
+  } else {
+    // 충분히 떨어져 있는 경우: 최단거리로 연결
+    if (sourceCenterX <= targetCenterX) {
+      sourceHandle = 'right';
+      targetHandle = 'left';
+    } else {
+      sourceHandle = 'left';
+      targetHandle = 'right';
+    }
+  }
+  
+  return { sourceHandle, targetHandle };
+};
+
 type ViewSettings = {
   entityView: 'logical' | 'physical' | 'both';
   showKeys: boolean;
@@ -92,6 +137,7 @@ type RFState = {
   updateEntityHighlights: (entityId: string | null) => void;
   updateAllHighlights: () => void;
   clearAllHighlights: () => void;
+  clearRelationsHighlight: () => void;
   setBottomPanelOpen: (isOpen: boolean) => void;
   deleteNode: (id: string) => void;
   deleteEdge: (id: string) => void;
@@ -277,13 +323,27 @@ const useStore = create<RFState>((set, get) => ({
           const targetNode = newNodes.find(node => node.id === edge.target);
           
           if (sourceNode && targetNode) {
-            const sourceX = sourceNode.position.x + (sourceNode.width || 200) / 2;
-            const targetX = targetNode.position.x + (targetNode.width || 200) / 2;
+            // 새로운 handle 결정 로직 사용
+            const { sourceHandle, targetHandle } = determineHandlePositions(sourceNode, targetNode);
+            
+            // 컬럼 기반 handle ID 생성
+            const sourcePkColumn = sourceNode.data.columns?.find((col: any) => col.pk);
+            const targetFkColumn = targetNode.data.columns?.find((col: any) => 
+              col.fk && sourcePkColumn && col.name.startsWith(`${sourceNode.data.label.toLowerCase()}_`)
+            );
+            
+            const sourceHandleId = sourcePkColumn 
+              ? createHandleId(sourcePkColumn.name, sourceHandle as 'left' | 'right')
+              : sourceHandle;
+              
+            const targetHandleId = targetFkColumn
+              ? createHandleId(targetFkColumn.name, targetHandle as 'left' | 'right')
+              : targetHandle;
             
             return {
               ...edge,
-              sourceHandle: sourceX <= targetX ? 'right' : 'left',
-              targetHandle: sourceX <= targetX ? 'left' : 'right',
+              sourceHandle: sourceHandleId,
+              targetHandle: targetHandleId,
             };
           }
           return edge;
@@ -435,6 +495,10 @@ const useStore = create<RFState>((set, get) => ({
   },
   updateAllHighlights: () => {
     const state = get();
+    // 관계선 하이라이트 모드가 활성화되어 있으면 하이라이트 변경하지 않음
+    if (state.relationsHighlight) {
+      return;
+    }
     const activeEntityId = state.selectedNodeId || state.hoveredEntityId;
     get().updateEntityHighlights(activeEntityId);
   },
@@ -443,6 +507,11 @@ const useStore = create<RFState>((set, get) => ({
     highlightedEdges: [], 
     highlightedColumns: new Map(),
     hoveredEntityId: null
+  }),
+  clearRelationsHighlight: () => set({ 
+    relationsHighlight: false,
+    highlightedEdges: [], 
+    highlightedColumns: new Map()
   }),
   setBottomPanelOpen: (isOpen) => set({ isBottomPanelOpen: isOpen }),
   deleteNode: (id) => {
@@ -666,14 +735,26 @@ const useStore = create<RFState>((set, get) => ({
         }
       }
       
+      // 새로운 handle 결정 로직 사용
+      let sourceHandle: string, targetHandle: string;
+      if (sourceNode && targetNode) {
+        const handlePositions = determineHandlePositions(sourceNode, targetNode);
+        sourceHandle = handlePositions.sourceHandle;
+        targetHandle = handlePositions.targetHandle;
+      } else {
+        // 기본값 (기존 로직)
+        sourceHandle = sourceX <= targetX ? 'right' : 'left';
+        targetHandle = sourceX <= targetX ? 'left' : 'right';
+      }
+      
       // Handle ID 결정
       const sourceHandleId = sourcePkColumn 
-        ? createHandleId(sourcePkColumn.name, sourceX <= targetX ? 'right' : 'left')
-        : (sourceX <= targetX ? 'right' : 'left');
+        ? createHandleId(sourcePkColumn.name, sourceHandle as 'left' | 'right')
+        : sourceHandle;
         
       const targetHandleId = targetFkColumn
-        ? createHandleId(targetFkColumn.name, sourceX <= targetX ? 'left' : 'right')
-        : (sourceX <= targetX ? 'left' : 'right');
+        ? createHandleId(targetFkColumn.name, targetHandle as 'left' | 'right')
+        : targetHandle;
 
       let updatedEdges;
 
@@ -1301,18 +1382,17 @@ const useStore = create<RFState>((set, get) => ({
           targetFkColumn = targetNode.data.columns?.find((col: any) => col.name === fkColumnName && col.fk);
         }
         
-        // X 좌표를 기준으로 좌우 결정
-        const sourceX = sourceNode.position.x;
-        const targetX = targetNode.position.x;
+        // 새로운 handle 결정 로직 사용
+        const { sourceHandle, targetHandle } = determineHandlePositions(sourceNode, targetNode);
         
         // Handle ID 설정 - 항상 최신 위치를 기준으로 계산
         const sourceHandleId = sourcePkColumn 
-          ? createHandleId(sourcePkColumn.name, sourceX <= targetX ? 'right' : 'left')
-          : 'right'; // 기본값
+          ? createHandleId(sourcePkColumn.name, sourceHandle as 'left' | 'right')
+          : sourceHandle;
           
         const targetHandleId = targetFkColumn
-          ? createHandleId(targetFkColumn.name, sourceX <= targetX ? 'left' : 'right')
-          : 'left'; // 기본값
+          ? createHandleId(targetFkColumn.name, targetHandle as 'left' | 'right')
+          : targetHandle;
         
         // 항상 업데이트 (조건 제거)
         return {
@@ -1376,11 +1456,9 @@ const useStore = create<RFState>((set, get) => ({
   getNodeColor: (nodeId: string) => {
     const previewColor = get().previewNodeColor;
     if (previewColor && previewColor.nodeId === nodeId) {
-      console.log('Using preview color:', previewColor.color, 'for node:', nodeId);
       return previewColor.color;
     }
     const actualColor = get().nodeColors.get(nodeId) || '#4ECDC4';
-    console.log('Using actual color:', actualColor, 'for node:', nodeId);
     return actualColor;
   },
   

@@ -107,6 +107,8 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   const showAlignPopup = useStore((state) => state.showAlignPopup);
   const showViewPopup = useStore((state) => state.showViewPopup);
   const theme = useStore((state) => state.theme);
+  const edges = useStore((state) => state.edges);
+  const nodes = useStore((state) => state.nodes);
   
   // Store 액션들
   const setSearchActive = useStore((state) => state.setSearchActive);
@@ -114,6 +116,8 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   const setShowGrid = useStore((state) => state.setShowGrid);
   const setShowAlignPopup = useStore((state) => state.setShowAlignPopup);
   const setShowViewPopup = useStore((state) => state.setShowViewPopup);
+  const setHighlightedEdges = useStore((state) => state.setHighlightedEdges);
+  const setHighlightedColumns = useStore((state) => state.setHighlightedColumns);
 
   const handleZoomToFit = () => {
     fitView({ padding: 0.1, duration: 500 });
@@ -136,7 +140,45 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   };
 
   const handleRelations = () => {
-    setRelationsHighlight(!relationsHighlight);
+    const newHighlightState = !relationsHighlight;
+    setRelationsHighlight(newHighlightState);
+    
+    // 관계선 하이라이트가 활성화되면 모든 관계선을 하이라이트, 비활성화되면 해제
+    if (newHighlightState) {
+      const allEdgeIds = edges.map(edge => edge.id);
+      setHighlightedEdges(allEdgeIds);
+      
+      // 모든 관계에 관련된 컬럼들도 하이라이트
+      const highlightedColumns = new Map<string, string[]>();
+      
+      edges.forEach(edge => {
+        const sourceNode = nodes.find(n => n.id === edge.source);
+        const targetNode = nodes.find(n => n.id === edge.target);
+        
+        if (sourceNode && targetNode) {
+          // 부모 엔티티의 PK 컬럼들 하이라이트
+          const sourcePkColumns = sourceNode.data.columns?.filter((col: any) => col.pk) || [];
+          if (sourcePkColumns.length > 0) {
+            highlightedColumns.set(sourceNode.id, sourcePkColumns.map((col: any) => col.name));
+          }
+          
+          // 자식 엔티티의 FK 컬럼들 하이라이트
+          const sourceLabel = sourceNode.data.label.toLowerCase();
+          const targetFkColumns = targetNode.data.columns?.filter((col: any) => 
+            col.fk && col.name.startsWith(`${sourceLabel}_`)
+          ) || [];
+          if (targetFkColumns.length > 0) {
+            const existingColumns = highlightedColumns.get(targetNode.id) || [];
+            highlightedColumns.set(targetNode.id, [...existingColumns, ...targetFkColumns.map((col: any) => col.name)]);
+          }
+        }
+      });
+      
+      setHighlightedColumns(highlightedColumns);
+    } else {
+      setHighlightedEdges([]);
+      setHighlightedColumns(new Map());
+    }
   };
 
   const handleGrid = () => {
@@ -150,7 +192,6 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   const isDarkMode = theme === 'dark';
 
   const handleAlignSelect = (type: 'left-right' | 'snowflake' | 'compact') => {
-    console.log('정렬 방식 선택:', type);
     setShowAlignPopup(false);
     // TODO: 실제 정렬 로직 구현
   };

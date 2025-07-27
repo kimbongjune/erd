@@ -122,25 +122,21 @@ const Canvas = () => {
   // viewport 변경 핸들러 - 실시간 viewport 추적
   const handleViewportChange = useCallback((viewport: any) => {
     // 실시간으로 viewport 업데이트 (저장은 하지 않음)
-    console.log('🔄 viewport 변경 중:', viewport);
   }, []);
 
   // viewport 변경 완료 핸들러 - 이동/줌이 끝난 후 저장
   const handleViewportChangeEnd = useCallback((viewport: any) => {
-    console.log('✅ viewport 변경 완료:', viewport);
     updateViewport(viewport);
   }, [updateViewport]);
 
   // ReactFlow 초기화 완료 핸들러
   const handleReactFlowInit = useCallback((reactFlowInstance: any) => {
-    console.log('🚀 ReactFlow 초기화 완료');
     
     // ReactFlow 인스턴스를 전역에서 접근 가능하도록 저장
     (window as any).reactFlowInstance = reactFlowInstance;
     
     // ReactFlow가 완전히 초기화된 후 저장된 viewport 복원
     if (savedViewport && (savedViewport.x !== 0 || savedViewport.y !== 0 || savedViewport.zoom !== 1)) {
-      console.log('🔄 onInit에서 viewport 복원:', savedViewport);
       
       // 즉시 설정
       reactFlowInstance.setViewport(savedViewport);
@@ -148,15 +144,12 @@ const Canvas = () => {
       // 여러 번 재시도해서 확실하게 적용
       const timers = [
         setTimeout(() => {
-          console.log('⏰ onInit viewport 재설정 (100ms)');
           reactFlowInstance.setViewport(savedViewport);
         }, 100),
         setTimeout(() => {
-          console.log('⏰ onInit viewport 재설정 (300ms)');
           reactFlowInstance.setViewport(savedViewport);
         }, 300),
         setTimeout(() => {
-          console.log('⏰ onInit viewport 재설정 (500ms)');
           reactFlowInstance.setViewport(savedViewport);
         }, 500),
       ];
@@ -243,8 +236,6 @@ const Canvas = () => {
         const captureWidth = reactFlowBounds.width;
         const captureHeight = reactFlowBounds.height;
         
-        console.log('캔버스 크기 캡처:', { captureWidth, captureHeight });
-
         // 이미지 export - 실제 캔버스 크기로 캡처
         const dataUrl = await toPng(reactFlowWrapper, {
           backgroundColor: '#ffffff',
@@ -278,7 +269,6 @@ const Canvas = () => {
         useStore.getState().setSelectMode(originalSelectMode);
         
       } catch (error) {
-        console.error('이미지 export 실패:', error);
         
         // 상태 초기화
         useStore.setState({ hiddenEntities: hiddenEntities });

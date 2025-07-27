@@ -1865,9 +1865,7 @@ const useStore = create<RFState>((set, get) => ({
             y: typeof realViewport.y === 'number' && !isNaN(realViewport.y) ? realViewport.y : 0,
             zoom: typeof realViewport.zoom === 'number' && !isNaN(realViewport.zoom) ? realViewport.zoom : 1
           };
-          console.log('🎯 ReactFlow에서 가져온 실제 viewport:', realViewport);
         } catch (error) {
-          console.warn('ReactFlow viewport 가져오기 실패, store viewport 사용:', error);
         }
       }
       
@@ -1887,11 +1885,6 @@ const useStore = create<RFState>((set, get) => ({
         viewportRestoreTrigger: state.viewportRestoreTrigger,
       };
       
-      console.log('💾 저장할 viewport:', currentViewport);
-      console.log('💾 저장할 nodes 개수:', state.nodes.length);
-      if (state.nodes.length > 0) {
-        console.log('💾 첫 번째 노드 위치:', state.nodes[0].position);
-      }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
       
       // showToast가 true일 때만 토스트 메시지 표시
@@ -1899,7 +1892,6 @@ const useStore = create<RFState>((set, get) => ({
         toast.success('ERD 데이터가 성공적으로 저장되었습니다!');
       }
     } catch (error) {
-      console.error('Failed to save to localStorage:', error);
       if (showToast) {
         toast.error('데이터 저장에 실패했습니다.');
       }
@@ -1909,7 +1901,6 @@ const useStore = create<RFState>((set, get) => ({
   loadFromLocalStorage: () => {
     // 이미 로딩 중이면 중복 실행 방지
     if (get().isLoading) {
-      console.log('⚠️ 이미 로딩 중입니다. 중복 실행을 방지합니다.');
       return;
     }
     
@@ -1964,12 +1955,6 @@ const useStore = create<RFState>((set, get) => ({
         viewportRestoreTrigger: (get().viewportRestoreTrigger || 0) + 1, // 트리거 증가
       });
       
-      console.log('📁 불러온 viewport:', data.viewport);
-      console.log('📁 불러온 nodes 개수:', data.nodes?.length || 0);
-      if (data.nodes && data.nodes.length > 0) {
-        console.log('📁 첫 번째 노드 위치:', data.nodes[0].position);
-      }
-      console.log('🎯 설정된 viewport:', data.viewport || { x: 0, y: 0, zoom: 1 });
       
       // 마지막 단계 메시지
       setTimeout(() => {
@@ -1982,7 +1967,6 @@ const useStore = create<RFState>((set, get) => ({
         toast.success('ERD 데이터를 성공적으로 불러왔습니다!');
       }, 1500); // 1.5초 후 로딩 완료
     } catch (error) {
-      console.error('Failed to load from localStorage:', error);
       set({ isLoading: false, loadingMessage: '', loadingProgress: 0 });
       toast.error('데이터 불러오기에 실패했습니다.');
     }
@@ -2004,15 +1988,12 @@ const useStore = create<RFState>((set, get) => ({
     try {
       const savedData = localStorage.getItem(STORAGE_KEY);
       if (savedData) {
-        console.log('🔍 저장된 데이터 발견, 자동 로딩 시작');
         // 저장된 데이터가 있으면 자동으로 불러오기
         get().loadFromLocalStorage();
         return true;
       }
-      console.log('📭 저장된 데이터 없음, 빈 상태로 시작');
       return false;
     } catch (error) {
-      console.error('Auto load check failed:', error);
       return false;
     }
   },
@@ -2075,7 +2056,6 @@ const useStore = create<RFState>((set, get) => ({
       
       toast.success('저장된 데이터가 삭제되고 초기 상태로 리셋되었습니다.');
     } catch (error) {
-      console.error('Failed to clear localStorage:', error);
       toast.error('데이터 삭제에 실패했습니다.');
     }
   },
@@ -2129,7 +2109,6 @@ const initializeStore = () => {
       });
     }
   } catch (error) {
-    console.error('Failed to initialize from localStorage:', error);
   }
 };
 

@@ -1,4 +1,5 @@
-import ReactFlow, { Node, useReactFlow, Edge, MiniMap, useViewport, Panel, Background, BackgroundVariant, useUpdateNodeInternals } from 'reactflow';
+import ReactFlow, { Node, useReactFlow, Edge, MiniMap, useViewport, Panel, Background, BackgroundVariant, useUpdateNodeInternals, getRectOfNodes, getTransformForBounds } from 'reactflow';
+import { toPng } from 'html-to-image';
 import React, { useCallback, useRef, useState, MouseEvent, useEffect, useMemo } from 'react';
 import 'reactflow/dist/style.css';
 import throttle from 'lodash.throttle';
@@ -74,6 +75,7 @@ const Canvas = () => {
   const deleteSelected = useStore((state) => state.deleteSelected);
   const theme = useStore((state) => state.theme);
   const hiddenEntities = useStore((state) => state.hiddenEntities);
+  const exportToImage = useStore((state) => state.exportToImage);
   
   // 스냅 기능 관련
   const setIsDragging = useStore((state) => state.setIsDragging);
@@ -88,7 +90,7 @@ const Canvas = () => {
   const setShowAlignPopup = useStore((state) => state.setShowAlignPopup);
   const setShowViewPopup = useStore((state) => state.setShowViewPopup);
 
-  const { screenToFlowPosition, flowToScreenPosition, fitView } = useReactFlow();
+  const { screenToFlowPosition, flowToScreenPosition, fitView, getViewport } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   const { zoom } = useViewport();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
@@ -142,6 +144,110 @@ const Canvas = () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [handleKeyDown]);
+
+  // 이미지 export 이벤트 리스너
+  useEffect(() => {
+    const handleExportImage = async () => {
+      try {
+        const reactFlowWrapper = document.querySelector('.react-flow') as HTMLElement;
+        if (!reactFlowWrapper) {
+          return;
+        }
+
+        // 현재 상태 완전 저장
+        const originalHiddenEntities = new Set(hiddenEntities);
+        const originalConnectionMode = useStore.getState().connectionMode;
+        const originalConnectingNodeId = useStore.getState().connectingNodeId;
+        const originalCreateMode = useStore.getState().createMode;
+        const originalSelectedNodeId = useStore.getState().selectedNodeId;
+        const originalSelectedEdgeId = useStore.getState().selectedEdgeId;
+        const originalSelectMode = useStore.getState().selectMode;
+        
+        // 모든 상태 초기화 (관계선 비활성화)
+        useStore.getState().showAllEntities();
+        useStore.getState().setConnectionMode(null);
+        useStore.getState().setConnectingNodeId(null);
+        useStore.getState().setCreateMode(null);
+        useStore.getState().setSelectedNodeId(null);
+        useStore.getState().setSelectedEdgeId(null);
+        useStore.getState().setSelectMode(true);
+        setTemporaryEdge(null);
+
+        // DOM 업데이트 대기
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // 모든 노드가 보이도록 fitView 실행
+        fitView({ 
+          padding: 0.2,
+          includeHiddenNodes: false,
+          duration: 0 
+        });
+
+        // fitView 완료 대기
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // 고정된 큰 크기로 캡처 (복잡한 계산 없이)
+        const captureWidth = 2000;
+        const captureHeight = 1500;
+        
+        console.log('고정 크기 캡처:', { captureWidth, captureHeight });
+
+        // 이미지 export - 고정 크기로 캡처
+        const dataUrl = await toPng(reactFlowWrapper, {
+          backgroundColor: '#ffffff',
+          width: captureWidth,
+          height: captureHeight,
+          pixelRatio: 1,
+          quality: 0.95,
+          filter: (node) => {
+            // 최소한의 필터링만
+            if (node.classList) {
+              return !node.classList.contains('react-flow__controls') &&
+                     !node.classList.contains('react-flow__minimap');
+            }
+            return true;
+          }
+        });
+
+        // 다운로드
+        const link = document.createElement('a');
+        link.download = 'erd-diagram.png';
+        link.href = dataUrl;
+        link.click();
+
+        // 원래 상태 완전 복원
+        useStore.setState({ hiddenEntities: originalHiddenEntities });
+        useStore.getState().setConnectionMode(originalConnectionMode);
+        useStore.getState().setConnectingNodeId(originalConnectingNodeId);
+        useStore.getState().setCreateMode(originalCreateMode);
+        useStore.getState().setSelectedNodeId(originalSelectedNodeId);
+        useStore.getState().setSelectedEdgeId(originalSelectedEdgeId);
+        useStore.getState().setSelectMode(originalSelectMode);
+        
+      } catch (error) {
+        console.error('이미지 export 실패:', error);
+        
+        // 상태 초기화
+        useStore.setState({ hiddenEntities: hiddenEntities });
+        useStore.getState().setConnectionMode(null);
+        useStore.getState().setConnectingNodeId(null);
+        useStore.getState().setCreateMode(null);
+        useStore.getState().setSelectedNodeId(null);
+        useStore.getState().setSelectedEdgeId(null);
+        useStore.getState().setSelectMode(true);
+        setTemporaryEdge(null);
+      }
+    };
+
+    const exportListener = () => {
+      handleExportImage();
+    };
+
+    window.addEventListener('exportToImage', exportListener);
+    return () => {
+      window.removeEventListener('exportToImage', exportListener);
+    };
+  }, [nodes, hiddenEntities]);
 
   // Listen for temporary edge creation events
   React.useEffect(() => {

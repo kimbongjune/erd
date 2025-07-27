@@ -1,9 +1,9 @@
 {
-  "buildCommand": "cd packages/app-web && npm run build",
+  "buildCommand": "cd packages/app-web && npm install && npm run build",
   "outputDirectory": "packages/app-web/dist",
-  "installCommand": "npm install",
-  "framework": "vite",
-  "functions": {},
+  "installCommand": "npm install && cd packages/app-web && npm install",
+  "devCommand": "cd packages/app-web && npm run dev",
+  "framework": null,
   "rewrites": [
     {
       "source": "/(.*)",

@@ -89,8 +89,13 @@ const Canvas = () => {
   const showGrid = useStore((state) => state.showGrid);
   const setShowAlignPopup = useStore((state) => state.setShowAlignPopup);
   const setShowViewPopup = useStore((state) => state.setShowViewPopup);
+  
+  // viewport 관련
+  const updateViewport = useStore((state) => state.updateViewport);
+  const savedViewport = useStore((state) => state.viewport);
+  const viewportRestoreTrigger = useStore((state) => state.viewportRestoreTrigger);
 
-  const { screenToFlowPosition, flowToScreenPosition, fitView, getViewport } = useReactFlow();
+  const { screenToFlowPosition, flowToScreenPosition, fitView, getViewport, setViewport } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   const { zoom } = useViewport();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
@@ -113,6 +118,53 @@ const Canvas = () => {
     type: 'node' as 'node' | 'edge',
     targetId: ''
   });
+
+  // viewport 변경 핸들러 - 실시간 viewport 추적
+  const handleViewportChange = useCallback((viewport: any) => {
+    // 실시간으로 viewport 업데이트 (저장은 하지 않음)
+    console.log('🔄 viewport 변경 중:', viewport);
+  }, []);
+
+  // viewport 변경 완료 핸들러 - 이동/줌이 끝난 후 저장
+  const handleViewportChangeEnd = useCallback((viewport: any) => {
+    console.log('✅ viewport 변경 완료:', viewport);
+    updateViewport(viewport);
+  }, [updateViewport]);
+
+  // ReactFlow 초기화 완료 핸들러
+  const handleReactFlowInit = useCallback((reactFlowInstance: any) => {
+    console.log('🚀 ReactFlow 초기화 완료');
+    
+    // ReactFlow 인스턴스를 전역에서 접근 가능하도록 저장
+    (window as any).reactFlowInstance = reactFlowInstance;
+    
+    // ReactFlow가 완전히 초기화된 후 저장된 viewport 복원
+    if (savedViewport && (savedViewport.x !== 0 || savedViewport.y !== 0 || savedViewport.zoom !== 1)) {
+      console.log('🔄 onInit에서 viewport 복원:', savedViewport);
+      
+      // 즉시 설정
+      reactFlowInstance.setViewport(savedViewport);
+      
+      // 여러 번 재시도해서 확실하게 적용
+      const timers = [
+        setTimeout(() => {
+          console.log('⏰ onInit viewport 재설정 (100ms)');
+          reactFlowInstance.setViewport(savedViewport);
+        }, 100),
+        setTimeout(() => {
+          console.log('⏰ onInit viewport 재설정 (300ms)');
+          reactFlowInstance.setViewport(savedViewport);
+        }, 300),
+        setTimeout(() => {
+          console.log('⏰ onInit viewport 재설정 (500ms)');
+          reactFlowInstance.setViewport(savedViewport);
+        }, 500),
+      ];
+    }
+  }, [savedViewport]);
+
+  // 데이터 불러오기 시 viewport 복원은 onInit에서만 처리
+  // (기존 useEffect 제거됨)
 
   // 키보드 이벤트 핸들러  
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
@@ -789,6 +841,9 @@ const Canvas = () => {
         edges={temporaryEdge ? [...visibleEdges, temporaryEdge] : visibleEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onMove={handleViewportChange}
+        onMoveEnd={handleViewportChangeEnd}
+        onInit={handleReactFlowInit}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodeClick={handleNodeClick}

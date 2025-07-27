@@ -1,7 +1,6 @@
 import { useCallback, useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { useDropzone } from 'react-dropzone';
-import { FaDownload, FaChevronDown } from 'react-icons/fa';
+import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash } from 'react-icons/fa';
 import useStore from '../store/useStore';
 
 const HeaderContainer = styled.header<{ $darkMode?: boolean }>`
@@ -86,21 +85,18 @@ const ExportOption = styled.button<{ $darkMode?: boolean }>`
 `;
 
 const Header = () => {
-  const { nodes, edges, setNodes, setEdges, theme, toggleTheme, exportToImage, exportToSQL } = useStore();
+  const { 
+    theme, 
+    toggleTheme, 
+    exportToImage, 
+    exportToSQL,
+    saveToLocalStorage,
+    loadFromLocalStorage,
+    clearLocalStorage
+  } = useStore();
   const [isExportOpen, setIsExportOpen] = useState(false);
 
-  const onDrop = useCallback((acceptedFiles: any[]) => {
-    const file = acceptedFiles[0];
-    const reader = new FileReader();
-    reader.onload = () => {
-      const { nodes, edges } = JSON.parse(reader.result as string);
-      setNodes(nodes);
-      setEdges(edges);
-    };
-    reader.readAsText(file);
-  }, [setNodes, setEdges]);
-
-  const { getRootProps, getInputProps } = useDropzone({ onDrop, noClick: true });
+  // JSON 관련 함수들 제거
 
   // 외부 클릭시 드롭다운 닫기
   useEffect(() => {
@@ -119,22 +115,44 @@ const Header = () => {
     };
   }, [isExportOpen]);
 
-  const saveData = () => {
-    const data = JSON.stringify({ nodes, edges }, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'erd.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   return (
-    <HeaderContainer $darkMode={theme === 'dark'} {...getRootProps()}>
-      <input {...getInputProps()} />
-      <button onClick={saveData}>Save</button>
-      <button onClick={() => getRootProps().onClick?.(undefined as any)}>Load</button>
+    <HeaderContainer $darkMode={theme === 'dark'}>
+      {/* localStorage 버튼들 */}
+      <ThemeToggleButton 
+        $darkMode={theme === 'dark'} 
+        onClick={(e) => {
+          e.stopPropagation();
+          saveToLocalStorage();
+        }}
+        title="Ctrl+S로도 저장할 수 있습니다"
+      >
+        <FaSave />
+        저장
+      </ThemeToggleButton>
+      
+      <ThemeToggleButton 
+        $darkMode={theme === 'dark'} 
+        onClick={(e) => {
+          e.stopPropagation();
+          loadFromLocalStorage();
+        }}
+      >
+        <FaFolderOpen />
+        불러오기
+      </ThemeToggleButton>
+      
+      <ThemeToggleButton 
+        $darkMode={theme === 'dark'} 
+        onClick={(e) => {
+          e.stopPropagation();
+          if (confirm('저장된 모든 데이터를 삭제하시겠습니까?')) {
+            clearLocalStorage();
+          }
+        }}
+      >
+        <FaTrash />
+        데이터 삭제
+      </ThemeToggleButton>
       
       <ExportContainer>
         <ThemeToggleButton 

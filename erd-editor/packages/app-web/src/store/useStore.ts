@@ -3,6 +3,47 @@ import { Node, Edge, OnNodesChange, OnEdgesChange, applyNodeChanges, applyEdgeCh
 import { toast } from 'react-toastify';
 import { createHandleId } from '../utils/handleUtils';
 
+// localStorage 키 상수
+const STORAGE_KEY = 'erd-editor-data';
+const STORAGE_VERSION = '1.0';
+
+// 자동 저장 디바운싱을 위한 타이머
+let autoSaveTimer: number | null = null;
+
+// 디바운싱된 자동 저장 함수
+const debounceAutoSave = (saveFunction: () => void, delay: number = 1000) => {
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer);
+  }
+  autoSaveTimer = setTimeout(() => {
+    saveFunction();
+  }, delay);
+};
+
+// Viewport 타입 정의
+type Viewport = {
+  x: number;
+  y: number;
+  zoom: number;
+};
+
+// 저장할 데이터 타입 정의
+type SavedData = {
+  version: string;
+  timestamp: number;
+  nodes: Node[];
+  edges: Edge[];
+  nodeColors: Record<string, string>;
+  edgeColors: Record<string, string>;
+  commentColors: Record<string, string>;
+  viewSettings: ViewSettings;
+  theme: Theme;
+  showGrid: boolean;
+  hiddenEntities: string[];
+  viewport: Viewport;
+  viewportRestoreTrigger: number; // 데이터 로드 시 viewport 복원을 위한 트리거
+};
+
 type SnapGuide = {
   type: 'vertical' | 'horizontal';
   position: number;
@@ -96,6 +137,11 @@ type RFState = {
   createMode: string | null;
   selectMode: boolean;
   
+  // 로딩 관련
+  isLoading: boolean;
+  loadingMessage: string;
+  loadingProgress: number; // 0-100 진행률
+  
   // 색상 팔레트 관련
   nodeColors: Map<string, string>; // nodeId -> color
   edgeColors: Map<string, string>; // edgeId -> color
@@ -129,6 +175,10 @@ type RFState = {
   
   // 테마 설정
   theme: Theme;
+  
+  // 캔버스 뷰포트 설정
+  viewport: Viewport;
+  viewportRestoreTrigger: number; // 데이터 로드 시 viewport 복원을 위한 트리거
   
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
@@ -213,107 +263,24 @@ type RFState = {
   arrangeLeftRight: () => void;
   arrangeSnowflake: () => void;
   arrangeCompact: () => void;
+  
+  // localStorage 관련 함수들
+  saveToLocalStorage: (showToast?: boolean) => void;
+  loadFromLocalStorage: () => void;
+  clearLocalStorage: () => void;
+  
+  // 로딩 관련 함수들
+  setLoading: (loading: boolean, message?: string) => void;
+  setLoadingProgress: (progress: number, message?: string) => void;
+  checkAndAutoLoad: () => boolean;
+  
+  // viewport 관련 함수들
+  setViewport: (viewport: Viewport) => void;
+  updateViewport: (viewport: Viewport) => void;
 };
 
 const useStore = create<RFState>((set, get) => ({
-  nodes: [
-    {
-      id: '1',
-      type: 'entity',
-      position: { x: 100, y: 100 },
-      data: {
-        label: 'User',
-        comment: '사용자 정보 테이블',
-        columns: [
-          { 
-            name: 'id', 
-            type: 'INT', 
-            pk: true, 
-            fk: false, 
-            uq: false,
-            ai: false,
-            comment: '사용자 고유 ID',
-            logicalName: '사용자ID',
-            constraint: null,
-            defaultValue: null,
-            options: 'PRIMARY KEY'
-          },
-          { 
-            name: 'username', 
-            type: 'VARCHAR(50)', 
-            pk: false, 
-            fk: false, 
-            uq: false, 
-            comment: '사용자명',
-            logicalName: '사용자명',
-            constraint: null,
-            defaultValue: null,
-            options: 'NOT NULL'
-          },
-          { 
-            name: 'email', 
-            type: 'VARCHAR(100)', 
-            pk: false, 
-            fk: false, 
-            uq: false, 
-            comment: '이메일 주소',
-            logicalName: '이메일',
-            constraint: null,
-            defaultValue: null,
-            options: 'NOT NULL'
-          },
-        ],
-      },
-    },
-    {
-      id: '2',
-      type: 'entity',
-      position: { x: 400, y: 100 },
-      data: {
-        label: 'Post',
-        comment: '게시글 테이블',
-        columns: [
-          { 
-            name: 'id', 
-            type: 'INT', 
-            pk: true, 
-            fk: false, 
-            uq: false,
-            ai: false,
-            comment: '게시글 고유 ID',
-            logicalName: '게시글ID',
-            constraint: null,
-            defaultValue: null,
-            options: 'PRIMARY KEY'
-          },
-          { 
-            name: 'title', 
-            type: 'VARCHAR(255)', 
-            pk: false, 
-            fk: false, 
-            uq: false, 
-            comment: '게시글 제목',
-            logicalName: '제목',
-            constraint: null,
-            defaultValue: null,
-            options: 'NOT NULL'
-          },
-          { 
-            name: 'content', 
-            type: 'TEXT', 
-            pk: false, 
-            fk: false, 
-            uq: false, 
-            comment: '게시글 내용',
-            logicalName: '내용',
-            constraint: null,
-            defaultValue: "'내용을 입력하세요'",
-            options: null
-          },
-        ],
-      },
-    },
-  ],
+  nodes: [],
   edges: [],
   selectedNodeId: null,
   selectedEdgeId: null,
@@ -327,6 +294,11 @@ const useStore = create<RFState>((set, get) => ({
   connectingNodeId: null,
   createMode: null,
   selectMode: true,
+  
+  // 로딩 관련 초기값
+  isLoading: false,
+  loadingMessage: '',
+  loadingProgress: 0,
   
   // 색상 팔레트 관련 초기값
   nodeColors: new Map(),
@@ -381,11 +353,21 @@ const useStore = create<RFState>((set, get) => ({
       
       return { nodes: newNodes };
     });
+    
+    // 노드 변경 시 자동 저장 (디바운싱 적용)
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false); // 자동 저장 시 토스트 없음
+    }, 2000); // 2초 후 저장
   },
   onEdgesChange: (changes) => {
     set({
       edges: applyEdgeChanges(changes, get().edges),
     });
+    
+    // 엣지 변경 시 자동 저장 (디바운싱 적용)
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false); // 자동 저장 시 토스트 없음
+    }, 2000); // 2초 후 저장
   },
   addNode: (type) => {
     const newNode = {
@@ -937,6 +919,10 @@ const useStore = create<RFState>((set, get) => ({
   // 테마 초기값
   theme: 'light',
   
+  // 캔버스 뷰포트 초기값
+  viewport: { x: 0, y: 0, zoom: 1 },
+  viewportRestoreTrigger: 0,
+  
   // 스냅 기능 관련 함수들
   setIsDragging: (isDragging: boolean) => set({ isDragging }),
   setDraggingNodeId: (nodeId: string | null) => set({ draggingNodeId: nodeId }),
@@ -1056,7 +1042,13 @@ const useStore = create<RFState>((set, get) => ({
   // 툴바 관련 함수들
   setSearchActive: (active: boolean) => set({ searchActive: active }),
   setRelationsHighlight: (active: boolean) => set({ relationsHighlight: active }),
-  setShowGrid: (show: boolean) => set({ showGrid: show }),
+  setShowGrid: (show: boolean) => {
+    set({ showGrid: show });
+    // 그리드 설정 변경 시 localStorage에 자동 저장
+    setTimeout(() => {
+      get().saveToLocalStorage(false);
+    }, 0);
+  },
   setShowAlignPopup: (show: boolean) => set({ showAlignPopup: show }),
   setShowViewPopup: (show: boolean) => set({ showViewPopup: show }),
   
@@ -1182,17 +1174,33 @@ const useStore = create<RFState>((set, get) => ({
   },
   
   // 뷰 설정 함수들
-  updateViewSettings: (settings: Partial<ViewSettings>) => 
+  updateViewSettings: (settings: Partial<ViewSettings>) => {
     set((state) => ({ 
       viewSettings: { ...state.viewSettings, ...settings } 
-    })),
+    }));
+    // 뷰 설정 변경 시 localStorage에 자동 저장
+    setTimeout(() => {
+      get().saveToLocalStorage(false);
+    }, 0);
+  },
   
   // 테마 함수들
-  setTheme: (theme: Theme) => set({ theme }),
-  toggleTheme: () => 
+  setTheme: (theme: Theme) => {
+    set({ theme });
+    // 테마 변경 시 localStorage에 자동 저장
+    setTimeout(() => {
+      get().saveToLocalStorage(false);
+    }, 0);
+  },
+  toggleTheme: () => {
     set((state) => ({ 
       theme: state.theme === 'light' ? 'dark' : 'light' 
-    })),
+    }));
+    // 테마 변경 시 localStorage에 자동 저장
+    setTimeout(() => {
+      get().saveToLocalStorage(false);
+    }, 0);
+  },
   
   updateNodeData: (nodeId: string, newData: any) => {
     set((state) => {
@@ -1521,6 +1529,11 @@ const useStore = create<RFState>((set, get) => ({
 
       return { nodes: finalNodes, edges: finalEdges };
     });
+    
+    // 노드 데이터 변경 시 자동 저장 (디바운싱 적용)
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false); // 자동 저장 시 토스트 없음
+    }, 1000); // 1초 후 저장
   },
   
   // 기존 edges의 Handle을 올바르게 업데이트하는 함수
@@ -1599,6 +1612,10 @@ const useStore = create<RFState>((set, get) => ({
       newNodeColors.set(nodeId, color);
       return { nodeColors: newNodeColors };
     });
+    // 색상 변경 시 localStorage에 자동 저장
+    setTimeout(() => {
+      get().saveToLocalStorage(false);
+    }, 100);
   },
   
   setEdgeColor: (edgeId: string, color: string) => {
@@ -1607,6 +1624,10 @@ const useStore = create<RFState>((set, get) => ({
       newEdgeColors.set(edgeId, color);
       return { edgeColors: newEdgeColors };
     });
+    // 색상 변경 시 localStorage에 자동 저장
+    setTimeout(() => {
+      get().saveToLocalStorage(false);
+    }, 100);
   },
   
   setCommentColor: (commentId: string, color: string) => {
@@ -1615,6 +1636,10 @@ const useStore = create<RFState>((set, get) => ({
       newCommentColors.set(commentId, color);
       return { commentColors: newCommentColors };
     });
+    // 색상 변경 시 localStorage에 자동 저장
+    setTimeout(() => {
+      get().saveToLocalStorage(false);
+    }, 100);
   },
   
   getNodeColor: (nodeId: string) => {
@@ -1824,6 +1849,291 @@ const useStore = create<RFState>((set, get) => ({
       return { nodes: updatedNodes };
     });
   },
+  
+  // localStorage 관련 함수들
+  saveToLocalStorage: (showToast = true) => {
+    try {
+      const state = get();
+      
+      // 현재 ReactFlow의 실제 viewport를 가져와서 사용
+      let currentViewport = state.viewport;
+      if ((window as any).reactFlowInstance) {
+        try {
+          const realViewport = (window as any).reactFlowInstance.getViewport();
+          currentViewport = {
+            x: typeof realViewport.x === 'number' && !isNaN(realViewport.x) ? realViewport.x : 0,
+            y: typeof realViewport.y === 'number' && !isNaN(realViewport.y) ? realViewport.y : 0,
+            zoom: typeof realViewport.zoom === 'number' && !isNaN(realViewport.zoom) ? realViewport.zoom : 1
+          };
+          console.log('🎯 ReactFlow에서 가져온 실제 viewport:', realViewport);
+        } catch (error) {
+          console.warn('ReactFlow viewport 가져오기 실패, store viewport 사용:', error);
+        }
+      }
+      
+      const dataToSave: SavedData = {
+        version: STORAGE_VERSION,
+        timestamp: Date.now(),
+        nodes: state.nodes,
+        edges: state.edges,
+        nodeColors: Object.fromEntries(state.nodeColors),
+        edgeColors: Object.fromEntries(state.edgeColors),
+        commentColors: Object.fromEntries(state.commentColors),
+        viewSettings: state.viewSettings,
+        theme: state.theme,
+        showGrid: state.showGrid,
+        hiddenEntities: Array.from(state.hiddenEntities),
+        viewport: currentViewport,
+        viewportRestoreTrigger: state.viewportRestoreTrigger,
+      };
+      
+      console.log('💾 저장할 viewport:', currentViewport);
+      console.log('💾 저장할 nodes 개수:', state.nodes.length);
+      if (state.nodes.length > 0) {
+        console.log('💾 첫 번째 노드 위치:', state.nodes[0].position);
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+      
+      // showToast가 true일 때만 토스트 메시지 표시
+      if (showToast) {
+        toast.success('ERD 데이터가 성공적으로 저장되었습니다!');
+      }
+    } catch (error) {
+      console.error('Failed to save to localStorage:', error);
+      if (showToast) {
+        toast.error('데이터 저장에 실패했습니다.');
+      }
+    }
+  },
+  
+  loadFromLocalStorage: () => {
+    // 이미 로딩 중이면 중복 실행 방지
+    if (get().isLoading) {
+      console.log('⚠️ 이미 로딩 중입니다. 중복 실행을 방지합니다.');
+      return;
+    }
+    
+    try {
+      // 로딩 시작
+      set({ isLoading: true, loadingMessage: '저장된 ERD 데이터 검색 중...', loadingProgress: 10 });
+      
+      const savedData = localStorage.getItem(STORAGE_KEY);
+      if (!savedData) {
+        set({ isLoading: false, loadingMessage: '', loadingProgress: 0 });
+        toast.info('저장된 데이터가 없습니다.');
+        return;
+      }
+      
+      set({ loadingMessage: '데이터 파싱 및 검증 중...', loadingProgress: 25 });
+      const data: SavedData = JSON.parse(savedData);
+      
+      // 버전 호환성 체크
+      if (data.version !== STORAGE_VERSION) {
+        toast.warn('저장된 데이터의 버전이 다릅니다. 일부 기능이 정상적으로 작동하지 않을 수 있습니다.');
+      }
+      
+      set({ loadingMessage: '엔티티 및 관계선 복원 중...', loadingProgress: 45 });
+      
+      setTimeout(() => {
+        set({ loadingMessage: '캔버스 위치 및 설정 복원 중...', loadingProgress: 65 });
+      }, 300);
+      
+      set({
+        nodes: data.nodes || [],
+        edges: data.edges || [],
+        nodeColors: new Map(Object.entries(data.nodeColors || {})),
+        edgeColors: new Map(Object.entries(data.edgeColors || {})),
+        commentColors: new Map(Object.entries(data.commentColors || {})),
+        viewSettings: data.viewSettings || {
+          entityView: 'logical',
+          showKeys: true,
+          showPhysicalName: true,
+          showLogicalName: false,
+          showDataType: true,
+          showConstraints: false,
+          showDefaults: false,
+        },
+        theme: data.theme || 'light',
+        showGrid: data.showGrid ?? false,
+        hiddenEntities: new Set(data.hiddenEntities || []),
+        viewport: data.viewport && typeof data.viewport === 'object' ? {
+          x: typeof data.viewport.x === 'number' && !isNaN(data.viewport.x) ? data.viewport.x : 0,
+          y: typeof data.viewport.y === 'number' && !isNaN(data.viewport.y) ? data.viewport.y : 0,
+          zoom: typeof data.viewport.zoom === 'number' && !isNaN(data.viewport.zoom) ? data.viewport.zoom : 1
+        } : { x: 0, y: 0, zoom: 1 },
+        viewportRestoreTrigger: (get().viewportRestoreTrigger || 0) + 1, // 트리거 증가
+      });
+      
+      console.log('📁 불러온 viewport:', data.viewport);
+      console.log('📁 불러온 nodes 개수:', data.nodes?.length || 0);
+      if (data.nodes && data.nodes.length > 0) {
+        console.log('📁 첫 번째 노드 위치:', data.nodes[0].position);
+      }
+      console.log('🎯 설정된 viewport:', data.viewport || { x: 0, y: 0, zoom: 1 });
+      
+      // 마지막 단계 메시지
+      setTimeout(() => {
+        set({ loadingMessage: '최종 렌더링 완료 중...', loadingProgress: 85 });
+      }, 800);
+      
+      // 로딩 완료 처리를 지연시켜서 viewport 복원이 완료되고 추가 안정화 시간 확보
+      setTimeout(() => {
+        set({ isLoading: false, loadingMessage: '', loadingProgress: 100 });
+        toast.success('ERD 데이터를 성공적으로 불러왔습니다!');
+      }, 1500); // 1.5초 후 로딩 완료
+    } catch (error) {
+      console.error('Failed to load from localStorage:', error);
+      set({ isLoading: false, loadingMessage: '', loadingProgress: 0 });
+      toast.error('데이터 불러오기에 실패했습니다.');
+    }
+  },
+  
+  // 로딩 관련 함수들
+  setLoading: (loading: boolean, message: string = '') => {
+    set({ isLoading: loading, loadingMessage: message, loadingProgress: loading ? 0 : 100 });
+  },
+  
+  setLoadingProgress: (progress: number, message?: string) => {
+    const update: any = { loadingProgress: progress };
+    if (message) update.loadingMessage = message;
+    set(update);
+  },
+  
+  // 페이지 진입 시 자동 로딩 체크
+  checkAndAutoLoad: () => {
+    try {
+      const savedData = localStorage.getItem(STORAGE_KEY);
+      if (savedData) {
+        console.log('🔍 저장된 데이터 발견, 자동 로딩 시작');
+        // 저장된 데이터가 있으면 자동으로 불러오기
+        get().loadFromLocalStorage();
+        return true;
+      }
+      console.log('📭 저장된 데이터 없음, 빈 상태로 시작');
+      return false;
+    } catch (error) {
+      console.error('Auto load check failed:', error);
+      return false;
+    }
+  },
+  
+  clearLocalStorage: () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      
+      // 상태를 초기 상태로 리셋
+      set({
+        nodes: [],
+        edges: [],
+        nodeColors: new Map(),
+        edgeColors: new Map(),
+        commentColors: new Map(),
+        viewSettings: {
+          entityView: 'logical',
+          showKeys: true,
+          showPhysicalName: true,
+          showLogicalName: false,
+          showDataType: true,
+          showConstraints: false,
+          showDefaults: false,
+        },
+        theme: 'light',
+        showGrid: false,
+        hiddenEntities: new Set(),
+        viewport: { x: 0, y: 0, zoom: 1 },
+        viewportRestoreTrigger: 0,
+        selectedNodeId: null,
+        selectedEdgeId: null,
+        hoveredEdgeId: null,
+        hoveredEntityId: null,
+        highlightedEntities: [],
+        highlightedEdges: [],
+        highlightedColumns: new Map(),
+        isBottomPanelOpen: false,
+        connectionMode: null,
+        connectingNodeId: null,
+        createMode: null,
+        selectMode: true,
+        isLoading: false,
+        loadingMessage: '',
+        loadingProgress: 0,
+        showColorPalette: false,
+        palettePosition: { x: 0, y: 0 },
+        paletteTarget: null,
+        previewNodeColor: null,
+        isDragging: false,
+        draggingNodeId: null,
+        snapGuides: [],
+        searchActive: false,
+        relationsHighlight: false,
+        showAlignPopup: false,
+        showViewPopup: false,
+        isSearchPanelOpen: false,
+        searchQuery: '',
+        selectedSearchEntity: null,
+      });
+      
+      toast.success('저장된 데이터가 삭제되고 초기 상태로 리셋되었습니다.');
+    } catch (error) {
+      console.error('Failed to clear localStorage:', error);
+      toast.error('데이터 삭제에 실패했습니다.');
+    }
+  },
+  
+  // viewport 관련 함수들
+  setViewport: (viewport: Viewport) => {
+    // viewport 값의 유효성 검증
+    const validViewport = {
+      x: typeof viewport.x === 'number' && !isNaN(viewport.x) ? viewport.x : 0,
+      y: typeof viewport.y === 'number' && !isNaN(viewport.y) ? viewport.y : 0,
+      zoom: typeof viewport.zoom === 'number' && !isNaN(viewport.zoom) ? viewport.zoom : 1
+    };
+    set({ viewport: validViewport });
+  },
+  
+  updateViewport: (viewport: Viewport) => {
+    // viewport 값의 유효성 검증
+    const validViewport = {
+      x: typeof viewport.x === 'number' && !isNaN(viewport.x) ? viewport.x : 0,
+      y: typeof viewport.y === 'number' && !isNaN(viewport.y) ? viewport.y : 0,
+      zoom: typeof viewport.zoom === 'number' && !isNaN(viewport.zoom) ? viewport.zoom : 1
+    };
+    
+    set({ viewport: validViewport });
+    // viewport 변경 시 자동 저장 (디바운싱 적용)
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 3000); // 3초 후 저장
+  },
 }));
+
+// 스토어 초기화 시 localStorage에서 데이터 로드
+const initializeStore = () => {
+  try {
+    const savedData = localStorage.getItem(STORAGE_KEY);
+    if (savedData) {
+      const data: SavedData = JSON.parse(savedData);
+      
+      // 초기 상태 업데이트
+      useStore.setState({
+        nodes: data.nodes || [], // 기본값을 빈 배열로 변경
+        edges: data.edges || [],
+        nodeColors: new Map(Object.entries(data.nodeColors || {})),
+        edgeColors: new Map(Object.entries(data.edgeColors || {})),
+        commentColors: new Map(Object.entries(data.commentColors || {})),
+        viewSettings: data.viewSettings || useStore.getState().viewSettings,
+        theme: data.theme || 'light',
+        showGrid: data.showGrid ?? false,
+        hiddenEntities: new Set(data.hiddenEntities || []),
+        viewport: data.viewport || { x: 0, y: 0, zoom: 1 },
+      });
+    }
+  } catch (error) {
+    console.error('Failed to initialize from localStorage:', error);
+  }
+};
+
+// 스토어 생성 후 즉시 초기화
+setTimeout(initializeStore, 0);
 
 export default useStore;

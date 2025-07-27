@@ -45,6 +45,79 @@ const CanvasContainer = styled.main<{ $darkMode?: boolean }>`
   position: relative;
 `;
 
+const LoadingOverlay = styled.div<{ $darkMode?: boolean }>`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: ${props => props.$darkMode ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)'};
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+`;
+
+const LoadingContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 40px;
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+`;
+
+const Spinner = styled.div`
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e2e8f0;
+  border-top: 4px solid #3182ce;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+
+const LoadingText = styled.div`
+  color: #2d3748;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+`;
+
+const ProgressBar = styled.div`
+  position: relative;
+  width: 240px;
+  height: 6px;
+  background-color: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+`;
+
+const ProgressFill = styled.div<{ progress: number }>`
+  height: 100%;
+  background: linear-gradient(90deg, #3182ce 0%, #4299e1 100%);
+  border-radius: 3px;
+  width: ${props => props.progress}%;
+  transition: width 0.3s ease-in-out;
+`;
+
+const ProgressPercentage = styled.div`
+  position: absolute;
+  top: -20px;
+  right: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #2d3748;
+`;
+
 const BottomPanelContainer = styled.div<{ $height: number; $darkMode?: boolean }>`
   background-color: ${props => props.$darkMode ? '#2d3748' : '#ffffff'};
   height: ${props => props.$height}px;
@@ -699,6 +772,7 @@ const TableCommentTextarea = styled.textarea<{ $darkMode?: boolean }>`
 const Layout = () => {
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
+  const [initialRender, setInitialRender] = useState(true);
   const { 
     isBottomPanelOpen, 
     setBottomPanelOpen, 
@@ -707,7 +781,10 @@ const Layout = () => {
     setNodes,
     updateNodeData,
     updateEdgeHandles,
-    theme
+    theme,
+    isLoading,
+    loadingMessage,
+    loadingProgress
   } = useStore();
   const [bottomPanelHeight, setBottomPanelHeight] = useState(250);
   const [isDragging, setIsDragging] = useState(false);
@@ -720,6 +797,15 @@ const Layout = () => {
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [isComposing, setIsComposing] = useState(false);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  // 초기 렌더링 지연으로 깜빡임 방지
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setInitialRender(false);
+    }, 100); // 100ms 지연
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   // 드롭다운 외부 클릭 감지
   React.useEffect(() => {
@@ -1552,17 +1638,43 @@ const Layout = () => {
 
   const isDarkMode = theme === 'dark';
 
+  // 초기 렌더링 중이거나 로딩 중일 때 빈 화면 표시
+  if (initialRender || isLoading) {
+    return (
+      <>
+        {isLoading && (
+          <LoadingOverlay>
+            <LoadingContainer>
+              <Spinner />
+              <LoadingText>{loadingMessage}</LoadingText>
+              <ProgressBar>
+                <ProgressFill progress={loadingProgress} />
+                <ProgressPercentage>{loadingProgress}%</ProgressPercentage>
+              </ProgressBar>
+            </LoadingContainer>
+          </LoadingOverlay>
+        )}
+        {initialRender && !isLoading && (
+          <Container $darkMode={isDarkMode} style={{ visibility: 'hidden' }}>
+            {/* 초기 렌더링 중 빈 컨테이너 */}
+          </Container>
+        )}
+      </>
+    );
+  }
+
   return (
-    <Container $darkMode={isDarkMode}>
-      <TopContainer $darkMode={isDarkMode}>
-        <Header />
-        <ToolboxContainer $darkMode={isDarkMode}>
-          <Toolbox />
-        </ToolboxContainer>
-        <CanvasContainer $darkMode={isDarkMode}>
-          <Canvas />
-        </CanvasContainer>
-      </TopContainer>
+    <>
+      <Container $darkMode={isDarkMode}>
+        <TopContainer $darkMode={isDarkMode}>
+          <Header />
+          <ToolboxContainer $darkMode={isDarkMode}>
+            <Toolbox />
+          </ToolboxContainer>
+          <CanvasContainer $darkMode={isDarkMode}>
+            {!isLoading && <Canvas />}
+          </CanvasContainer>
+        </TopContainer>
       {isBottomPanelOpen && (
         <BottomPanelContainer $height={bottomPanelHeight} $darkMode={isDarkMode}>
           <ResizeHandle onMouseDown={handleMouseDown} $darkMode={isDarkMode} />
@@ -2001,7 +2113,8 @@ const Layout = () => {
           </BottomSection>
         </BottomPanelContainer>
       )}
-    </Container>
+      </Container>
+    </>
   );
 };
 

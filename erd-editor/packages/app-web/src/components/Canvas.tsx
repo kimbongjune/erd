@@ -186,18 +186,19 @@ const Canvas = () => {
         // fitView 완료 대기
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        // 고정된 큰 크기로 캡처 (복잡한 계산 없이)
-        const captureWidth = 2000;
-        const captureHeight = 1500;
+        // 실제 캔버스 영역 크기 계산
+        const reactFlowBounds = reactFlowWrapper.getBoundingClientRect();
+        const captureWidth = reactFlowBounds.width;
+        const captureHeight = reactFlowBounds.height;
         
-        console.log('고정 크기 캡처:', { captureWidth, captureHeight });
+        console.log('캔버스 크기 캡처:', { captureWidth, captureHeight });
 
-        // 이미지 export - 고정 크기로 캡처
+        // 이미지 export - 실제 캔버스 크기로 캡처
         const dataUrl = await toPng(reactFlowWrapper, {
           backgroundColor: '#ffffff',
           width: captureWidth,
           height: captureHeight,
-          pixelRatio: 1,
+          pixelRatio: 2, // 고화질을 위해 픽셀 비율 증가
           quality: 0.95,
           filter: (node) => {
             // 최소한의 필터링만
@@ -617,7 +618,7 @@ const Canvas = () => {
         targetNodeId = targetEl.getAttribute('data-id');
       }
 
-      if (targetNodeId && targetNodeId !== connectingNodeId) {
+      if (targetNodeId) {
         finishConnection(targetNodeId);
         // 관계선 연결 완료 후 활성화 상태 해제
         setSelectedEdgeId(null);

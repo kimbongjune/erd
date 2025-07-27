@@ -653,12 +653,12 @@ const useStore = create<RFState>((set, get) => ({
       const sourceNode = state.nodes.find((node) => node.id === connection.source);
       const targetNode = state.nodes.find((node) => node.id === connection.target);
 
-      // 순환참조 체크: 이미 반대 방향으로 관계가 있는지 확인
+      // 순환참조 체크: 이미 반대 방향으로 관계가 있는지 확인 (자기 자신과의 관계는 제외)
       const existingReverseEdge = state.edges.find(edge => 
         edge.source === connection.target && edge.target === connection.source
       );
       
-      if (existingReverseEdge) {
+      if (existingReverseEdge && connection.source !== connection.target) {
         toast.error('순환참조는 허용되지 않습니다. 이미 반대 방향으로 관계가 설정되어 있습니다.');
         return state; // 상태 변경 없이 반환
       }
@@ -686,6 +686,17 @@ const useStore = create<RFState>((set, get) => ({
         if (sourcePkColumns.length === 0) {
           toast.error('관계를 생성하려면 부모 엔티티에 기본키(PK)가 필요합니다.');
           return state; // 상태 변경 없이 반환
+        }
+
+        // 셀프 관계에서 식별자 관계 체크
+        if (connection.source === connection.target) {
+          const relationshipType = state.connectionMode;
+          const isIdentifyingRelationship = relationshipType === 'oneToOneIdentifying' || relationshipType === 'oneToManyIdentifying';
+          
+          if (isIdentifyingRelationship) {
+            toast.error('자기 자신과의 관계에서는 식별자 관계를 설정할 수 없습니다. 비식별자 관계만 가능합니다.');
+            return state; // 상태 변경 없이 반환
+          }
         }
 
         // 식별자 관계의 경우 PK 선택, 비식별자 관계의 경우 일반 컬럼으로 FK 생성
@@ -1650,7 +1661,8 @@ const useStore = create<RFState>((set, get) => ({
       
       // 관계선을 기반으로 그래프 구성 (부모 -> 자식)
       state.edges.forEach(edge => {
-        if (adjacencyList.has(edge.source) && inDegree.has(edge.target)) {
+        // 셀프 관계는 위상 정렬에서 제외 (자기 자신을 참조하므로 계층에 영향을 주지 않음)
+        if (edge.source !== edge.target && adjacencyList.has(edge.source) && inDegree.has(edge.target)) {
           adjacencyList.get(edge.source)!.push(edge.target);
           inDegree.set(edge.target, inDegree.get(edge.target)! + 1);
         }

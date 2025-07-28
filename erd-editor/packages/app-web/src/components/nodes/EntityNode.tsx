@@ -735,7 +735,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
                   {/* 두 번째 컬럼: 논리명 */}
                   <ColumnLogicalName $darkMode={isDarkMode} style={{ display: viewSettings.showLogicalName ? 'table-cell' : 'none' }}>
                     <ColumnLogicalText $darkMode={isDarkMode}>
-                      {col.logicalName || col.comment || col.name}
+                      {col.logicalName || ''}
                     </ColumnLogicalText>
                   </ColumnLogicalName>
                   
@@ -744,14 +744,11 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
                     {(col.uq || col.constraint === 'UNIQUE') && (
                       <ColumnDetails $darkMode={isDarkMode}>UQ</ColumnDetails>
                     )}
-                    {col.constraint === 'AUTO_INCREMENT' && (
+                    {(col.ai || col.constraint === 'AUTO_INCREMENT') && (
                       <ColumnDetails $darkMode={isDarkMode}>AI</ColumnDetails>
                     )}
                     {(col.nn || col.nullable === false) && (
                       <ColumnDetails $darkMode={isDarkMode}>NN</ColumnDetails>
-                    )}
-                    {col.ai && (
-                      <ColumnDetails $darkMode={isDarkMode}>AI</ColumnDetails>
                     )}
                   </ColumnConstraints>
                   

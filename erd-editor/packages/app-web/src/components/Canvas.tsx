@@ -193,21 +193,25 @@ const Canvas = () => {
   // 이미지 export 이벤트 리스너
   useEffect(() => {
     const handleExportImage = async () => {
+      // 현재 상태 완전 저장 (try 블록 밖에서 선언)
+      const originalHiddenEntities = new Set(hiddenEntities);
+      const originalConnectionMode = useStore.getState().connectionMode;
+      const originalConnectingNodeId = useStore.getState().connectingNodeId;
+      const originalCreateMode = useStore.getState().createMode;
+      const originalSelectedNodeId = useStore.getState().selectedNodeId;
+      const originalSelectedEdgeId = useStore.getState().selectedEdgeId;
+      const originalSelectMode = useStore.getState().selectMode;
+      const originalHighlightedEntities = [...useStore.getState().highlightedEntities];
+      const originalHighlightedEdges = [...useStore.getState().highlightedEdges];
+      const originalHighlightedColumns = new Map(useStore.getState().highlightedColumns);
+      const originalRelationsHighlight = useStore.getState().relationsHighlight;
+      
       try {
         const reactFlowWrapper = document.querySelector('.react-flow') as HTMLElement;
         if (!reactFlowWrapper) {
           return;
         }
 
-        // 현재 상태 완전 저장
-        const originalHiddenEntities = new Set(hiddenEntities);
-        const originalConnectionMode = useStore.getState().connectionMode;
-        const originalConnectingNodeId = useStore.getState().connectingNodeId;
-        const originalCreateMode = useStore.getState().createMode;
-        const originalSelectedNodeId = useStore.getState().selectedNodeId;
-        const originalSelectedEdgeId = useStore.getState().selectedEdgeId;
-        const originalSelectMode = useStore.getState().selectMode;
-        
         // 모든 상태 초기화 (관계선 비활성화)
         useStore.getState().showAllEntities();
         useStore.getState().setConnectionMode(null);
@@ -216,6 +220,10 @@ const Canvas = () => {
         useStore.getState().setSelectedNodeId(null);
         useStore.getState().setSelectedEdgeId(null);
         useStore.getState().setSelectMode(true);
+        useStore.getState().setHighlightedEntities([]);
+        useStore.getState().setHighlightedEdges([]);
+        useStore.getState().setHighlightedColumns(new Map());
+        useStore.getState().setRelationsHighlight(false);
         setTemporaryEdge(null);
 
         // DOM 업데이트 대기
@@ -267,17 +275,25 @@ const Canvas = () => {
         useStore.getState().setSelectedNodeId(originalSelectedNodeId);
         useStore.getState().setSelectedEdgeId(originalSelectedEdgeId);
         useStore.getState().setSelectMode(originalSelectMode);
+        useStore.getState().setHighlightedEntities(originalHighlightedEntities);
+        useStore.getState().setHighlightedEdges(originalHighlightedEdges);
+        useStore.getState().setHighlightedColumns(originalHighlightedColumns);
+        useStore.getState().setRelationsHighlight(originalRelationsHighlight);
         
       } catch (error) {
         
-        // 상태 초기화
-        useStore.setState({ hiddenEntities: hiddenEntities });
-        useStore.getState().setConnectionMode(null);
-        useStore.getState().setConnectingNodeId(null);
-        useStore.getState().setCreateMode(null);
-        useStore.getState().setSelectedNodeId(null);
-        useStore.getState().setSelectedEdgeId(null);
-        useStore.getState().setSelectMode(true);
+        // 에러 발생 시에도 원래 상태로 복원
+        useStore.setState({ hiddenEntities: originalHiddenEntities });
+        useStore.getState().setConnectionMode(originalConnectionMode);
+        useStore.getState().setConnectingNodeId(originalConnectingNodeId);
+        useStore.getState().setCreateMode(originalCreateMode);
+        useStore.getState().setSelectedNodeId(originalSelectedNodeId);
+        useStore.getState().setSelectedEdgeId(originalSelectedEdgeId);
+        useStore.getState().setSelectMode(originalSelectMode);
+        useStore.getState().setHighlightedEntities(originalHighlightedEntities);
+        useStore.getState().setHighlightedEdges(originalHighlightedEdges);
+        useStore.getState().setHighlightedColumns(originalHighlightedColumns);
+        useStore.getState().setRelationsHighlight(originalRelationsHighlight);
         setTemporaryEdge(null);
       }
     };

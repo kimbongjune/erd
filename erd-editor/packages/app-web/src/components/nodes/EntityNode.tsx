@@ -27,7 +27,8 @@ interface Column {
 
 const NodeContainer = styled.div<{ $isSelected: boolean; $darkMode?: boolean; $color?: string; $isHidden?: boolean }>`
   position: relative;
-  min-width: 240px;
+  min-width: 280px;
+  max-width: 500px;
   width: auto;
   min-height: 60px;
   height: fit-content;
@@ -93,6 +94,10 @@ const EntityName = styled.div`
   flex: 1;
   padding: 2px 4px;
   border-radius: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 `;
 
 const EntityLogicalName = styled.div`
@@ -101,6 +106,10 @@ const EntityLogicalName = styled.div`
   border-radius: 3px;
   opacity: 0.9;
   text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 `;
 
 const PaletteIcon = styled.div<{ $isVisible: boolean }>`
@@ -467,10 +476,18 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
     };
   }, [updateEdgeHandles]);
 
-  // 컴포넌트 마운트 시 기존 edges 업데이트
+  // 컴포넌트 마운트 시 기존 edges 업데이트 및 하이라이트 동기화
   useEffect(() => {
     updateEdgeHandles();
     updateNodeInternals(id);
+    
+    // 컬럼 이름 변경으로 인한 하이라이트 업데이트도 필요할 수 있음
+    setTimeout(() => {
+      const { selectedNodeId, updateEntityHighlights } = useStore.getState();
+      if (selectedNodeId === id) {
+        updateEntityHighlights(id);
+      }
+    }, 50);
   }, [data.columns, updateEdgeHandles, updateNodeInternals, id]);
 
   // 현재 노드가 선택되었는지 확인 (id 사용)

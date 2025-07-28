@@ -429,12 +429,11 @@ const useStore = create<RFState>((set, get) => ({
         // 현재 엔티티가 부모인 경우 - 본인의 PK 컬럼들 하이라이트 (실제 FK가 있는 것만)
         relatedEntityIds.add(edge.target);
         
-        // 자식 엔티티의 FK 컬럼들 찾기
+        // 자식 엔티티의 FK 컬럼들 찾기 - parentEntityId 기준
         const targetEntity = state.nodes.find(n => n.id === edge.target);
         if (targetEntity) {
-          const sourceLabel = currentEntity.data.label.toLowerCase();
           const fkColumns = targetEntity.data.columns?.filter((col: any) => 
-            col.fk && col.name.startsWith(`${sourceLabel}_`)
+            col.fk && col.parentEntityId === entityId
           ).map((col: any) => col.name) || [];
           if (fkColumns.length > 0) {
             highlightedColumns.set(edge.target, fkColumns);
@@ -443,10 +442,10 @@ const useStore = create<RFState>((set, get) => ({
           // 본인의 PK 컬럼들 중에서 실제로 FK가 존재하는 것만 하이라이트
           const pkColumns = currentEntity.data.columns?.filter((col: any) => {
             if (!col.pk) return false;
-            // 해당 PK에 대응하는 FK가 자식 엔티티에 존재하는지 확인
-            const correspondingFkName = `${sourceLabel}_${col.name}`;
+            // 해당 PK에 대응하는 FK가 자식 엔티티에 존재하는지 확인 (parentEntityId 기준)
             return targetEntity.data.columns?.some((targetCol: any) => 
-              targetCol.fk && targetCol.name === correspondingFkName
+              targetCol.fk && targetCol.parentEntityId === entityId &&
+              (targetCol.parentColumnId === col.id || targetCol.parentColumnId === col.name)
             );
           }).map((col: any) => col.name) || [];
           currentEntityColumns.push(...pkColumns);
@@ -459,26 +458,19 @@ const useStore = create<RFState>((set, get) => ({
         // 부모 엔티티의 PK 컬럼들 찾기
         const sourceEntity = state.nodes.find(n => n.id === edge.source);
         if (sourceEntity) {
-          const sourceLabel = sourceEntity.data.label.toLowerCase();
-          
-          // 본인의 FK 컬럼들 중에서 실제로 PK가 존재하는 것만 하이라이트
+          // 본인의 FK 컬럼들 중에서 이 부모 엔티티에서 온 것들만 하이라이트
           const fkColumns = currentEntity.data.columns?.filter((col: any) => {
-            if (!col.fk || !col.name.startsWith(`${sourceLabel}_`)) return false;
-            // 해당 FK에 대응하는 PK가 부모 엔티티에 존재하는지 확인
-            const pkColumnName = col.name.substring(`${sourceLabel}_`.length);
-            return sourceEntity.data.columns?.some((sourceCol: any) => 
-              sourceCol.pk && sourceCol.name === pkColumnName
-            );
+            return col.fk && col.parentEntityId === edge.source;
           }).map((col: any) => col.name) || [];
           currentEntityColumns.push(...fkColumns);
           
           // 부모 엔티티의 PK 컬럼들 중에서 실제로 FK가 존재하는 것만 하이라이트
           const pkColumns = sourceEntity.data.columns?.filter((col: any) => {
             if (!col.pk) return false;
-            // 해당 PK에 대응하는 FK가 현재 엔티티에 존재하는지 확인
-            const correspondingFkName = `${sourceLabel}_${col.name}`;
+            // 해당 PK에 대응하는 FK가 현재 엔티티에 존재하는지 확인 (parentEntityId 기준)
             return currentEntity.data.columns?.some((currentCol: any) => 
-              currentCol.fk && currentCol.name === correspondingFkName
+              currentCol.fk && currentCol.parentEntityId === edge.source &&
+              (currentCol.parentColumnId === col.id || currentCol.parentColumnId === col.name)
             );
           }).map((col: any) => col.name) || [];
           if (pkColumns.length > 0) {
@@ -589,14 +581,13 @@ const useStore = create<RFState>((set, get) => ({
       if (sourceNode && targetNode && sourceNode.type === 'entity' && targetNode.type === 'entity') {
         const updatedNodes = state.nodes.map(node => {
           if (node.id === edgeToDelete.target) {
-            // 부모 엔티티의 모든 PK에 대응하는 FK 제거
-            const sourcePks = sourceNode.data.columns?.filter((col: any) => col.pk) || [];
+            // parentEntityId를 사용해서 정확한 FK 컬럼 찾기
             let filteredColumns = [...(node.data.columns || [])];
             
-            sourcePks.forEach((pk: any) => {
-              const fkName = `${sourceNode.data.label.toLowerCase()}_${pk.name}`;
-              filteredColumns = filteredColumns.filter(col => col.name !== fkName);
-            });
+            // 해당 관계에서 생성된 FK 컬럼들만 제거 (parentEntityId 기준)
+            filteredColumns = filteredColumns.filter(col => 
+              !(col.fk && col.parentEntityId === edgeToDelete.source)
+            );
 
             return { ...node, data: { ...node.data, columns: filteredColumns } };
           }
@@ -696,36 +687,48 @@ const useStore = create<RFState>((set, get) => ({
             // 식별자 관계: FK가 PK의 일부가 됨
             if (existingFkIndex === -1) {
               newTargetColumns.push({ 
+                id: `${Date.now()}_${Math.random()}`,
                 name: fkColumnName, 
                 type: sourcePkColumn.type, 
                 pk: true, 
                 fk: true,
                 uk: false,
-                comment: `Foreign key from ${sourceNode.data.label}.${sourcePkColumn.name}`
+                comment: `Foreign key from ${sourceNode.data.label}.${sourcePkColumn.name}`,
+                // FK 관계 추적을 위한 메타데이터 추가
+                parentEntityId: sourceNode.id,
+                parentColumnId: sourcePkColumn.id || sourcePkColumn.name
               });
             } else {
               newTargetColumns[existingFkIndex] = { 
                 ...newTargetColumns[existingFkIndex], 
                 pk: true, 
-                fk: true 
+                fk: true,
+                parentEntityId: sourceNode.id,
+                parentColumnId: sourcePkColumn.id || sourcePkColumn.name
               };
             }
           } else {
             // 비식별자 관계: FK는 일반 컬럼
             if (existingFkIndex === -1) {
               newTargetColumns.push({ 
+                id: `${Date.now()}_${Math.random()}`,
                 name: fkColumnName, 
                 type: sourcePkColumn.type, 
                 pk: false, 
                 fk: true,
                 uk: false,
-                comment: `Foreign key from ${sourceNode.data.label}.${sourcePkColumn.name}`
+                comment: `Foreign key from ${sourceNode.data.label}.${sourcePkColumn.name}`,
+                // FK 관계 추적을 위한 메타데이터 추가
+                parentEntityId: sourceNode.id,
+                parentColumnId: sourcePkColumn.id || sourcePkColumn.name
               });
             } else {
               newTargetColumns[existingFkIndex] = { 
                 ...newTargetColumns[existingFkIndex], 
                 pk: false, 
-                fk: true 
+                fk: true,
+                parentEntityId: sourceNode.id,
+                parentColumnId: sourcePkColumn.id || sourcePkColumn.name
               };
             }
           }
@@ -1214,314 +1217,43 @@ const useStore = create<RFState>((set, get) => ({
         return node;
       });
 
-      // 컬럼 변경 분석
+      // 컬럼 변경 분석 - 간소화
       const oldColumns = oldNode.data.columns || [];
       const newColumns = newData.columns || [];
       
-      // PK 컬럼 이름 변경 감지 (이름으로 비교)
-      const pkNameChanges: Array<{oldName: string, newName: string, entityName: string}> = [];
-      
-      // 기존 PK 컬럼들
-      const oldPkColumns = oldColumns.filter((col: any) => col.pk);
-      const newPkColumns = newColumns.filter((col: any) => col.pk);
-      
-      // PK 컬럼의 이름 변경 감지
-      oldPkColumns.forEach((oldPkCol: any) => {
-        // 같은 위치의 새 PK 컬럼과 비교 (ID가 같거나 순서가 같은 경우)
-        const matchingNewPk = newPkColumns.find((newPkCol: any) => 
-          (newPkCol.id && oldPkCol.id && newPkCol.id === oldPkCol.id) ||
-          (!newPkCol.id || !oldPkCol.id) // ID가 없는 경우는 이름으로만 비교
+      // FK 컬럼 삭제 감지 - parentEntityId 기준으로 관계선도 함께 삭제
+      const deletedFkColumns = oldColumns.filter((oldCol: any) => {
+        if (!oldCol.fk || !oldCol.parentEntityId) return false;
+        const stillExists = newColumns.find((newCol: any) => 
+          newCol.id === oldCol.id || (newCol.fk && newCol.parentEntityId === oldCol.parentEntityId)
         );
-        
-        if (matchingNewPk && oldPkCol.name !== matchingNewPk.name) {
-          pkNameChanges.push({
-            oldName: oldPkCol.name,
-            newName: matchingNewPk.name,
-            entityName: oldNode.data.label
-          });
-        }
+        return !stillExists;
       });
       
-      // 만약 ID 기반 매칭이 실패하면 이름 기반으로 다시 시도
-      if (pkNameChanges.length === 0 && oldPkColumns.length === newPkColumns.length) {
-        for (let i = 0; i < oldPkColumns.length; i++) {
-          if (oldPkColumns[i].name !== newPkColumns[i].name) {
-            pkNameChanges.push({
-              oldName: oldPkColumns[i].name,
-              newName: newPkColumns[i].name,
-              entityName: oldNode.data.label
-            });
-          }
-        }
-      }
-      
-      // PK 상태 변경사항 분석 (실제로 PK 상태가 변경된 경우만)
-      const pkChanges: Array<{type: 'added' | 'removed', column: any, entityName: string}> = [];
-      
-      // 제거된 PK 찾기 (컬럼이 삭제되거나 PK 상태가 false로 변경된 경우)
-      oldColumns.forEach((oldCol: any) => {
-        const newCol = newColumns.find((col: any) => 
-          (col.id && oldCol.id && col.id === oldCol.id) || 
-          (col.name === oldCol.name && !pkNameChanges.some(change => change.oldName === oldCol.name))
-        );
-        if (oldCol.pk && (!newCol || !newCol.pk)) {
-          // 컬럼이 완전히 삭제되었거나 PK 상태만 변경된 경우
-          pkChanges.push({ type: 'removed', column: oldCol, entityName: oldNode.data.label });
-        }
-      });
-      
-      // 추가된 PK 찾기 (새로운 컬럼이 PK로 추가되거나 기존 컬럼이 PK로 변경된 경우)
-      newColumns.forEach((newCol: any) => {
-        const oldCol = oldColumns.find((col: any) => 
-          (col.id && newCol.id && col.id === newCol.id) || 
-          (col.name === newCol.name && !pkNameChanges.some(change => change.newName === newCol.name))
-        );
-        if (newCol.pk && (!oldCol || !oldCol.pk)) {
-          // 새로운 컬럼이 PK로 추가되었거나 기존 컬럼이 PK로 변경된 경우
-          pkChanges.push({ type: 'added', column: newCol, entityName: oldNode.data.label });
-        }
-      });
-
-      // FK 컬럼의 PK 상태 변경 감지 (식별자/비식별자 관계 변경을 위한)
-      const fkPkChanges: Array<{type: 'pk_added' | 'pk_removed', column: any, entityName: string}> = [];
-      
-      // FK 컬럼에서 PK 상태가 변경된 경우 감지
-      oldColumns.forEach((oldCol: any) => {
-        const newCol = newColumns.find((col: any) => 
-          (col.id && oldCol.id && col.id === oldCol.id) || col.name === oldCol.name
-        );
-        
-        if (oldCol.fk && newCol && newCol.fk) {
-          // FK 컬럼에서 PK가 추가된 경우 (비식별자 → 식별자)
-          if (!oldCol.pk && newCol.pk) {
-            fkPkChanges.push({ type: 'pk_added', column: newCol, entityName: oldNode.data.label });
-          }
-          // FK 컬럼에서 PK가 제거된 경우 (식별자 → 비식별자)
-          else if (oldCol.pk && !newCol.pk) {
-            fkPkChanges.push({ type: 'pk_removed', column: oldCol, entityName: oldNode.data.label });
-          }
-        }
-      });
-
-      // FK 변경사항 분석 (자식 엔티티에서 FK 삭제 시)
-      const fkChanges: Array<{type: 'removed', column: any, entityName: string}> = [];
-      
-      // 제거된 FK 찾기 (컬럼이 삭제되거나 FK 상태가 false로 변경된 경우)
-      oldColumns.forEach((oldCol: any) => {
-        const newCol = newColumns.find((col: any) => 
-          (col.id && oldCol.id && col.id === oldCol.id) || col.name === oldCol.name
-        );
-        if (oldCol.fk && (!newCol || !newCol.fk)) {
-          fkChanges.push({ type: 'removed', column: oldCol, entityName: oldNode.data.label });
-        }
-      });
-
       let finalNodes = updatedNodes;
       let finalEdges = state.edges;
-
-      // PK 컬럼 이름 변경 처리 (우선 처리)
-      if (pkNameChanges.length > 0) {
-        const relatedEdges = state.edges.filter(edge => edge.source === nodeId);
-        
-        relatedEdges.forEach(edge => {
-          const targetNodeId = edge.target;
+      
+      // 삭제된 FK 컬럼의 관계선 제거
+      if (deletedFkColumns.length > 0) {
+        deletedFkColumns.forEach((deletedCol: any) => {
+          const parentEntityId = deletedCol.parentEntityId;
           
-          finalNodes = finalNodes.map(node => {
-            if (node.id === targetNodeId && node.type === 'entity') {
-              let targetColumns = [...(node.data.columns || [])];
-              
-              pkNameChanges.forEach(change => {
-                const oldFkName = `${change.entityName.toLowerCase()}_${change.oldName}`;
-                const newFkName = `${change.entityName.toLowerCase()}_${change.newName}`;
-                
-                // 기존 FK 컬럼 찾아서 이름 업데이트
-                const fkColumnIndex = targetColumns.findIndex(col => col.name === oldFkName && col.fk);
-                if (fkColumnIndex !== -1) {
-                  targetColumns[fkColumnIndex] = {
-                    ...targetColumns[fkColumnIndex],
-                    id: targetColumns[fkColumnIndex].id || `${Date.now()}_${Math.random()}`,
-                    name: newFkName
-                  };
-                }
-              });
-              
-              return { ...node, data: { ...node.data, columns: targetColumns } };
-            }
-            return node;
-          });
-        });
-        
-        // PK 컬럼 이름 변경이 있었으면 PK 상태 변경 처리를 건너뛰기 위해 리턴
-        return {
-          ...state,
-          nodes: finalNodes,
-          edges: finalEdges
-        };
-      }
-
-      // PK 상태 변경 처리 (PK 컬럼 이름 변경이 없을 때만 실행)
-      if (pkChanges.length > 0) {
-        // 현재 엔티티를 참조하는 모든 관계선 찾기
-        const relatedEdges = state.edges.filter(edge => edge.source === nodeId);
-        
-        relatedEdges.forEach(edge => {
-          const targetNodeId = edge.target;
+          // 해당 부모 엔티티와의 관계선 찾기
+          const relatedEdge = finalEdges.find(edge => 
+            edge.source === parentEntityId && edge.target === nodeId
+          );
           
-          finalNodes = finalNodes.map(node => {
-            if (node.id === targetNodeId && node.type === 'entity') {
-              let targetColumns = [...(node.data.columns || [])];
-              let hasRemainingFKs = false;
-              
-              pkChanges.forEach(change => {
-                const fkColumnName = `${change.entityName.toLowerCase()}_${change.column.name}`;
-                const existingFkIndex = targetColumns.findIndex(col => col.name === fkColumnName);
-                
-                if (change.type === 'removed' && existingFkIndex !== -1) {
-                  // 특정 PK에 대응하는 FK만 제거
-                  targetColumns.splice(existingFkIndex, 1);
-                  toast.info(`${change.entityName}의 PK 삭제로 인해 ${node.data.label}에서 ${fkColumnName} FK가 제거되었습니다.`);
-                } else if (change.type === 'added') {
-                  // 새로운 PK에 대응하는 FK 추가
-                  if (existingFkIndex === -1) {
-                    const isIdentifying = edge.type?.includes('identifying') || false;
-                    
-                    targetColumns.push({
-                      id: `${Date.now()}_${Math.random()}`,
-                      name: fkColumnName,
-                      type: change.column.type,
-                      pk: isIdentifying,
-                      fk: true,
-                      uq: false,
-                      nn: isIdentifying,
-                      comment: `Foreign key from ${change.entityName}.${change.column.name}`
-                    });
-                    toast.info(`${change.entityName}의 PK 추가로 인해 ${node.data.label}에 ${fkColumnName} FK가 추가되었습니다.`);
-                  }
-                }
-              });
-              
-              // 이 관계에서 남은 FK가 있는지 확인
-              hasRemainingFKs = targetColumns.some(col => 
-                col.fk && col.name.startsWith(`${oldNode.data.label.toLowerCase()}_`)
-              );
-              
-              // 남은 FK가 없으면 관계선 제거 (식별자, 비식별자 관계 모두)
-              if (!hasRemainingFKs) {
-                finalEdges = finalEdges.filter(e => e.id !== edge.id);
-                toast.info(`${oldNode.data.label}과 ${node.data.label} 간의 관계가 모든 FK 제거로 인해 삭제되었습니다.`);
-              }
-              
-              return { ...node, data: { ...node.data, columns: targetColumns } };
-            }
-            return node;
-          });
-        });
-      }
-
-      // FK 컬럼의 PK 상태 변경 처리 (식별자/비식별자 관계 변경)
-      if (fkPkChanges.length > 0) {
-        fkPkChanges.forEach(change => {
-          // FK 이름에서 부모 엔티티 추출 (예: "user_id" → "user")
-          const fkName = change.column.name;
-          const parts = fkName.split('_');
-          if (parts.length >= 2) {
-            const parentEntityNameLower = parts[0];
-            
-            // 부모 엔티티 찾기
-            const parentEntity = finalNodes.find(node => 
-              node.data.label.toLowerCase() === parentEntityNameLower
+          if (relatedEdge) {
+            // 같은 부모 엔티티에서 온 다른 FK 컬럼이 남아있는지 확인
+            const remainingFKs = newColumns.filter((col: any) => 
+              col.fk && col.parentEntityId === parentEntityId
             );
             
-            if (parentEntity) {
-              // 해당 부모 엔티티와의 관계 찾기
-              const relatedEdge = finalEdges.find(edge => 
-                edge.source === parentEntity.id && edge.target === nodeId
-              );
-              
-              if (relatedEdge) {
-                // 현재 관계의 모든 FK 컬럼들의 PK 상태 확인
-                const childNode = finalNodes.find(n => n.id === nodeId);
-                if (childNode) {
-                  const allFkColumns = childNode.data.columns?.filter((col: any) => 
-                    col.fk && col.name.startsWith(`${parentEntityNameLower}_`)
-                  ) || [];
-                  
-                  // 모든 FK가 PK인지 확인
-                  const allFkArePk = allFkColumns.length > 0 && allFkColumns.every((col: any) => col.pk);
-                  
-                  // 관계 타입 결정
-                  let newType = relatedEdge.type;
-                  
-                  if (allFkArePk) {
-                    // 모든 FK가 PK → 식별자 관계
-                    if (relatedEdge.type === 'one-to-one-non-identifying') {
-                      newType = 'one-to-one-identifying';
-                    } else if (relatedEdge.type === 'one-to-many-non-identifying') {
-                      newType = 'one-to-many-identifying';
-                    }
-                    if (newType !== relatedEdge.type) {
-                      toast.info(`${parentEntity.data.label}과 ${oldNode.data.label} 간의 관계가 식별자 관계로 변경되었습니다.`);
-                    }
-                  } else {
-                    // 일부 FK가 PK가 아님 → 비식별자 관계
-                    if (relatedEdge.type === 'one-to-one-identifying') {
-                      newType = 'one-to-one-non-identifying';
-                    } else if (relatedEdge.type === 'one-to-many-identifying') {
-                      newType = 'one-to-many-non-identifying';
-                    }
-                    if (newType !== relatedEdge.type) {
-                      toast.info(`${parentEntity.data.label}과 ${oldNode.data.label} 간의 관계가 비식별자 관계로 변경되었습니다.`);
-                    }
-                  }
-                  
-                  // 관계 타입 업데이트
-                  if (newType !== relatedEdge.type) {
-                    finalEdges = finalEdges.map(edge => 
-                      edge.id === relatedEdge.id 
-                        ? { ...edge, type: newType }
-                        : edge
-                    );
-                  }
-                }
-              }
-            }
-          }
-        });
-      }
-
-      // FK 변경 처리 (자식 엔티티에서 FK 삭제 시)
-      if (fkChanges.length > 0) {
-        fkChanges.forEach(change => {
-          // FK 이름에서 부모 엔티티 추출
-          const fkName = change.column.name;
-          const parts = fkName.split('_');
-          if (parts.length >= 2) {
-            const parentEntityName = parts[0];
-            
-            // 해당 부모 엔티티와의 관계선 찾기
-            const relatedEdge = state.edges.find(edge => {
-              const sourceNode = state.nodes.find(n => n.id === edge.source);
-              return edge.target === nodeId && 
-                     sourceNode?.data.label.toLowerCase() === parentEntityName;
-            });
-            
-            if (relatedEdge) {
-              // 식별 관계인 경우에만 자동 삭제 처리
-              const isIdentifyingRelation = relatedEdge.type?.includes('identifying');
-              
-              if (isIdentifyingRelation) {
-                // 이 관계에서 남은 FK가 있는지 확인
-                const remainingFKs = newColumns.filter((col: any) => 
-                  col.fk && col.name.startsWith(`${parentEntityName}_`)
-                );
-                
-                if (remainingFKs.length === 0) {
-                  // 남은 FK가 없으면 관계선 제거
-                  finalEdges = finalEdges.filter(e => e.id !== relatedEdge.id);
-                  const parentNode = state.nodes.find(n => n.id === relatedEdge.source);
-                  toast.info(`${oldNode.data.label}에서 PK 제약 제거로 인해 ${parentNode?.data.label}과의 식별 관계가 제거되었습니다.`);
-                }
-              }
+            if (remainingFKs.length === 0) {
+              // 남은 FK가 없으면 관계선 제거
+              finalEdges = finalEdges.filter(e => e.id !== relatedEdge.id);
+              const parentNode = state.nodes.find(n => n.id === parentEntityId);
+              toast.info(`${oldNode.data.label}에서 FK 컬럼 삭제로 인해 ${parentNode?.data.label}과의 관계가 제거되었습니다.`);
             }
           }
         });
@@ -1529,6 +1261,9 @@ const useStore = create<RFState>((set, get) => ({
 
       return { nodes: finalNodes, edges: finalEdges };
     });
+    
+    // 에지 핸들 업데이트 (관계선 위치 및 연결 상태 갱신) - 즉시 실행
+    get().updateEdgeHandles();
     
     // 노드 데이터 변경 시 자동 저장 (디바운싱 적용)
     debounceAutoSave(() => {
@@ -1552,11 +1287,13 @@ const useStore = create<RFState>((set, get) => ({
         // 부모 엔티티의 PK 컬럼 찾기
         const sourcePkColumn = sourceNode.data.columns?.find((col: any) => col.pk);
         
-        // 자식 엔티티의 FK 컬럼 찾기 (부모 테이블명_PK컬럼명 형태)
+        // 자식 엔티티의 FK 컬럼 찾기 - parentEntityId와 parentColumnId만 사용
         let targetFkColumn = null;
-        if (sourcePkColumn) {
-          const fkColumnName = `${sourceNode.data.label.toLowerCase()}_${sourcePkColumn.name}`;
-          targetFkColumn = targetNode.data.columns?.find((col: any) => col.name === fkColumnName && col.fk);
+        if (sourcePkColumn && sourceNode) {
+          targetFkColumn = targetNode.data.columns?.find((col: any) => 
+            col.fk && col.parentEntityId === sourceNode.id && 
+            (col.parentColumnId === sourcePkColumn.id || col.parentColumnId === sourcePkColumn.name)
+          );
         }
         
         // 새로운 handle 결정 로직 사용
@@ -1725,12 +1462,73 @@ const useStore = create<RFState>((set, get) => ({
         sortedLevels.push(unconnectedNodes.map(node => node.id));
       }
       
-      // 레벨별로 좌우 배치
-      const LEVEL_WIDTH = 500; // 350 → 500으로 증가
-      const NODE_HEIGHT = 120; // 80 → 120으로 증가  
-      const VERTICAL_SPACING = 150; // 50 → 150으로 증가
+      // 레벨별로 좌우 배치 - 동적 크기 계산
       const START_X = 100;
       const START_Y = 100;
+      
+      // 각 레벨별 최대 너비 계산
+      const levelMaxWidths: number[] = [];
+      sortedLevels.forEach((level, levelIndex) => {
+        let levelMaxWidth = 280; // 기본 최소 너비
+        
+        level.forEach(nodeId => {
+          const node = entityNodes.find(n => n.id === nodeId);
+          if (node) {
+            // 엔티티 이름 길이에 따른 동적 너비 계산
+            const physicalNameLength = (node.data.physicalName || node.data.label || '').length;
+            const logicalNameLength = (node.data.logicalName || '').length;
+            const maxNameLength = Math.max(physicalNameLength, logicalNameLength);
+            const columnCount = (node.data.columns || []).length;
+            
+            // 컬럼들의 최대 텍스트 길이 계산
+            let maxColumnTextLength = 0;
+            if (node.data.columns) {
+              node.data.columns.forEach((col: any) => {
+                const nameLength = (col.name || '').length;
+                const typeLength = (col.dataType || col.type || '').length;
+                const combinedLength = nameLength + typeLength + 10; // 여백 고려
+                maxColumnTextLength = Math.max(maxColumnTextLength, combinedLength);
+              });
+            }
+            
+            // 실제 필요한 너비 계산: 엔티티명, 컬럼명, 최소값 고려 + 여유분 추가
+            const nameBasedWidth = maxNameLength * 12; // 글자당 12px로 증가
+            const columnBasedWidth = maxColumnTextLength * 10; // 컬럼 텍스트당 10px로 증가  
+            const minWidth = 320; // 최소 너비 증가 (280 -> 320)
+            const maxWidthLimit = 700; // 최대 너비 증가 (600 -> 700)
+            
+            const dynamicWidth = Math.max(minWidth, nameBasedWidth, columnBasedWidth);
+            const finalWidth = Math.min(dynamicWidth, maxWidthLimit) + 50; // 추가 여유분 50px
+            
+            // 이 레벨의 최대 너비 업데이트
+            levelMaxWidth = Math.max(levelMaxWidth, finalWidth);
+          }
+        });
+        
+        levelMaxWidths[levelIndex] = Math.max(levelMaxWidth, 320); // 최소 320px 보장
+      });
+      
+      // 각 레벨별 높이 계산
+      const levelHeights: number[] = [];
+      sortedLevels.forEach((level, levelIndex) => {
+        let maxHeight = 0;
+        level.forEach(nodeId => {
+          const node = entityNodes.find(n => n.id === nodeId);
+          if (node) {
+            const columnCount = (node.data.columns || []).length;
+            // 기본 60px + 컬럼당 35px
+            const dynamicHeight = 60 + columnCount * 35;
+            maxHeight = Math.max(maxHeight, dynamicHeight);
+          }
+        });
+        levelHeights[levelIndex] = maxHeight || 120;
+      });
+      
+      // 동적 간격 계산 - 엔티티 크기에 비례
+      const avgEntityWidth = levelMaxWidths.reduce((a, b) => a + b, 0) / levelMaxWidths.length || 320;
+      const avgEntityHeight = levelHeights.reduce((a, b) => a + b, 0) / levelHeights.length || 120;
+      const MIN_HORIZONTAL_SPACING = Math.max(150, avgEntityWidth * 0.3); // 엔티티 평균 너비의 30%
+      const MIN_VERTICAL_SPACING = Math.max(100, avgEntityHeight * 0.4); // 엔티티 평균 높이의 40%
       
       const updatedNodes = state.nodes.map(node => {
         if (node.type !== 'entity') return node;
@@ -1748,8 +1546,14 @@ const useStore = create<RFState>((set, get) => ({
         
         if (levelIndex === -1) return node;
         
-        const x = START_X + levelIndex * LEVEL_WIDTH;
-        const y = START_Y + nodeIndex * (NODE_HEIGHT + VERTICAL_SPACING);
+        // X 좌표 계산 (각 레벨의 최대 너비 + 간격)
+        let x = START_X;
+        for (let i = 0; i < levelIndex; i++) {
+          x += levelMaxWidths[i] + MIN_HORIZONTAL_SPACING;
+        }
+        
+        // Y 좌표 계산 (해당 레벨의 높이 + 간격)
+        const y = START_Y + nodeIndex * (levelHeights[levelIndex] + MIN_VERTICAL_SPACING);
         
         return { ...node, position: { x, y } };
       });
@@ -1782,8 +1586,8 @@ const useStore = create<RFState>((set, get) => ({
         (connectionCount.get(b.id) || 0) - (connectionCount.get(a.id) || 0)
       );
       
-      const CENTER_X = 500; // 400 → 500으로 이동
-      const CENTER_Y = 400; // 300 → 400으로 이동
+      const CENTER_X = 500;
+      const CENTER_Y = 400;
       
       const updatedNodes = state.nodes.map(node => {
         if (node.type !== 'entity') return node;
@@ -1795,9 +1599,16 @@ const useStore = create<RFState>((set, get) => ({
           // 가장 연결이 많은 노드를 중심에 배치
           return { ...node, position: { x: CENTER_X, y: CENTER_Y } };
         } else {
-          // 나머지는 원형으로 배치
+          // 나머지는 원형으로 배치 - 동적 반지름 계산
           const angle = (2 * Math.PI * (nodeIndex - 1)) / (sortedByConnections.length - 1);
-          const radius = 300 + Math.floor((nodeIndex - 1) / 6) * 200; // 200 → 300, 150 → 200으로 증가
+          
+          // 엔티티 크기에 따른 동적 반지름 대폭 증가
+          const baseRadius = 400; // 기본 반지름 증가 (300 -> 400)
+          const entitySize = node.data.columns?.length || 0;
+          const radiusIncrement = Math.floor((nodeIndex - 1) / 6) * 300; // 증가량도 증가 (200 -> 300)
+          const sizeMultiplier = Math.max(1.5, entitySize / 4); // 최소 배수 증가 (1 -> 1.5, 5 -> 4)
+          
+          const radius = baseRadius * sizeMultiplier + radiusIncrement;
           const x = CENTER_X + radius * Math.cos(angle);
           const y = CENTER_Y + radius * Math.sin(angle);
           
@@ -1819,12 +1630,104 @@ const useStore = create<RFState>((set, get) => ({
       const entityNodes = state.nodes.filter(node => node.type === 'entity');
       if (entityNodes.length === 0) return state;
       
-      // 격자 형태로 배치
+      // 격자 형태로 배치 - 동적 크기 계산
       const COLS = Math.ceil(Math.sqrt(entityNodes.length));
-      const NODE_WIDTH = 400; // 250 → 400으로 증가
-      const NODE_HEIGHT = 300; // 200 → 300으로 증가
       const START_X = 100;
       const START_Y = 100;
+      
+      // 모든 엔티티의 최대 크기 계산
+      let maxEntityWidth = 280;
+      let maxEntityHeight = 120;
+      
+      entityNodes.forEach(node => {
+        // 너비 계산
+        const physicalNameLength = (node.data.physicalName || node.data.label || '').length;
+        const logicalNameLength = (node.data.logicalName || '').length;
+        const maxNameLength = Math.max(physicalNameLength, logicalNameLength);
+        const columnCount = (node.data.columns || []).length;
+        
+        let maxColumnTextLength = 0;
+        if (node.data.columns) {
+          node.data.columns.forEach((col: any) => {
+            const nameLength = (col.name || '').length;
+            const typeLength = (col.dataType || col.type || '').length;
+            const combinedLength = nameLength + typeLength + 10;
+            maxColumnTextLength = Math.max(maxColumnTextLength, combinedLength);
+          });
+        }
+        
+        const nameBasedWidth = maxNameLength * 12; // 증가
+        const columnBasedWidth = maxColumnTextLength * 10; // 증가
+        const entityWidth = Math.max(320, nameBasedWidth, columnBasedWidth); // 최소값 증가
+        
+        // 높이 계산
+        const entityHeight = 80 + columnCount * 40; // 기본 높이와 컬럼당 높이 증가
+        
+        maxEntityWidth = Math.max(maxEntityWidth, Math.min(entityWidth + 50, 750)); // 여유분과 최대값 증가
+        maxEntityHeight = Math.max(maxEntityHeight, entityHeight);
+      });
+      
+      // 동적 간격 계산 - 엔티티 크기에 비례
+      const MIN_SPACING = Math.max(120, maxEntityWidth * 0.25, maxEntityHeight * 0.3); // 엔티티 크기의 25%/30%
+      
+      const CELL_WIDTH = maxEntityWidth + MIN_SPACING;
+      const CELL_HEIGHT = maxEntityHeight + MIN_SPACING;
+      
+      // 각 엔티티의 실제 크기 계산
+      const entitySizes = entityNodes.map(node => {
+        const physicalNameLength = (node.data.physicalName || node.data.label || '').length;
+        const logicalNameLength = (node.data.logicalName || '').length;
+        const maxNameLength = Math.max(physicalNameLength, logicalNameLength);
+        const columnCount = (node.data.columns || []).length;
+        
+        // 컬럼들의 최대 텍스트 길이 계산
+        let maxColumnTextLength = 0;
+        if (node.data.columns) {
+          node.data.columns.forEach((col: any) => {
+            const nameLength = (col.name || '').length;
+            const typeLength = (col.dataType || col.type || '').length;
+            const combinedLength = nameLength + typeLength + 10;
+            maxColumnTextLength = Math.max(maxColumnTextLength, combinedLength);
+          });
+        }
+        
+        const nameBasedWidth = maxNameLength * 12;
+        const columnBasedWidth = maxColumnTextLength * 10;
+        const width = Math.max(320, nameBasedWidth, columnBasedWidth);
+        const height = 80 + columnCount * 40;
+        
+        return { 
+          nodeId: node.id, 
+          width: Math.min(width + 50, 750), // 여유분과 최대값 증가
+          height 
+        };
+      });
+      
+      // 행별 최대 높이 계산
+      const rowHeights: number[] = [];
+      for (let row = 0; row < Math.ceil(entityNodes.length / COLS); row++) {
+        let maxHeight = 0;
+        for (let col = 0; col < COLS; col++) {
+          const nodeIndex = row * COLS + col;
+          if (nodeIndex < entitySizes.length) {
+            maxHeight = Math.max(maxHeight, entitySizes[nodeIndex].height);
+          }
+        }
+        rowHeights[row] = maxHeight;
+      }
+      
+      // 열별 최대 너비 계산
+      const colWidths: number[] = [];
+      for (let col = 0; col < COLS; col++) {
+        let maxWidth = 0;
+        for (let row = 0; row < Math.ceil(entityNodes.length / COLS); row++) {
+          const nodeIndex = row * COLS + col;
+          if (nodeIndex < entitySizes.length) {
+            maxWidth = Math.max(maxWidth, entitySizes[nodeIndex].width);
+          }
+        }
+        colWidths[col] = maxWidth;
+      }
       
       const updatedNodes = state.nodes.map(node => {
         if (node.type !== 'entity') return node;
@@ -1835,8 +1738,17 @@ const useStore = create<RFState>((set, get) => ({
         const row = Math.floor(nodeIndex / COLS);
         const col = nodeIndex % COLS;
         
-        const x = START_X + col * NODE_WIDTH;
-        const y = START_Y + row * NODE_HEIGHT;
+        // X 좌표 계산 (각 열의 최대 너비 + 간격)
+        let x = START_X;
+        for (let i = 0; i < col; i++) {
+          x += colWidths[i] + MIN_SPACING;
+        }
+        
+        // Y 좌표 계산 (각 행의 최대 높이 + 간격)
+        let y = START_Y;
+        for (let i = 0; i < row; i++) {
+          y += rowHeights[i] + MIN_SPACING;
+        }
         
         return { ...node, position: { x, y } };
       });

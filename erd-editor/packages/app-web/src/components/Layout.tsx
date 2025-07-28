@@ -1171,12 +1171,12 @@ const Layout = () => {
   };
 
   const updateColumnField = (columnId: string, field: string, value: any) => {
-    // 물리명과 데이터타입은 영어만 허용
+    // 물리명과 데이터타입은 한국어만 차단
     if ((field === 'name' || field === 'dataType') && typeof value === 'string') {
-      if (!validateEnglishOnly(value)) {
+      if (value && /[ㄱ-ㅎ가-힣]/.test(value)) {
         toast.error(field === 'name' ? 
-          '물리명은 영어, 숫자, 언더스코어, 괄호만 입력할 수 있습니다.' : 
-          '데이터타입은 영어, 숫자, 언더스코어, 괄호만 입력할 수 있습니다.'
+          '물리명에는 한국어를 사용할 수 없습니다.' : 
+          '데이터타입에는 한국어를 사용할 수 없습니다.'
         );
         return;
       }
@@ -1494,11 +1494,25 @@ const Layout = () => {
             updateEdgeHandles();
           }, 50);
         }
+        
+        // 컬럼 이름 변경 시 관계선과 하이라이트 강제 업데이트
+        if (field === 'name') {
+          setTimeout(() => {
+            updateEdgeHandles();
+            updateEntityHighlights(selectedNodeId);
+          }, 50);
+        }
       }
     }
   };
 
   const updateTableName = (newName: string) => {
+    // 한국어만 차단 (영어, 숫자, 기호는 허용)
+    if (newName && /[ㄱ-ㅎ가-힣]/.test(newName)) {
+      toast.error('물리명에는 한국어를 사용할 수 없습니다.');
+      return;
+    }
+    
     setTableName(newName);
     if (selectedNodeId) {
       const selectedNode = nodes.find(node => node.id === selectedNodeId);

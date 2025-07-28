@@ -49,12 +49,13 @@ export const MYSQL_DATATYPES = [
 /**
  * 영어(알파벳, 숫자, 언더스코어, 괄호)만 허용하는 정규식
  */
-export const ENGLISH_ONLY_REGEX = /^[a-zA-Z0-9_()]*$/;
+export const ENGLISH_ONLY_REGEX = /^[a-zA-Z][a-zA-Z0-9_()]*$/;
 
 /**
  * 입력값이 영어만 포함하는지 검증하는 함수
  */
 export const validateEnglishOnly = (value: string): boolean => {
+  if (!value || value.trim() === '') return true; // 빈 값은 허용
   return ENGLISH_ONLY_REGEX.test(value);
 };
 

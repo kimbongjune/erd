@@ -9,7 +9,7 @@ import ViewPopup from './ViewPopup';
 import Tooltip from './Tooltip';
 
 const ToolbarContainer = styled.div<{ $darkMode?: boolean }>`
-  position: absolute;
+  position: fixed;
   bottom: 30px;
   left: 50%;
   transform: translateX(-50%);
@@ -21,7 +21,7 @@ const ToolbarContainer = styled.div<{ $darkMode?: boolean }>`
   box-shadow: 0 6px 25px rgba(0, 0, 0, 0.15);
   padding: 12px;
   gap: 6px;
-  z-index: 0;
+  z-index: 100;
 `;
 
 const ZoomDisplay = styled.div<{ $darkMode?: boolean }>`
@@ -31,6 +31,18 @@ const ZoomDisplay = styled.div<{ $darkMode?: boolean }>`
   text-align: center;
   padding: 0 6px;
   font-weight: 500;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: ${props => props.$darkMode ? 'rgba(96, 165, 250, 0.15)' : 'rgba(0, 122, 204, 0.1)'};
+    color: ${props => props.$darkMode ? '#60a5fa' : '#007acc'};
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
 `;
 
 const ToolbarButton = styled.button<{ $active?: boolean; $darkMode?: boolean }>`
@@ -98,7 +110,7 @@ interface CanvasToolbarProps {
 }
 
 const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
-  const { fitView, zoomIn, zoomOut } = useReactFlow();
+  const { fitView, zoomIn, zoomOut, setViewport, getViewport } = useReactFlow();
   
   // Store에서 상태 가져오기
   const searchActive = useStore((state) => state.searchActive);
@@ -134,6 +146,15 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
 
   const handleZoomOut = () => {
     zoomOut({ duration: 200 });
+  };
+
+  const handleZoomReset = () => {
+    const currentViewport = getViewport();
+    setViewport({
+      x: currentViewport.x,
+      y: currentViewport.y,
+      zoom: 1
+    }, { duration: 300 });
   };
 
   const handleSearch = () => {
@@ -221,7 +242,11 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
           </ToolbarButton>
         </Tooltip>
         
-        <ZoomDisplay $darkMode={isDarkMode}>{Math.round(zoom * 100)}%</ZoomDisplay>
+        <Tooltip text="100%로 리셋">
+          <ZoomDisplay $darkMode={isDarkMode} onClick={handleZoomReset}>
+            {Math.round(zoom * 100)}%
+          </ZoomDisplay>
+        </Tooltip>
         
         <Tooltip text="줌 인">
           <ToolbarButton onClick={handleZoomIn} $darkMode={isDarkMode}>

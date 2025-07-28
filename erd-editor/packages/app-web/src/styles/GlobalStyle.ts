@@ -77,4 +77,12 @@ export const GlobalStyle = createGlobalStyle`
       background-color: #0056b3;
     }
   }
+
+  /* MiniMap 위치 고정 - 하단 레이아웃 드래그 시 딸려올라가지 않도록 */
+  .react-flow__minimap {
+    position: fixed !important;
+    bottom: 20px !important;
+    right: 20px !important;
+    z-index: 1000 !important;
+  }
 `;

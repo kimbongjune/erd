@@ -126,6 +126,7 @@ const BottomPanelContainer = styled.div<{ $height: number; $darkMode?: boolean }
   flex-direction: column;
   flex-shrink: 0;
   position: relative;
+  z-index: 1000;
 `;
 
 const ResizeHandle = styled.div<{ $darkMode?: boolean }>`
@@ -1332,18 +1333,56 @@ const Layout = () => {
           updatedCol.pk = false; // UQ 체크하면 PK 해제
           updatedCol.nn = false; // PK 해제 시 NN도 해제 가능하게
           
-          // PK를 UQ로 변경했을 때 관계 해제
+          // PK를 UQ로 변경했을 때 PK 삭제처럼 동작 (해당 FK만 삭제, 관계 유지)
           const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
           if (currentEntity?.type === 'entity') {
-            // 현재 엔티티를 소스로 하는 모든 관계선 찾기
             const relatedEdges = useStore.getState().edges.filter(edge => edge.source === selectedNodeId);
             
-            if (relatedEdges.length > 0) {
-              relatedEdges.forEach(edge => {
-                useStore.getState().deleteEdge(edge.id);
-              });
-              toast.warning(`PK를 UQ로 변경하여 ${relatedEdges.length}개의 관계가 해제되었습니다.`);
-            }
+            // 각 관계에서 해당 PK에 연결된 FK만 제거
+            relatedEdges.forEach(edge => {
+              const targetNode = useStore.getState().nodes.find(n => n.id === edge.target);
+              if (targetNode?.type === 'entity') {
+                const fkColumnName = `${currentEntity.data.label.toLowerCase()}_${updatedCol.name}`;
+                const targetColumns = targetNode.data.columns || [];
+                
+                // parentEntityId와 parentColumnId 기반으로 해당 FK 컬럼 찾기
+                const targetFkColumn = targetColumns.find((fkCol: any) => 
+                  fkCol.fk && fkCol.parentEntityId === selectedNodeId && 
+                  (fkCol.parentColumnId === updatedCol.id || fkCol.parentColumnId === updatedCol.name || fkCol.name === fkColumnName)
+                );
+                
+                if (targetFkColumn) {
+                  // 해당 FK 컬럼 삭제
+                  const updatedTargetColumns = targetColumns.filter((fkCol: any) => fkCol.id !== targetFkColumn.id);
+                  
+                  // 타겟 노드 업데이트
+                  const updatedNodes = useStore.getState().nodes.map(node => 
+                    node.id === edge.target 
+                      ? { ...node, data: { ...node.data, columns: updatedTargetColumns } }
+                      : node
+                  );
+                  useStore.getState().setNodes(updatedNodes);
+                  
+                  // 남은 FK가 있는지 확인하여 관계 유지 여부 결정
+                  const remainingFKsFromThisParent = updatedTargetColumns.filter((fkCol: any) => 
+                    fkCol.fk && fkCol.parentEntityId === selectedNodeId
+                  );
+                  
+                  if (remainingFKsFromThisParent.length === 0) {
+                    // 남은 FK가 없으면 관계 제거
+                    useStore.getState().deleteEdge(edge.id);
+                    toast.info(`PK를 UQ로 변경하여 ${targetNode.data.label}과의 관계가 제거되었습니다.`);
+                  } else {
+                    toast.info(`PK를 UQ로 변경하여 ${targetNode.data.label}에서 ${targetFkColumn.name} FK가 제거되었습니다. (관계 유지)`);
+                  }
+                }
+              }
+            });
+            
+            // FK 제거 후 Handle 업데이트
+            setTimeout(() => {
+              updateEdgeHandles();
+            }, 150);
           }
         }
         

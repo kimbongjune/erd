@@ -694,7 +694,7 @@ const useStore = create<RFState>((set, get) => ({
                 fk: true,
                 uk: false,
                 comment: `Foreign key from ${sourceNode.data.label}.${sourcePkColumn.name}`,
-                // FK 관계 추적을 위한 메타데이터 추가
+                // FK 관계 추적을 위한 메타데이터 추가 (문제 6 해결)
                 parentEntityId: sourceNode.id,
                 parentColumnId: sourcePkColumn.id || sourcePkColumn.name
               });
@@ -703,6 +703,7 @@ const useStore = create<RFState>((set, get) => ({
                 ...newTargetColumns[existingFkIndex], 
                 pk: true, 
                 fk: true,
+                // FK 관계 추적을 위한 메타데이터 추가 (문제 6 해결)
                 parentEntityId: sourceNode.id,
                 parentColumnId: sourcePkColumn.id || sourcePkColumn.name
               };
@@ -718,7 +719,7 @@ const useStore = create<RFState>((set, get) => ({
                 fk: true,
                 uk: false,
                 comment: `Foreign key from ${sourceNode.data.label}.${sourcePkColumn.name}`,
-                // FK 관계 추적을 위한 메타데이터 추가
+                // FK 관계 추적을 위한 메타데이터 추가 (문제 6 해결)
                 parentEntityId: sourceNode.id,
                 parentColumnId: sourcePkColumn.id || sourcePkColumn.name
               });
@@ -727,6 +728,7 @@ const useStore = create<RFState>((set, get) => ({
                 ...newTargetColumns[existingFkIndex], 
                 pk: false, 
                 fk: true,
+                // FK 관계 추적을 위한 메타데이터 추가 (문제 6 해결)
                 parentEntityId: sourceNode.id,
                 parentColumnId: sourcePkColumn.id || sourcePkColumn.name
               };
@@ -1217,7 +1219,7 @@ const useStore = create<RFState>((set, get) => ({
         return node;
       });
 
-      // 컬럼 변경 분석 - 간소화
+      // 컬럼 변경 분석 - 개선된 로직
       const oldColumns = oldNode.data.columns || [];
       const newColumns = newData.columns || [];
       
@@ -1242,6 +1244,13 @@ const useStore = create<RFState>((set, get) => ({
         if (!oldCol.pk) return false;
         const stillExists = newColumns.find((newCol: any) => newCol.id === oldCol.id && newCol.pk);
         return !stillExists;
+      });
+
+      // PK 해제 감지 (삭제가 아닌 pk 속성 변경)
+      const pkUnsetColumns = oldColumns.filter((oldCol: any) => {
+        if (!oldCol.pk) return false;
+        const newCol = newColumns.find((newCol: any) => newCol.id === oldCol.id);
+        return newCol && !newCol.pk; // 컬럼은 존재하지만 pk가 false로 변경됨
       });
       
       let finalNodes = updatedNodes;
@@ -1317,6 +1326,53 @@ const useStore = create<RFState>((set, get) => ({
         });
       }
 
+      // 부모 엔티티의 PK 해제에 따른 자식 엔티티의 해당 FK 컬럼 삭제 (문제 4 해결)
+      if (pkUnsetColumns.length > 0) {
+        pkUnsetColumns.forEach((pkUnsetCol: any) => {
+          // 현재 엔티티가 부모인 관계선들 찾기
+          const childEdges = finalEdges.filter(edge => edge.source === nodeId);
+          
+          childEdges.forEach(edge => {
+            const childNode = finalNodes.find(n => n.id === edge.target);
+            if (childNode && childNode.type === 'entity') {
+              const fkColumnName = `${oldNode.data.label.toLowerCase()}_${pkUnsetCol.name}`;
+              const childColumns = childNode.data.columns || [];
+              
+              // parentEntityId와 parentColumnId 기반으로 해당 FK 컬럼 찾기 (더 정확한 방법)
+              const targetFkColumn = childColumns.find((col: any) => 
+                col.fk && col.parentEntityId === nodeId && 
+                (col.parentColumnId === pkUnsetCol.id || col.parentColumnId === pkUnsetCol.name || col.name === fkColumnName)
+              );
+              
+              if (targetFkColumn) {
+                // 해당 FK 컬럼 삭제
+                const updatedChildColumns = childColumns.filter((col: any) => col.id !== targetFkColumn.id);
+                
+                // 자식 노드 업데이트
+                finalNodes = finalNodes.map(node => 
+                  node.id === edge.target 
+                    ? { ...node, data: { ...node.data, columns: updatedChildColumns } }
+                    : node
+                );
+                
+                // 남은 FK가 있는지 확인하여 관계 유지 여부 결정
+                const remainingFKsFromThisParent = updatedChildColumns.filter((col: any) => 
+                  col.fk && col.parentEntityId === nodeId
+                );
+                
+                if (remainingFKsFromThisParent.length === 0) {
+                  // 남은 FK가 없으면 관계 제거
+                  finalEdges = finalEdges.filter(e => e.id !== edge.id);
+                  toast.info(`부모 엔티티 ${oldNode.data.label}의 PK 해제로 인해 ${childNode.data.label}과의 관계가 제거되었습니다.`);
+                } else {
+                  toast.info(`부모 엔티티 ${oldNode.data.label}의 PK 해제로 인해 ${childNode.data.label}에서 ${targetFkColumn.name} FK가 제거되었습니다.`);
+                }
+              }
+            }
+          });
+        });
+      }
+
       // FK 컬럼의 PK 상태 변경에 따른 관계 타입 업데이트
       if (fkPkChangedColumns.length > 0) {
         fkPkChangedColumns.forEach((changedCol: any) => {
@@ -1374,7 +1430,7 @@ const useStore = create<RFState>((set, get) => ({
     }, 1000); // 1초 후 저장
   },
   
-  // 기존 edges의 Handle을 올바르게 업데이트하는 함수
+  // 기존 edges의 Handle을 올바르게 업데이트하는 함수 (문제 5 해결)
   updateEdgeHandles: () => {
     set((state) => {
       if (state.edges.length === 0) {
@@ -1390,18 +1446,31 @@ const useStore = create<RFState>((set, get) => ({
         // 부모 엔티티의 첫 번째 PK 컬럼 찾기
         const sourcePkColumn = sourceNode.data.columns?.find((col: any) => col.pk);
         
-        // 자식 엔티티의 첫 번째 FK 컬럼 찾기 - parentEntityId 기준으로 해당 관계의 FK들 중 첫 번째
+        // 자식 엔티티의 FK 컬럼 찾기 - parentEntityId 기준으로 해당 관계의 FK들 중 첫 번째
         const relatedFkColumns = targetNode.data.columns?.filter((col: any) => 
           col.fk && col.parentEntityId === sourceNode.id
         ) || [];
         
-        // 복합키 관계에서는 항상 첫 번째 FK 컬럼을 기준으로 Handle 위치 설정
-        const targetFkColumn = relatedFkColumns.length > 0 ? relatedFkColumns[0] : null;
+        // 복합키 관계에서 FK가 삭제된 경우에도 남은 FK들 중 첫 번째를 기준으로 Handle 위치 설정
+        // UI에서 보이는 순서상 가장 위에 있는 (인덱스가 가장 작은) FK 컬럼을 선택
+        let targetFkColumn: any = null;
+        if (relatedFkColumns.length > 0) {
+          const allColumns = targetNode.data.columns || [];
+          let earliestIndex = allColumns.length;
+          
+          relatedFkColumns.forEach((fkCol: any) => {
+            const index = allColumns.findIndex((col: any) => col.id === fkCol.id);
+            if (index !== -1 && index < earliestIndex) {
+              earliestIndex = index;
+              targetFkColumn = fkCol;
+            }
+          });
+        }
         
         // 새로운 handle 결정 로직 사용
         const { sourceHandle, targetHandle } = determineHandlePositions(sourceNode, targetNode);
         
-        // Handle ID 설정 - 첫 번째 FK 컬럼을 기준으로 계산
+        // Handle ID 설정 - 남은 FK 컬럼들 중 첫 번째를 기준으로 계산
         const sourceHandleId = sourcePkColumn 
           ? createHandleId(sourcePkColumn.name, sourceHandle as 'left' | 'right')
           : sourceHandle;

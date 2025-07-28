@@ -1196,7 +1196,7 @@ const Layout = () => {
           updatedCol.nn = true;
           updatedCol.uq = false; // PK 체크하면 UQ 해제
           
-          // PK 추가 시 자식 엔티티에 FK 컬럼 추가 (기존 로직 유지)
+          // PK 추가 시 자식 엔티티에 FK 컬럼 추가 (기존 로직 유지, 문제 6 해결용 개선)
           const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
           if (currentEntity?.type === 'entity') {
             const allEdges = useStore.getState().edges;
@@ -1229,7 +1229,10 @@ const Layout = () => {
                       uq: false,
                       ai: false,
                       comment: `Foreign key from ${currentEntity.data.label}.${updatedCol.name}`,
-                      defaultValue: ''
+                      defaultValue: '',
+                      // 문제 6 해결을 위한 관계 추적 메타데이터 추가
+                      parentEntityId: selectedNodeId,
+                      parentColumnId: updatedCol.id || updatedCol.name
                     };
                     
                     const updatedTargetColumns = [...targetColumns, newFkColumn];

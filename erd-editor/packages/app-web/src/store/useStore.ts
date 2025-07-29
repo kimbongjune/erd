@@ -216,6 +216,69 @@ export const propagateColumnDeletion = (
   return { updatedNodes: finalNodes, updatedEdges: finalEdges };
 };
 
+// PK 컬럼의 데이터타입 변경 시 모든 FK에 전파하는 함수
+export const propagateDataTypeChange = (
+  nodeId: string,
+  changedColumn: any,
+  newDataType: string,
+  allNodes: any[],
+  allEdges: any[]
+): { updatedNodes: any[] } => {
+  let finalNodes = [...allNodes];
+  
+  // 현재 노드가 부모인 관계선들 찾기
+  const childEdges = allEdges.filter(edge => edge.source === nodeId);
+  
+  childEdges.forEach(edge => {
+    const childNode = finalNodes.find(n => n.id === edge.target);
+    if (childNode && childNode.type === 'entity') {
+      const parentNode = finalNodes.find(n => n.id === nodeId);
+      if (!parentNode) return;
+      
+      const childColumns = childNode.data.columns || [];
+      
+      // 해당 PK에 대응하는 FK 컬럼 찾기 (강화된 매핑)
+      const targetFkColumn = childColumns.find((col: any) => 
+        col.fk && col.parentEntityId === nodeId && 
+        (col.parentColumnId === changedColumn.id || 
+         col.parentColumnId === changedColumn.name ||
+         col.name === `${parentNode.data.label.toLowerCase()}_${changedColumn.name}`)
+      );
+      
+      if (targetFkColumn) {
+        // FK의 데이터타입과 type 변경
+        const updatedChildColumns = childColumns.map((col: any) => 
+          col.id === targetFkColumn.id 
+            ? { ...col, dataType: newDataType, type: newDataType }
+            : col
+        );
+        
+        // 자식 노드 업데이트
+        finalNodes = finalNodes.map(node => 
+          node.id === edge.target 
+            ? { ...node, data: { ...node.data, columns: updatedChildColumns } }
+            : node
+        );
+        
+        // 해당 FK가 PK이기도 하다면 재귀적으로 하위 계층에도 전파
+        if (targetFkColumn.pk) {
+          const updatedFkColumn = { ...targetFkColumn, dataType: newDataType, type: newDataType };
+          const recursiveResult = propagateDataTypeChange(
+            edge.target,
+            updatedFkColumn,
+            newDataType,
+            finalNodes,
+            allEdges
+          );
+          finalNodes = recursiveResult.updatedNodes;
+        }
+      }
+    }
+  });
+  
+  return { updatedNodes: finalNodes };
+};
+
 // 개선된 FK 컬럼 탐색 함수 (export하여 다른 컴포넌트에서도 사용 가능)
 export const findExistingFkColumn = (
   targetColumns: any[], 

@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import Header from './Header';
 import Toolbox from './Toolbox';
 import Canvas from './Canvas';
-import useStore, { propagateColumnAddition, propagateColumnDeletion } from '../store/useStore';
+import useStore, { propagateColumnAddition, propagateColumnDeletion, propagateDataTypeChange } from '../store/useStore';
 import { toast } from 'react-toastify';
 import { MYSQL_DATATYPES, validateEnglishOnly, validateDataType } from '../utils/mysqlTypes';
 
@@ -1259,6 +1259,23 @@ const Layout = () => {
             updatedCol.ai = false;
             updatedCol.constraint = null;
             toast.info('데이터타입이 INT 계열이 아니므로 AI가 해제되었습니다.');
+          }
+          
+          // PK 컬럼의 데이터타입 변경 시 모든 FK에 전파
+          if (updatedCol.pk) {
+            const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
+            if (currentEntity?.type === 'entity' && selectedNodeId) {
+              const allNodes = useStore.getState().nodes;
+              const allEdges = useStore.getState().edges;
+              
+              // propagateDataTypeChange 호출
+              const result = propagateDataTypeChange(selectedNodeId, updatedCol, value, allNodes, allEdges);
+              useStore.getState().setNodes(result.updatedNodes);
+              
+              setTimeout(() => {
+                updateEdgeHandles();
+              }, 150);
+            }
           }
         }
         

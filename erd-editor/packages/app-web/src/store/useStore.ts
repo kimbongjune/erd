@@ -26,17 +26,73 @@ const propagateColumnDeletion = (
       const parentNode = finalNodes.find(n => n.id === nodeId);
       if (!parentNode) return;
       
-      // 다양한 방법으로 FK 컬럼 찾기 (이름 변경에 대응)
+      // 다양한 방법으로 FK 컬럼 찾기 (이름 변경에 대응 - 강화된 버전)
       let targetFkColumn = null;
       const childColumns = childNode.data.columns || [];
       
-      // 1. parentEntityId + parentColumnId로 정확한 매칭
+      // 1. parentEntityId + parentColumnId로 정확한 매칭 (ID 우선)
       targetFkColumn = childColumns.find((col: any) => 
         col.fk && col.parentEntityId === nodeId && 
         (col.parentColumnId === deletedColumn.id || col.parentColumnId === deletedColumn.name)
       );
       
-      // 2. 이름 패턴으로 찾기 (백업)
+      // 2. 부모 컬럼의 원래 이름으로도 찾기 (컬럼 이름 변경 대응)
+      if (!targetFkColumn) {
+        // 부모 엔티티의 모든 컬럼에서 현재 삭제되는 컬럼의 ID와 매칭되는 원래 컬럼 찾기
+        const parentColumns = parentNode.data.columns || [];
+        const currentParentColumn = parentColumns.find((col: any) => col.id === deletedColumn.id);
+        
+        // currentName 속성도 고려 (이름 변경된 경우)
+        const searchNames = [
+          deletedColumn.name,
+          deletedColumn.currentName,
+          currentParentColumn?.name
+        ].filter(Boolean);
+        
+        if (currentParentColumn || searchNames.length > 0) {
+          // 다양한 방식으로 FK 매핑 시도
+          targetFkColumn = childColumns.find((col: any) => 
+            col.fk && col.parentEntityId === nodeId && (
+              col.parentColumnId === deletedColumn.id ||
+              col.parentColumnId === deletedColumn.currentName ||
+              col.parentColumnId === currentParentColumn?.id ||
+              col.parentColumnId === currentParentColumn?.name ||
+              col.parentColumnId === deletedColumn.name ||
+              // 과거 이름 패턴들도 시도
+              searchNames.some(name => 
+                col.name === `${parentNode.data.label.toLowerCase()}_${name}` ||
+                col.parentColumnId === name
+              )
+            )
+          );
+        }
+      }
+      
+      // 3. 같은 부모에서 온 FK 중 타입이 일치하는 것 찾기 (복합키 상황 대응)
+      if (!targetFkColumn) {
+        const candidateFks = childColumns.filter((col: any) => 
+          col.fk && 
+          col.parentEntityId === nodeId && 
+          (col.type === deletedColumn.type || col.dataType === deletedColumn.type)
+        );
+        
+        // 후보가 하나뿐이면 그것을 선택
+        if (candidateFks.length === 1) {
+          targetFkColumn = candidateFks[0];
+        }
+        // 복수 후보가 있으면 parentColumnId가 가장 유사한 것 선택
+        else if (candidateFks.length > 1) {
+          targetFkColumn = candidateFks.find((col: any) => 
+            col.parentColumnId && (
+              col.parentColumnId.includes(deletedColumn.name) ||
+              deletedColumn.name.includes(col.parentColumnId) ||
+              col.parentColumnId === deletedColumn.id
+            )
+          ) || candidateFks[0]; // 매칭되는 것이 없으면 첫 번째 선택
+        }
+      }
+      
+      // 4. 이름 패턴으로 찾기 (최종 백업)
       if (!targetFkColumn) {
         const expectedFkName = `${parentNode.data.label.toLowerCase()}_${deletedColumn.name}`;
         targetFkColumn = childColumns.find((col: any) => 
@@ -1407,6 +1463,16 @@ const useStore = create<RFState>((set, get) => ({
       const oldColumns = oldNode.data.columns || [];
       const newColumns = newData.columns || [];
       
+      // PK 컬럼 이름 변경 감지 (자식 FK의 parentColumnId 업데이트를 위함)
+      const renamedPkColumns = oldColumns.filter((oldCol: any) => {
+        if (!oldCol.pk) return false;
+        const newCol = newColumns.find((newCol: any) => newCol.id === oldCol.id);
+        return newCol && newCol.pk && oldCol.name !== newCol.name; // PK이면서 이름이 변경됨
+      }).map((oldCol: any) => {
+        const newCol = newColumns.find((newCol: any) => newCol.id === oldCol.id);
+        return { oldColumn: oldCol, newColumn: newCol };
+      });
+
       // FK 컬럼 삭제 감지 - parentEntityId 기준으로 관계선도 함께 삭제
       const deletedFkColumns = oldColumns.filter((oldCol: any) => {
         if (!oldCol.fk || !oldCol.parentEntityId) return false;
@@ -1439,6 +1505,53 @@ const useStore = create<RFState>((set, get) => ({
       
       let finalNodes = updatedNodes;
       let finalEdges = state.edges;
+
+      // PK 컬럼 이름 변경 시 모든 자식 FK의 parentColumnId 업데이트
+      if (renamedPkColumns.length > 0) {
+        renamedPkColumns.forEach(({ oldColumn, newColumn }: any) => {
+          // 현재 엔티티가 부모인 관계선들 찾기
+          const childEdges = finalEdges.filter(edge => edge.source === nodeId);
+          
+          childEdges.forEach(edge => {
+            const childNode = finalNodes.find(n => n.id === edge.target);
+            if (childNode && childNode.type === 'entity') {
+              const childColumns = childNode.data.columns || [];
+              
+              // 해당 부모 컬럼을 참조하는 FK 컬럼들 찾기
+              const relatedFkColumns = childColumns.filter((col: any) => 
+                col.fk && 
+                col.parentEntityId === nodeId && 
+                (col.parentColumnId === oldColumn.id || col.parentColumnId === oldColumn.name)
+              );
+              
+              if (relatedFkColumns.length > 0) {
+                // FK 컬럼들의 parentColumnId 업데이트
+                const updatedChildColumns = childColumns.map((col: any) => {
+                  if (relatedFkColumns.some((fkCol: any) => fkCol.id === col.id)) {
+                    return { 
+                      ...col, 
+                      parentColumnId: newColumn.id || newColumn.name,
+                      comment: col.comment?.replace(
+                        `from ${oldNode.data.label}.${oldColumn.name}`,
+                        `from ${oldNode.data.label}.${newColumn.name}`
+                      ) || `Foreign key from ${oldNode.data.label}.${newColumn.name}`
+                    };
+                  }
+                  return col;
+                });
+                
+                // 자식 노드 업데이트
+                finalNodes = finalNodes.map(node => 
+                  node.id === edge.target 
+                    ? { ...node, data: { ...node.data, columns: updatedChildColumns } }
+                    : node
+                );
+              }
+            }
+          });
+
+        });
+      }
 
       // 삭제된 FK 컬럼의 관계선 제거 (복합키 관계 고려)
       if (deletedFkColumns.length > 0) {
@@ -1496,10 +1609,17 @@ const useStore = create<RFState>((set, get) => ({
       // 부모 엔티티의 PK 컬럼 삭제에 따른 하위 계층으로의 연쇄 삭제
       if (deletedPkColumns.length > 0) {
         deletedPkColumns.forEach((deletedPkCol: any) => {
+          // PK 컬럼의 현재 상태 정보 구성 (이름 변경된 경우 대응)
+          const currentParentColumn = {
+            ...deletedPkCol,
+            // 현재 finalNodes에서 해당 컬럼의 최신 정보 확인
+            currentName: finalNodes.find(n => n.id === nodeId)?.data?.columns?.find((col: any) => col.id === deletedPkCol.id)?.name || deletedPkCol.name
+          };
+          
           // 재귀적으로 하위 계층까지 전파하여 삭제
           const propagationResult = propagateColumnDeletion(
             nodeId, 
-            deletedPkCol, 
+            currentParentColumn, 
             finalNodes, 
             finalEdges
           );
@@ -1510,22 +1630,7 @@ const useStore = create<RFState>((set, get) => ({
         });
       }
 
-      // 부모 엔티티의 PK 해제에 따른 하위 계층으로의 연쇄 삭제
-      if (pkUnsetColumns.length > 0) {
-        pkUnsetColumns.forEach((pkUnsetCol: any) => {
-          // 재귀적으로 하위 계층까지 전파하여 삭제
-          const propagationResult = propagateColumnDeletion(
-            nodeId, 
-            pkUnsetCol, 
-            finalNodes, 
-            finalEdges
-          );
-          finalNodes = propagationResult.updatedNodes;
-          finalEdges = propagationResult.updatedEdges;
-          
-          toast.info(`부모 엔티티 ${oldNode.data.label}의 PK 해제로 인해 하위 계층의 관련 FK와 관계가 연쇄적으로 제거되었습니다.`);
-        });
-      }
+
 
       // FK 컬럼의 PK 상태 변경에 따른 관계 타입 업데이트
       if (fkPkChangedColumns.length > 0) {

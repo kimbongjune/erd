@@ -182,7 +182,7 @@ const Header = () => {
       </ThemeToggleButton>
       
       {/* SQL 파일 업로드 버튼 */}
-      <ThemeToggleButton 
+      {/* <ThemeToggleButton 
         $darkMode={theme === 'dark'} 
         onClick={(e) => {
           e.stopPropagation();
@@ -192,7 +192,7 @@ const Header = () => {
       >
         <FaUpload />
         SQL 불러오기
-      </ThemeToggleButton>
+      </ThemeToggleButton> */}
       
       {/* 숨겨진 파일 input */}
       <input

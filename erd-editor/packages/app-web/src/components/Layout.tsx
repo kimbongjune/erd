@@ -1025,7 +1025,7 @@ const Layout = () => {
                 }
                 // 관계선 삭제
                 useStore.getState().deleteEdge(relationEdge.id);
-                toast.error(`복합키 관계에서 FK 삭제로 인해 ${parentEntity.data.label}과의 모든 관련 FK와 관계가 해제되었습니다.`);
+
                 setTimeout(() => {
                   updateEdgeHandles();
                 }, 200);
@@ -1055,7 +1055,7 @@ const Layout = () => {
                 // 관계선 삭제
                 useStore.getState().deleteEdge(relationEdge.id);
                 
-                toast.info(`단일키 관계에서 FK 삭제로 인해 ${parentEntity.data.label}과의 관계가 해제되었습니다.`);
+                
                 
                 // Handle 업데이트
                 setTimeout(() => {
@@ -1109,12 +1109,6 @@ const Layout = () => {
               // 남은 PK가 없으면 관계 끊기
               if (remainingPkColumns.length === 0) {
                 useStore.getState().deleteEdge(edge.id);
-                console.log(`모든 PK 삭제로 관계 끊기: ${edge.id}`);
-                toast.warning(`PK가 모두 삭제되어 ${targetNode.data.label}과의 관계가 해제되었습니다.`);
-              } else {
-                // 남은 PK가 있으면 관계 유지하고 Handle만 업데이트
-                console.log(`PK 일부 삭제, 관계 유지 (남은 PK: ${remainingPkColumns.length}개)`);
-                toast.info(`${targetNode.data.label}에서 ${fkColumnName} FK가 제거되었습니다. (관계 유지)`);
               }
             }
           });
@@ -1226,7 +1220,7 @@ const Layout = () => {
               // 결과로 받은 노드들로 업데이트
               useStore.getState().setNodes(propagationResult.updatedNodes);
               
-              toast.info(`PK 추가로 인해 하위 계층의 모든 자식 엔티티들에 FK 컬럼이 연쇄적으로 추가되었습니다.`);
+
               
               // FK 추가 후 즉시 Handle 강제 업데이트
               setTimeout(() => {
@@ -1237,72 +1231,6 @@ const Layout = () => {
         } else if (field === 'pk' && value === false) {
           // PK 해제 시 NN도 해제
           updatedCol.nn = false;
-          
-          // FK 컬럼의 PK 해제인지 확인
-          const isFkColumn = updatedCol.fk || updatedCol.name.includes('_');
-          
-          if (!isFkColumn) {
-            // 일반 PK 컬럼의 PK 해제 시: 복합키 고려하여 개별 FK만 삭제 (관계는 유지)
-            const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
-            if (currentEntity?.type === 'entity') {
-              const relatedEdges = useStore.getState().edges.filter(edge => edge.source === selectedNodeId);
-              
-              // 각 관계에서 해당 PK에 연결된 FK만 제거
-              relatedEdges.forEach(edge => {
-                const targetNode = useStore.getState().nodes.find(n => n.id === edge.target);
-                if (targetNode?.type === 'entity') {
-                  const fkColumnName = `${currentEntity.data.label.toLowerCase()}_${updatedCol.name}`;
-                  const targetColumns = targetNode.data.columns || [];
-                  
-                  // 해당 FK 컬럼이 존재하는지 확인
-                  const fkColumnExists = targetColumns.some((col: any) => col.name === fkColumnName);
-                  
-                  if (fkColumnExists) {
-                    // 해당 FK 컬럼만 제거
-                    const updatedTargetColumns = targetColumns.filter((col: any) => col.name !== fkColumnName);
-                    
-                    // 타겟 노드 업데이트
-                    const updatedNodes = useStore.getState().nodes.map(node => 
-                      node.id === edge.target 
-                        ? { ...node, data: { ...node.data, columns: updatedTargetColumns } }
-                        : node
-                    );
-                    useStore.getState().setNodes(updatedNodes);
-                    
-                    // 부모 엔티티의 PK 개수 확인 (해제하기 전 상태로 판단)
-                    const currentPkColumns = currentEntity.data.columns?.filter((col: any) => col.pk) || [];
-                    const isCompositeKey = currentPkColumns.length > 1; // 해제하기 전에 2개 이상이면 복합키
-                    
-                    if (isCompositeKey) {
-                      // 복합키인 경우: 관계는 유지하고 FK만 제거
-                      toast.info(`${targetNode.data.label}에서 ${fkColumnName} FK가 제거되었습니다. (복합키 관계 유지)`);
-                    } else {
-                      // 단일키인 경우: 모든 FK가 삭제되면 관계도 삭제
-                      const remainingFKs = updatedTargetColumns.filter((col: any) => 
-                        col.fk && col.name.startsWith(`${currentEntity.data.label.toLowerCase()}_`)
-                      );
-                      
-                      if (remainingFKs.length === 0) {
-                        useStore.getState().deleteEdge(edge.id);
-                        toast.warning(`단일키 관계에서 마지막 FK가 제거되어 ${currentEntity.data.label}과 ${targetNode.data.label} 간의 관계가 해제되었습니다.`);
-                      } else {
-                        toast.info(`${targetNode.data.label}에서 ${fkColumnName} FK가 제거되었습니다. (관계 유지)`);
-                      }
-                    }
-                    
-                    // FK 제거 후 Handle 업데이트
-                    setTimeout(() => {
-                      updateEdgeHandles();
-                    }, 150);
-                  }
-                }
-              });
-              // PK 해제 후 관계선 Handle 업데이트
-              setTimeout(() => {
-                updateEdgeHandles();
-              }, 200);
-            }
-          }
         } else if (field === 'uq' && value === true && col.pk === true) {
           updatedCol.pk = false; // UQ 체크하면 PK 해제
           updatedCol.nn = false; // PK 해제 시 NN도 해제 가능하게
@@ -1395,7 +1323,7 @@ const Layout = () => {
             });
             const actionText = value ? '설정' : '해제';
             const relationshipText = value ? '식별자' : '비식별자';
-            toast.info(`복합키 관계에서 모든 FK의 PK가 ${actionText}되었습니다. (컬럼 유지, ${relationshipText} 관계로 변경)`);
+            
           }
           
           // 관계 타입 변경
@@ -1437,7 +1365,7 @@ const Layout = () => {
                   
                   const actionText = value ? '식별자' : '비식별자';
                   const relationshipDescription = isCompositeKeyRelation ? '복합키 ' : '';
-                  toast.info(`${relationshipDescription}FK 컬럼의 PK ${value ? '설정' : '해제'}로 인해 관계가 ${actionText} 관계로 변경되었습니다.`);
+      
                   
                   // 관계 타입 변경 후 즉시 Handle 강제 업데이트 - 더 긴 지연시간
                   setTimeout(() => {

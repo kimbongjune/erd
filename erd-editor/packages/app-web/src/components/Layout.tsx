@@ -1167,7 +1167,19 @@ const Layout = () => {
     }
   };
 
-  const updateColumnField = (columnId: string, field: string, value: any) => {
+  // 컬럼명 중복 검사 함수 (포커스 아웃 시에만 사용)
+  const validateColumnName = (columnId: string, name: string) => {
+    if (name && name.trim() !== '') {
+      const existingColumn = columns.find(col => col.id !== columnId && col.name === name.trim());
+      if (existingColumn) {
+        toast.error(`컬럼명 "${name}"은(는) 이미 존재합니다.`);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const updateColumnField = (columnId: string, field: string, value: any, skipValidation = false) => {
     // 물리명과 데이터타입은 한국어만 차단
     if ((field === 'name' || field === 'dataType') && typeof value === 'string') {
       if (value && /[ㄱ-ㅎ가-힣]/.test(value)) {
@@ -1179,12 +1191,10 @@ const Layout = () => {
       }
     }
     
-    // 컬럼명 중복 체크
-    if (field === 'name' && value && value.trim() !== '') {
-      const existingColumn = columns.find(col => col.id !== columnId && col.name === value.trim());
-      if (existingColumn) {
-        toast.error(`컬럼명 "${value}"은(는) 이미 존재합니다.`);
-        return;
+    // 컬럼명 중복 체크 (skipValidation이 true이면 검사하지 않음)
+    if (!skipValidation && field === 'name' && value && value.trim() !== '') {
+      if (!validateColumnName(columnId, value)) {
+        return; // 중복 시 업데이트 중단
       }
     }
 
@@ -1880,8 +1890,11 @@ const Layout = () => {
                         className={editingCell === `${column.id}-name` ? 'editing' : ''}
                         data-editing={editingCell === `${column.id}-name` ? `${column.id}-name` : ''}
                         value={column.name || ''}
-                        onChange={(e) => updateColumnField(column.id, 'name', e.target.value)}
-                        onBlur={handleCellBlur}
+                        onChange={(e) => updateColumnField(column.id, 'name', e.target.value, true)} // skipValidation=true
+                        onBlur={(e) => {
+                          handleCellBlur();
+                          validateColumnName(column.id, e.target.value); // 포커스 아웃 시 검증
+                        }}
                         onKeyDown={handleCellKeyDown}
                         onCompositionStart={handleCompositionStart}
                         onCompositionEnd={handleCompositionEnd}
@@ -1914,7 +1927,7 @@ const Layout = () => {
                             // 드롭다운 아이템 클릭이나 버튼 클릭이 아닌 경우에만 blur 처리
                             const relatedTarget = e.relatedTarget as HTMLElement;
                             if (!relatedTarget || (!relatedTarget.closest('[data-dropdown]') && !relatedTarget.closest('[data-dropdown-button]'))) {
-                              handleCellBlur(e);
+                              handleCellBlur();
                               setDropdownOpen(null);
                             }
                           }}
@@ -2071,7 +2084,8 @@ const Layout = () => {
                 $darkMode={isDarkMode}
                 type="text" 
                 value={selectedColumn?.name || ''} 
-                onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'name', e.target.value)}
+                onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'name', e.target.value, true)} // skipValidation=true
+                onBlur={(e) => selectedColumn && validateColumnName(selectedColumn.id, e.target.value)} // 포커스 아웃 시 검증
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !isComposing) {
                     e.preventDefault();

@@ -892,8 +892,27 @@ const Canvas = () => {
         snapGrid={[15, 15]}
       >
         <MiniMap 
-          nodeColor={(node) => node.type === 'comment' ? 'transparent' : (isDarkMode ? '#4a5568' : '#e2e8f0')}
-          nodeStrokeColor={(node) => node.type === 'comment' ? 'transparent' : (isDarkMode ? '#cbd5e0' : '#64748b')}
+          nodeColor={(node) => {
+            if (node.type === 'comment') return 'transparent';
+            // 실제 노드 색상 가져오기
+            const getNodeColor = useStore.getState().getNodeColor;
+            return getNodeColor(node.id);
+          }}
+          nodeStrokeColor={(node) => {
+            if (node.type === 'comment') return 'transparent';
+            // 실제 노드 색상의 어두운 버전을 stroke 색상으로 사용
+            const getNodeColor = useStore.getState().getNodeColor;
+            const nodeColor = getNodeColor(node.id);
+            // 색상을 어둡게 만드는 함수
+            const darkenColor = (color: string) => {
+              // 간단한 어둡게 만들기 (더 정교한 방법이 필요하면 colorUtils 사용)
+              return color.replace(/^#/, '').match(/.{2}/g)?.map(hex => {
+                const num = Math.max(0, parseInt(hex, 16) - 40);
+                return num.toString(16).padStart(2, '0');
+              }).join('') || color;
+            };
+            return `#${darkenColor(nodeColor)}`;
+          }}
           nodeStrokeWidth={2}
           maskColor={isDarkMode ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.2)"}
           pannable={true}

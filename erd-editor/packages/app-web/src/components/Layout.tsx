@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import Header from './Header';
 import Toolbox from './Toolbox';
 import Canvas from './Canvas';
-import useStore from '../store/useStore';
+import useStore, { propagateColumnAddition, propagateColumnDeletion } from '../store/useStore';
 import { toast } from 'react-toastify';
 import { MYSQL_DATATYPES, validateEnglishOnly, validateDataType } from '../utils/mysqlTypes';
 
@@ -1207,67 +1207,31 @@ const Layout = () => {
           updatedCol.nn = true;
           updatedCol.uq = false; // PK 체크하면 UQ 해제
           
-          // PK 추가 시 자식 엔티티에 FK 컬럼 추가 (기존 로직 유지, 문제 6 해결용 개선)
+          // PK 추가 시 하위 계층으로 재귀적 FK 전파
           const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
-          if (currentEntity?.type === 'entity') {
+          if (currentEntity?.type === 'entity' && selectedNodeId) {
+            const allNodes = useStore.getState().nodes;
             const allEdges = useStore.getState().edges;
             const childEdges = allEdges.filter(edge => edge.source === selectedNodeId);
             
             if (childEdges.length > 0) {
-              let addedFkCount = 0;
+              // 재귀적으로 하위 계층까지 FK 전파
+              const propagationResult = propagateColumnAddition(
+                selectedNodeId,
+                updatedCol,
+                allNodes,
+                allEdges
+              );
               
-              childEdges.forEach(edge => {
-                const targetNode = useStore.getState().nodes.find(n => n.id === edge.target);
-                if (targetNode?.type === 'entity') {
-                  const fkColumnName = `${currentEntity.data.label.toLowerCase()}_${updatedCol.name}`;
-                  const targetColumns = targetNode.data.columns || [];
-                  
-                  // 이미 해당 FK 컬럼이 존재하는지 확인
-                  const existingFkIndex = targetColumns.findIndex((col: any) => col.name === fkColumnName);
-                  
-                  if (existingFkIndex === -1) {
-                    // 관계 타입에 따라 PK 여부 결정
-                    const isIdentifyingRelationship = edge.type === 'one-to-one-identifying' || edge.type === 'one-to-many-identifying';
-                    
-                    const newFkColumn = {
-                      id: `fk-${edge.target}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                      name: fkColumnName,
-                      type: updatedCol.dataType || updatedCol.type,
-                      dataType: updatedCol.dataType || updatedCol.type,
-                      pk: isIdentifyingRelationship, // 식별관계면 PK, 비식별관계면 일반 컬럼
-                      fk: true,
-                      nn: isIdentifyingRelationship, // 식별관계면 NN 필수
-                      uq: false,
-                      ai: false,
-                      comment: `Foreign key from ${currentEntity.data.label}.${updatedCol.name}`,
-                      defaultValue: '',
-                      // 문제 6 해결을 위한 관계 추적 메타데이터 추가
-                      parentEntityId: selectedNodeId,
-                      parentColumnId: updatedCol.id || updatedCol.name
-                    };
-                    
-                    const updatedTargetColumns = [...targetColumns, newFkColumn];
-                    
-                    // 타겟 노드 업데이트
-                    const updatedNodes = useStore.getState().nodes.map(node => 
-                      node.id === edge.target 
-                        ? { ...node, data: { ...node.data, columns: updatedTargetColumns } }
-                        : node
-                    );
-                    useStore.getState().setNodes(updatedNodes);
-                    addedFkCount++;
-                  }
-                }
-              });
+              // 결과로 받은 노드들로 업데이트
+              useStore.getState().setNodes(propagationResult.updatedNodes);
               
-              if (addedFkCount > 0) {
-                toast.info(`PK 추가로 인해 ${addedFkCount}개의 자식 엔티티에 FK 컬럼이 추가되었습니다.`);
-                
-                // FK 추가 후 즉시 Handle 강제 업데이트 - 더 긴 지연시간
-                setTimeout(() => {
-                  updateEdgeHandles();
-                }, 250);
-              }
+              toast.info(`PK 추가로 인해 하위 계층의 모든 자식 엔티티들에 FK 컬럼이 연쇄적으로 추가되었습니다.`);
+              
+              // FK 추가 후 즉시 Handle 강제 업데이트
+              setTimeout(() => {
+                updateEdgeHandles();
+              }, 250);
             }
           }
         } else if (field === 'pk' && value === false) {
@@ -1342,58 +1306,6 @@ const Layout = () => {
         } else if (field === 'uq' && value === true && col.pk === true) {
           updatedCol.pk = false; // UQ 체크하면 PK 해제
           updatedCol.nn = false; // PK 해제 시 NN도 해제 가능하게
-          
-          // PK를 UQ로 변경했을 때 PK 삭제처럼 동작 (해당 FK만 삭제, 관계 유지)
-          const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
-          if (currentEntity?.type === 'entity') {
-            const relatedEdges = useStore.getState().edges.filter(edge => edge.source === selectedNodeId);
-            
-            // 각 관계에서 해당 PK에 연결된 FK만 제거
-            relatedEdges.forEach(edge => {
-              const targetNode = useStore.getState().nodes.find(n => n.id === edge.target);
-              if (targetNode?.type === 'entity') {
-                const fkColumnName = `${currentEntity.data.label.toLowerCase()}_${updatedCol.name}`;
-                const targetColumns = targetNode.data.columns || [];
-                
-                // parentEntityId와 parentColumnId 기반으로 해당 FK 컬럼 찾기
-                const targetFkColumn = targetColumns.find((fkCol: any) => 
-                  fkCol.fk && fkCol.parentEntityId === selectedNodeId && 
-                  (fkCol.parentColumnId === updatedCol.id || fkCol.parentColumnId === updatedCol.name || fkCol.name === fkColumnName)
-                );
-                
-                if (targetFkColumn) {
-                  // 해당 FK 컬럼 삭제
-                  const updatedTargetColumns = targetColumns.filter((fkCol: any) => fkCol.id !== targetFkColumn.id);
-                  
-                  // 타겟 노드 업데이트
-                  const updatedNodes = useStore.getState().nodes.map(node => 
-                    node.id === edge.target 
-                      ? { ...node, data: { ...node.data, columns: updatedTargetColumns } }
-                      : node
-                  );
-                  useStore.getState().setNodes(updatedNodes);
-                  
-                  // 남은 FK가 있는지 확인하여 관계 유지 여부 결정
-                  const remainingFKsFromThisParent = updatedTargetColumns.filter((fkCol: any) => 
-                    fkCol.fk && fkCol.parentEntityId === selectedNodeId
-                  );
-                  
-                  if (remainingFKsFromThisParent.length === 0) {
-                    // 남은 FK가 없으면 관계 제거
-                    useStore.getState().deleteEdge(edge.id);
-                    toast.info(`PK를 UQ로 변경하여 ${targetNode.data.label}과의 관계가 제거되었습니다.`);
-                  } else {
-                    toast.info(`PK를 UQ로 변경하여 ${targetNode.data.label}에서 ${targetFkColumn.name} FK가 제거되었습니다. (관계 유지)`);
-                  }
-                }
-              }
-            });
-            
-            // FK 제거 후 Handle 업데이트
-            setTimeout(() => {
-              updateEdgeHandles();
-            }, 150);
-          }
         }
         
         // AI 설정 시 체크 (PK이면서 INT 타입인지 확인)

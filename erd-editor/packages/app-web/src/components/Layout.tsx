@@ -491,7 +491,7 @@ const PortalDropdown: React.FC<{
         background: darkMode ? '#374151' : 'white',
         border: `1px solid ${darkMode ? '#4a5568' : '#ccc'}`,
         borderRadius: '4px',
-        boxShadow: '0 -8px 24px rgba(0, 0, 0, 0.4)',
+        boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.15)',
         zIndex: 2147483647, // 최대 z-index 값
       }}
       data-dropdown="true"
@@ -1665,15 +1665,15 @@ const Layout = () => {
               <TableHeader $darkMode={isDarkMode}>
                 <HeaderRow $darkMode={isDarkMode}>
                   <HeaderCell $darkMode={isDarkMode} key="order" style={{ width: '60px' }}>순서</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="column-name">Column Name (물리명)</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="logical-name">Logical Name (논리명)</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="datatype">Datatype</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="pk">PK</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="nn">NN</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="uq">UQ</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="ai">AI</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="default">Default/Expression</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="delete">Delete</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="column-name">물리명</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="logical-name">논리명</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="datatype">데이터타입</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="pk" title="Primary Key (기본키)">PK</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="nn" title="Not Null (널 허용 안함)">NN</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="uq" title="Unique (고유키)">UQ</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="ai" title="Auto Increment (자동 증가)">AI</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="default">기본값/표현식</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="delete">삭제</HeaderCell>
                 </HeaderRow>
               </TableHeader>
               <TableBody>
@@ -1913,7 +1913,7 @@ const Layout = () => {
                 fontWeight: 'bold',
                 color: isDarkMode ? '#e2e8f0' : '#333'
               }}>
-                Table Comment:
+                테이블 주석:
               </label>
               <TableCommentTextarea
                 $darkMode={isDarkMode}
@@ -1936,7 +1936,7 @@ const Layout = () => {
           
           <BottomSection $darkMode={isDarkMode}>
             <BottomField>
-              <BottomLabel $darkMode={isDarkMode}>Column Name:</BottomLabel>
+              <BottomLabel $darkMode={isDarkMode}>컬럼명:</BottomLabel>
               <BottomInput 
                 $darkMode={isDarkMode}
                 type="text" 
@@ -1955,7 +1955,7 @@ const Layout = () => {
               />
             </BottomField>
             <BottomField>
-              <BottomLabel $darkMode={isDarkMode}>Data Type:</BottomLabel>
+              <BottomLabel $darkMode={isDarkMode}>데이터타입:</BottomLabel>
               <DataTypeInputContainer $isOpen={dropdownOpen === 'bottom-datatype'}>
                 <BottomInput 
                   $darkMode={isDarkMode}
@@ -2019,7 +2019,7 @@ const Layout = () => {
               </DataTypeInputContainer>
             </BottomField>
             <BottomField>
-              <BottomLabel $darkMode={isDarkMode}>Default:</BottomLabel>
+              <BottomLabel $darkMode={isDarkMode}>기본값:</BottomLabel>
               <BottomInput 
                 $darkMode={isDarkMode}
                 type="text" 
@@ -2038,7 +2038,7 @@ const Layout = () => {
               />
             </BottomField>
             <BottomField>
-              <BottomLabel $darkMode={isDarkMode}>Comments:</BottomLabel>
+              <BottomLabel $darkMode={isDarkMode}>주석:</BottomLabel>
               <BottomInput 
                 $darkMode={isDarkMode}
                 type="text" 

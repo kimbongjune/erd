@@ -2495,7 +2495,7 @@ const useStore = create<RFState>((set, get) => ({
       setTimeout(() => {
         set({ isLoading: false, loadingMessage: '', loadingProgress: 100 });
         toast.success('ERD 데이터를 성공적으로 불러왔습니다!');
-      }, 1500); // 1.5초 후 로딩 완료
+      }, 1800); // 1.8초 후 로딩 완료 (0.3초 추가)
     } catch (error) {
       set({ isLoading: false, loadingMessage: '', loadingProgress: 0 });
       toast.error('데이터 불러오기에 실패했습니다.');

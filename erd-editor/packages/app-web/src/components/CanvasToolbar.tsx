@@ -6,7 +6,7 @@ import { useReactFlow } from 'reactflow';
 import useStore from '../store/useStore';
 import AlignPopup from './AlignPopup';
 import ViewPopup from './ViewPopup';
-import Tooltip from './Tooltip';
+import SimpleTooltip from './SimpleTooltip';
 
 const ToolbarContainer = styled.div<{ $darkMode?: boolean }>`
   position: fixed;
@@ -236,59 +236,59 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   return (
     <>
       <ToolbarContainer $darkMode={isDarkMode}>
-        <Tooltip text="줌 아웃">
+        <SimpleTooltip text="줌 아웃" darkMode={isDarkMode}>
           <ToolbarButton onClick={handleZoomOut} $darkMode={isDarkMode}>
             <FaMinus size={14} />
           </ToolbarButton>
-        </Tooltip>
+        </SimpleTooltip>
         
-        <Tooltip text="100%로 리셋">
+        <SimpleTooltip text="100%로 리셋" darkMode={isDarkMode}>
           <ZoomDisplay $darkMode={isDarkMode} onClick={handleZoomReset}>
             {Math.round(zoom * 100)}%
           </ZoomDisplay>
-        </Tooltip>
+        </SimpleTooltip>
         
-        <Tooltip text="줌 인">
+        <SimpleTooltip text="줌 인" darkMode={isDarkMode}>
           <ToolbarButton onClick={handleZoomIn} $darkMode={isDarkMode}>
             <FaPlus size={14} />
           </ToolbarButton>
-        </Tooltip>
+        </SimpleTooltip>
         
         <Divider $darkMode={isDarkMode} />
         
-        <Tooltip text="검색">
+        <SimpleTooltip text="검색" darkMode={isDarkMode}>
           <ToolbarButton onClick={handleSearch} $active={isSearchPanelOpen} $darkMode={isDarkMode}>
             <FaSearch size={16} />
           </ToolbarButton>
-        </Tooltip>
+        </SimpleTooltip>
         
-        <Tooltip text="한눈에보기">
+        <SimpleTooltip text="한눈에보기" darkMode={isDarkMode}>
           <ToolbarButton onClick={handleZoomToFit} $darkMode={isDarkMode}>
             <FaExpand size={16} />
           </ToolbarButton>
-        </Tooltip>
+        </SimpleTooltip>
         
-        <Tooltip text="정렬">
+        <SimpleTooltip text="정렬" darkMode={isDarkMode}>
           <ToolbarButton onClick={handleAlign} $active={showAlignPopup} $darkMode={isDarkMode}>
             <FaTh size={16} />
           </ToolbarButton>
-        </Tooltip>
+        </SimpleTooltip>
         
-        <Tooltip text="관계선 하이라이트">
+        <SimpleTooltip text="관계선 하이라이트" darkMode={isDarkMode}>
           <ToolbarButton onClick={handleRelations} $active={relationsHighlight} $darkMode={isDarkMode}>
             <FaProjectDiagram size={16} />
           </ToolbarButton>
-        </Tooltip>
+        </SimpleTooltip>
         
-        <Tooltip text="그리드">
+        <SimpleTooltip text="그리드" darkMode={isDarkMode}>
           <ToolbarButton onClick={handleGrid} $active={showGrid} $darkMode={isDarkMode}>
             <MdGridOn size={16} />
           </ToolbarButton>
-        </Tooltip>
+        </SimpleTooltip>
         
         <Divider $darkMode={isDarkMode} />
         
-        <Tooltip text="보기 항목">
+        <SimpleTooltip text="보기 항목" darkMode={isDarkMode}>
           <ShowSection 
             onClick={handleShow}
             $active={showViewPopup}
@@ -299,7 +299,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
               <FaTable size={12} />
             </ShowIcon>
           </ShowSection>
-        </Tooltip>
+        </SimpleTooltip>
       </ToolbarContainer>
 
       {/* 정렬 팝업 */}

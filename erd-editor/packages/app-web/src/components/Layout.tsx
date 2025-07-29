@@ -7,6 +7,7 @@ import Canvas from './Canvas';
 import useStore, { propagateColumnAddition, propagateColumnDeletion, propagateDataTypeChange } from '../store/useStore';
 import { toast } from 'react-toastify';
 import { MYSQL_DATATYPES, validateEnglishOnly, validateDataType } from '../utils/mysqlTypes';
+import Tooltip from './Tooltip';
 
 const Container = styled.div<{ $darkMode?: boolean }>`
   display: flex;
@@ -475,8 +476,26 @@ const PortalDropdown: React.FC<{
   onClose: () => void;
   onSelect: (type: string) => void;
   darkMode: boolean;
-}> = ({ isOpen, position, onClose, onSelect, darkMode }) => {
+  dropdownType?: string;
+  setTooltip: (tooltip: { visible: boolean; x: number; y: number; content: string; position?: 'top' | 'left' }) => void;
+}> = ({ isOpen, position, onClose, onSelect, darkMode, dropdownType, setTooltip }) => {
   if (!isOpen || !position) return null;
+
+  const onDeleteOptions = [
+    { value: 'CASCADE', label: 'CASCADE', tooltip: '부모 레코드 삭제 시 자식 레코드도 함께 삭제' },
+    { value: 'SET NULL', label: 'SET NULL', tooltip: '부모 레코드 삭제 시 자식 레코드의 FK를 NULL로 설정' },
+    { value: 'NO ACTION', label: 'NO ACTION', tooltip: '부모 레코드 삭제 시 아무 동작 안함' },
+    { value: 'RESTRICT', label: 'RESTRICT', tooltip: '부모 레코드가 참조되면 삭제 차단' }
+  ];
+
+  const onUpdateOptions = [
+    { value: 'CASCADE', label: 'CASCADE', tooltip: '부모 레코드 수정 시 자식 레코드도 함께 수정' },
+    { value: 'SET NULL', label: 'SET NULL', tooltip: '부모 레코드 수정 시 자식 레코드의 FK를 NULL로 설정' },
+    { value: 'NO ACTION', label: 'NO ACTION', tooltip: '부모 레코드 수정 시 아무 동작 안함' },
+    { value: 'RESTRICT', label: 'RESTRICT', tooltip: '부모 레코드가 참조되면 수정 차단' }
+  ];
+
+  const options = dropdownType === 'onDelete' ? onDeleteOptions : onUpdateOptions;
 
   return createPortal(
     <div
@@ -484,7 +503,7 @@ const PortalDropdown: React.FC<{
         position: 'fixed',
         top: position.top,
         left: position.left,
-        width: '120px',
+        width: dropdownType ? '140px' : '120px',
         maxHeight: '150px',
         overflowY: 'auto',
         overflowX: 'hidden',
@@ -496,42 +515,83 @@ const PortalDropdown: React.FC<{
       }}
       data-dropdown="true"
     >
-      {MYSQL_DATATYPES.map(type => (
-        <div
-          key={type}
-          style={{
-            padding: '8px 16px',
-            fontSize: '11px',
-            cursor: 'pointer',
-            color: darkMode ? '#e2e8f0' : '#333',
-            borderBottom: `1px solid ${darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
-            transition: 'all 0.2s ease',
-          }}
-          onMouseDown={(e) => {
-            e.preventDefault(); // blur 방지
-          }}
-          onClick={() => {
-            onSelect(type);
-            onClose();
-          }}
-          onMouseEnter={(e) => {
-            const target = e.target as HTMLElement;
-            target.style.background = `linear-gradient(135deg, ${darkMode ? '#4a90e2' : '#007acc'} 0%, ${darkMode ? '#357abd' : '#0056a3'} 100%)`;
-            target.style.color = '#ffffff';
-            target.style.transform = 'translateX(2px)';
-            target.style.boxShadow = 'inset 0 0 0 1px rgba(255,255,255,0.2)';
-          }}
-          onMouseLeave={(e) => {
-            const target = e.target as HTMLElement;
-            target.style.background = 'transparent';
-            target.style.color = darkMode ? '#e2e8f0' : '#333';
-            target.style.transform = 'translateX(0)';
-            target.style.boxShadow = 'none';
-          }}
-        >
-          {type}
-        </div>
-      ))}
+      {dropdownType && options ? (
+        options.map((option) => (
+          <div
+            key={option.value}
+            style={{
+              padding: '8px 12px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              color: darkMode ? '#e2e8f0' : '#333',
+              borderBottom: `1px solid ${darkMode ? '#4a5568' : '#eee'}`,
+              transition: 'background-color 0.2s ease',
+              position: 'relative'
+            }}
+            onMouseEnter={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setTooltip({
+                visible: true,
+                x: rect.left - 10,
+                y: rect.top,
+                content: option.tooltip,
+                position: 'left'
+              });
+            }}
+            onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '' })}
+            onClick={() => {
+              onSelect(option.value);
+              setTooltip({ visible: false, x: 0, y: 0, content: '', position: 'left' });
+              onClose();
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.backgroundColor = darkMode ? '#4a5568' : '#f5f5f5';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            {option.label}
+          </div>
+        ))
+      ) : (
+                MYSQL_DATATYPES.map(type => (
+          <div
+            key={type}
+            style={{
+              padding: '8px 16px',
+              fontSize: '11px',
+              cursor: 'pointer',
+              color: darkMode ? '#e2e8f0' : '#333',
+              borderBottom: `1px solid ${darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+              transition: 'all 0.2s ease',
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault(); // blur 방지
+            }}
+            onClick={() => {
+              onSelect(type);
+              onClose();
+            }}
+            onMouseEnter={(e) => {
+              const target = e.target as HTMLElement;
+              target.style.background = `linear-gradient(135deg, ${darkMode ? '#4a90e2' : '#007acc'} 0%, ${darkMode ? '#357abd' : '#0056a3'} 100%)`;
+              target.style.color = '#ffffff';
+              target.style.transform = 'translateX(2px)';
+              target.style.boxShadow = 'inset 0 0 0 1px rgba(255,255,255,0.2)';
+            }}
+            onMouseLeave={(e) => {
+              const target = e.target as HTMLElement;
+              target.style.background = 'transparent';
+              target.style.color = darkMode ? '#e2e8f0' : '#333';
+              target.style.transform = 'translateX(0)';
+              target.style.boxShadow = 'none';
+            }}
+          >
+            {type}
+          </div>
+        ))
+      )}
       {/* 커스텀 스크롤바 스타일 */}
       <style>{`
         [data-dropdown]::-webkit-scrollbar {
@@ -773,6 +833,8 @@ const TableCommentTextarea = styled.textarea<{ $darkMode?: boolean }>`
 const Layout = () => {
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
+  const [dropdownType, setDropdownType] = useState<string | null>(null);
+  const [dropdownColumnId, setDropdownColumnId] = useState<string | null>(null);
   const [initialRender, setInitialRender] = useState(true);
   const { 
     isBottomPanelOpen, 
@@ -797,6 +859,13 @@ const Layout = () => {
   const [selectedColumn, setSelectedColumn] = useState<any>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [isComposing, setIsComposing] = useState(false);
+  const [tooltip, setTooltip] = useState<{ visible: boolean; x: number; y: number; content: string; position?: 'top' | 'left' }>({
+    visible: false,
+    x: 0,
+    y: 0,
+    content: '',
+    position: 'top'
+  });
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
   // 초기 렌더링 지연으로 깜빡임 방지
@@ -1668,11 +1737,73 @@ const Layout = () => {
                   <HeaderCell $darkMode={isDarkMode} key="column-name">물리명</HeaderCell>
                   <HeaderCell $darkMode={isDarkMode} key="logical-name">논리명</HeaderCell>
                   <HeaderCell $darkMode={isDarkMode} key="datatype">데이터타입</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="pk" title="Primary Key (기본키)">PK</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="nn" title="Not Null (널 허용 안함)">NN</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="uq" title="Unique (고유키)">UQ</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="ai" title="Auto Increment (자동 증가)">AI</HeaderCell>
+                  <HeaderCell 
+                    $darkMode={isDarkMode} 
+                    key="pk" 
+                    onMouseEnter={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setTooltip({
+                        visible: true,
+                        x: rect.left + rect.width / 2,
+                        y: rect.top - 60,
+                        content: 'Primary Key (기본키)\n테이블의 고유 식별자로 사용되는 컬럼입니다.'
+                      });
+                    }}
+                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '' })}
+                  >
+                    PK
+                  </HeaderCell>
+                  <HeaderCell 
+                    $darkMode={isDarkMode} 
+                    key="nn" 
+                    onMouseEnter={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setTooltip({
+                        visible: true,
+                        x: rect.left + rect.width / 2,
+                        y: rect.top - 60,
+                        content: 'Not Null (널 허용 안함)\nNULL 값을 허용하지 않는 컬럼입니다.'
+                      });
+                    }}
+                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '' })}
+                  >
+                    NN
+                  </HeaderCell>
+                  <HeaderCell 
+                    $darkMode={isDarkMode} 
+                    key="uq" 
+                    onMouseEnter={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setTooltip({
+                        visible: true,
+                        x: rect.left + rect.width / 2,
+                        y: rect.top - 60,
+                        content: 'Unique (고유키)\n중복된 값을 허용하지 않는 컬럼입니다.'
+                      });
+                    }}
+                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '' })}
+                  >
+                    UQ
+                  </HeaderCell>
+                  <HeaderCell 
+                    $darkMode={isDarkMode} 
+                    key="ai" 
+                    onMouseEnter={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setTooltip({
+                        visible: true,
+                        x: rect.left + rect.width / 2,
+                        y: rect.top - 80,
+                        content: 'Auto Increment (자동 증가)\n새 레코드 추가 시 자동으로 증가하는 컬럼입니다.\nPK, INT만 사용가능합니다.'
+                      });
+                    }}
+                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '' })}
+                  >
+                    AI
+                  </HeaderCell>
                   <HeaderCell $darkMode={isDarkMode} key="default">기본값/표현식</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="onDelete">ON DELETE</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="onUpdate">ON UPDATE</HeaderCell>
                   <HeaderCell $darkMode={isDarkMode} key="delete">삭제</HeaderCell>
                 </HeaderRow>
               </TableHeader>
@@ -1883,6 +2014,75 @@ const Layout = () => {
                         placeholder="Default value"
                       />
                     </TableCell>
+                    {/* FK 컬럼일 때만 ON DELETE, ON UPDATE 표시 */}
+                    {column.fk && (
+                      <>
+                                                <TableCell $darkMode={isDarkMode} key={`${column.id}-onDelete`}>
+                          <div
+                            style={{
+                              width: '100%',
+                              padding: '2px 4px',
+                              fontSize: '11px',
+                              border: `1px solid ${isDarkMode ? '#4a5568' : '#d0d0d0'}`,
+                              borderRadius: '2px',
+                              backgroundColor: isDarkMode ? '#374151' : 'white',
+                              color: isDarkMode ? '#e2e8f0' : 'inherit',
+                              cursor: 'pointer',
+                              position: 'relative',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between'
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setDropdownPosition({ top: rect.bottom + 2, left: rect.left });
+                              setDropdownType('onDelete');
+                              setDropdownColumnId(column.id);
+                              setDropdownOpen('fk-options');
+                            }}
+                          >
+                            <span>{column.onDelete || 'RESTRICT'}</span>
+                            <span style={{ fontSize: '8px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>▼</span>
+                          </div>
+                        </TableCell>
+                                                <TableCell $darkMode={isDarkMode} key={`${column.id}-onUpdate`}>
+                          <div
+                            style={{
+                              width: '100%',
+                              padding: '2px 4px',
+                              fontSize: '11px',
+                              border: `1px solid ${isDarkMode ? '#4a5568' : '#d0d0d0'}`,
+                              borderRadius: '2px',
+                              backgroundColor: isDarkMode ? '#374151' : 'white',
+                              color: isDarkMode ? '#e2e8f0' : 'inherit',
+                              cursor: 'pointer',
+                              position: 'relative',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between'
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setDropdownPosition({ top: rect.bottom + 2, left: rect.left });
+                              setDropdownType('onUpdate');
+                              setDropdownColumnId(column.id);
+                              setDropdownOpen('fk-options');
+                            }}
+                          >
+                            <span>{column.onUpdate || 'CASCADE'}</span>
+                            <span style={{ fontSize: '8px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>▼</span>
+                          </div>
+                        </TableCell>
+                      </>
+                    )}
+                    {!column.fk && (
+                      <>
+                        <TableCell $darkMode={isDarkMode} key={`${column.id}-onDelete`}></TableCell>
+                        <TableCell $darkMode={isDarkMode} key={`${column.id}-onUpdate`}></TableCell>
+                      </>
+                    )}
                     <TableCell $darkMode={isDarkMode} key={`${column.id}-delete`}>
                       <DeleteButton $darkMode={isDarkMode} onClick={() => deleteColumn(column.id)}>
                         Delete
@@ -1891,13 +2091,23 @@ const Layout = () => {
                   </TableRow>
                 ))}
                 <AddColumnRow $darkMode={isDarkMode} key="add-column">
-                  <AddColumnCell $darkMode={isDarkMode} colSpan={10} onClick={addColumn}>
+                  <AddColumnCell $darkMode={isDarkMode} colSpan={12} onClick={addColumn}>
                     + Add Column
                   </AddColumnCell>
                 </AddColumnRow>
               </TableBody>
             </Table>
           </TableContainer>
+          
+          {/* 툴팁 렌더링 */}
+                  <Tooltip 
+          visible={tooltip.visible} 
+          x={tooltip.x} 
+          y={tooltip.y} 
+          content={tooltip.content} 
+          darkMode={isDarkMode}
+          position={tooltip.position}
+        />
           
           {/* 테이블 커멘트 입력 영역 */}
           <div style={{ 
@@ -2014,8 +2224,32 @@ const Layout = () => {
                       setDropdownPosition(null);
                     }}
                     darkMode={isDarkMode}
+                    setTooltip={setTooltip}
                   />
                 )}
+                {dropdownOpen === 'fk-options' && dropdownPosition && (
+                  <PortalDropdown
+                    isOpen={true}
+                    position={dropdownPosition}
+                    onClose={() => {
+                      setDropdownOpen(null);
+                      setDropdownPosition(null);
+                    }}
+                    onSelect={(value) => {
+                      if (dropdownType === 'onDelete') {
+                        updateColumnField(dropdownColumnId!, 'onDelete', value);
+                      } else if (dropdownType === 'onUpdate') {
+                        updateColumnField(dropdownColumnId!, 'onUpdate', value);
+                      }
+                      setDropdownOpen(null);
+                      setDropdownPosition(null);
+                    }}
+                    darkMode={isDarkMode}
+                    dropdownType={dropdownType || undefined}
+                    setTooltip={setTooltip}
+                  />
+                )}
+
               </DataTypeInputContainer>
             </BottomField>
             <BottomField>

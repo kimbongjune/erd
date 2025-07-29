@@ -339,7 +339,7 @@ const InvisibleHandle = styled(Handle)`
 
 const Tooltip = styled.div<{ $visible: boolean; $x: number; $y: number }>`
   position: fixed;
-  left: ${props => props.$x + 8}px;
+  left: ${props => props.$x + 12}px;
   top: ${props => props.$y}px;
   transform: translateY(-50%);
   background: rgba(45, 45, 45, 0.95);

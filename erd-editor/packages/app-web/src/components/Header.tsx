@@ -1,7 +1,8 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash } from 'react-icons/fa';
+import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash, FaUpload } from 'react-icons/fa';
 import useStore from '../store/useStore';
+import { toast } from 'react-toastify';
 
 const HeaderContainer = styled.header<{ $darkMode?: boolean }>`
   grid-area: header;
@@ -92,9 +93,11 @@ const Header = () => {
     exportToSQL,
     saveToLocalStorage,
     loadFromLocalStorage,
-    clearLocalStorage
+    clearLocalStorage,
+    importFromSQL
   } = useStore();
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // JSON 관련 함수들 제거
 
@@ -114,6 +117,30 @@ const Header = () => {
       document.removeEventListener('click', handleClickOutside);
     };
   }, [isExportOpen]);
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.sql')) {
+      toast.error('SQL 파일만 업로드 가능합니다.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (content) {
+        importFromSQL(content);
+      }
+    };
+    reader.readAsText(file);
+    
+    // 파일 input 초기화
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   return (
     <HeaderContainer $darkMode={theme === 'dark'}>
@@ -153,6 +180,28 @@ const Header = () => {
         <FaTrash />
         데이터 삭제
       </ThemeToggleButton>
+      
+      {/* SQL 파일 업로드 버튼 */}
+      <ThemeToggleButton 
+        $darkMode={theme === 'dark'} 
+        onClick={(e) => {
+          e.stopPropagation();
+          fileInputRef.current?.click();
+        }}
+        title="SQL 파일을 업로드하여 엔티티를 생성합니다"
+      >
+        <FaUpload />
+        SQL 불러오기
+      </ThemeToggleButton>
+      
+      {/* 숨겨진 파일 input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".sql"
+        onChange={handleFileUpload}
+        style={{ display: 'none' }}
+      />
       
       <ExportContainer>
         <ThemeToggleButton 

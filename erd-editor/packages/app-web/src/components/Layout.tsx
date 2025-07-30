@@ -6,7 +6,7 @@ import Toolbox from './Toolbox';
 import Canvas from './Canvas';
 import useStore, { propagateColumnAddition, propagateColumnDeletion, propagateDataTypeChange } from '../store/useStore';
 import { toast } from 'react-toastify';
-import { MYSQL_DATATYPES, validateEnglishOnly, validateDataType, validatePhysicalName, validateDataTypeForSQL } from '../utils/mysqlTypes';
+import { MYSQL_DATATYPES, validateEnglishOnly, validateDataType, validatePhysicalName } from '../utils/mysqlTypes';
 import Tooltip from './Tooltip';
 
 const Container = styled.div<{ $darkMode?: boolean }>`
@@ -413,7 +413,7 @@ const DropdownButton = styled.button<{ $darkMode?: boolean; $visible?: boolean }
 
 const DropdownList = styled.div<{ $darkMode?: boolean; $show?: boolean }>`
   position: fixed;
-  width: 200px; /* 120px에서 200px로 확대 */
+  width: 120px;
   max-height: 150px;
   overflow-y: auto;
   overflow-x: hidden;
@@ -477,7 +477,7 @@ const PortalDropdown: React.FC<{
   onSelect: (type: string) => void;
   darkMode: boolean;
   dropdownType?: string;
-  setTooltip: (tooltip: { visible: boolean; x: number; y: number; content: string; position?: 'top' | 'left' }) => void;
+  setTooltip: React.Dispatch<React.SetStateAction<{ visible: boolean; x: number; y: number; content: string; position: 'top' | 'left' | undefined }>>;
 }> = ({ isOpen, position, onClose, onSelect, darkMode, dropdownType, setTooltip }) => {
   if (!isOpen || !position) return null;
 
@@ -503,7 +503,7 @@ const PortalDropdown: React.FC<{
         position: 'fixed',
         top: position.top,
         left: position.left,
-        width: dropdownType ? '140px' : '200px', /* 데이터타입 드롭다운은 200px로 확대 */
+        width: dropdownType ? '140px' : '120px',
         maxHeight: '150px',
         overflowY: 'auto',
         overflowX: 'hidden',
@@ -538,7 +538,7 @@ const PortalDropdown: React.FC<{
                 position: 'left'
               });
             }}
-            onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '' })}
+            onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '', position: 'left' })}
             onClick={() => {
               onSelect(option.value);
               setTooltip({ visible: false, x: 0, y: 0, content: '', position: 'left' });
@@ -555,35 +555,60 @@ const PortalDropdown: React.FC<{
           </div>
         ))
       ) : (
-        MYSQL_DATATYPES.map((type) => (
+        MYSQL_DATATYPES.map(type => (
           <div
             key={type}
             style={{
-              padding: '8px 12px',
+              padding: '8px 16px',
+              fontSize: '11px',
               cursor: 'pointer',
-              fontSize: '12px',
               color: darkMode ? '#e2e8f0' : '#333',
-              borderBottom: `1px solid ${darkMode ? '#4a5568' : '#eee'}`,
-              transition: 'background-color 0.2s ease',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
+              borderBottom: `1px solid ${darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+              transition: 'all 0.2s ease',
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault(); // blur 방지
             }}
             onClick={() => {
               onSelect(type);
               onClose();
             }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.backgroundColor = darkMode ? '#4a5568' : '#f5f5f5';
+            onMouseEnter={(e) => {
+              const target = e.target as HTMLElement;
+              target.style.background = `linear-gradient(135deg, ${darkMode ? '#4a90e2' : '#007acc'} 0%, ${darkMode ? '#357abd' : '#0056a3'} 100%)`;
+              target.style.color = '#ffffff';
+              target.style.transform = 'translateX(2px)';
+              target.style.boxShadow = 'inset 0 0 0 1px rgba(255,255,255,0.2)';
             }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
+            onMouseLeave={(e) => {
+              const target = e.target as HTMLElement;
+              target.style.background = 'transparent';
+              target.style.color = darkMode ? '#e2e8f0' : '#333';
+              target.style.transform = 'translateX(0)';
+              target.style.boxShadow = 'none';
             }}
           >
             {type}
           </div>
         ))
       )}
+      {/* 커스텀 스크롤바 스타일 */}
+      <style>{`
+        [data-dropdown]::-webkit-scrollbar {
+          width: 4px;
+        }
+        [data-dropdown]::-webkit-scrollbar-track {
+          background: ${darkMode ? '#2d3748' : '#f1f1f1'};
+          border-radius: 2px;
+        }
+        [data-dropdown]::-webkit-scrollbar-thumb {
+          background: ${darkMode ? '#4a5568' : '#c1c1c1'};
+          border-radius: 2px;
+        }
+        [data-dropdown]::-webkit-scrollbar-thumb:hover {
+          background: ${darkMode ? '#5a6578' : '#a1a1a1'};
+        }
+      `}</style>
     </div>,
     document.body
   );
@@ -810,6 +835,7 @@ const Layout = () => {
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
   const [dropdownType, setDropdownType] = useState<string | null>(null);
   const [dropdownColumnId, setDropdownColumnId] = useState<string | null>(null);
+  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, content: '', position: 'top' as 'top' | 'left' | undefined });
   const [initialRender, setInitialRender] = useState(true);
   const { 
     isBottomPanelOpen, 
@@ -834,13 +860,6 @@ const Layout = () => {
   const [selectedColumn, setSelectedColumn] = useState<any>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [isComposing, setIsComposing] = useState(false);
-  const [tooltip, setTooltip] = useState<{ visible: boolean; x: number; y: number; content: string; position?: 'top' | 'left' }>({
-    visible: false,
-    x: 0,
-    y: 0,
-    content: '',
-    position: 'top'
-  });
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
   // 초기 렌더링 지연으로 깜빡임 방지
@@ -888,7 +907,7 @@ const Layout = () => {
           return {
             ...col,
             id: hasValidId ? col.id : `col-${selectedNodeId}-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            dataType: col.dataType || col.type || 'VARCHAR', // dataType이 없으면 type으로 설정
+            dataType: col.dataType || col.type || '', // dataType이 없으면 type으로 설정
             type: col.type || col.dataType || 'VARCHAR', // type이 없으면 dataType으로 설정
             ai: col.ai || (col.constraint === 'AUTO_INCREMENT') // constraint가 AUTO_INCREMENT면 ai를 true로 설정
           };
@@ -1071,6 +1090,7 @@ const Layout = () => {
                 useStore.getState().deleteEdge(relationEdge.id);
                 
                 // 토스트 알림 추가
+                console.log('토스트 호출 시도:', `복합키 관계가 해제되었습니다. (${parentEntity.data.label} ↔ ${currentEntity.data.label})`);
                 toast.success(`복합키 관계가 해제되었습니다. (${parentEntity.data.label} ↔ ${currentEntity.data.label})`);
 
                 setTimeout(() => {
@@ -1103,6 +1123,7 @@ const Layout = () => {
                 useStore.getState().deleteEdge(relationEdge.id);
                 
                 // 토스트 알림 추가
+                console.log('토스트 호출 시도:', `관계가 해제되었습니다. (${parentEntity.data.label} ↔ ${currentEntity.data.label})`);
                 toast.success(`관계가 해제되었습니다. (${parentEntity.data.label} ↔ ${currentEntity.data.label})`);
                 
                 // Handle 업데이트
@@ -1118,7 +1139,7 @@ const Layout = () => {
         
         // 7. PK 컬럼을 삭제한 경우 - 자식 엔티티들의 관련 FK 처리
         if (columnToDelete.pk) {
-          console.log(`🗑️ PK 컬럼 삭제: ${columnToDelete.name}`);
+          console.log(`� PK 컬럼 삭제: ${columnToDelete.name}`);
           
           // 먼저 해당 컬럼 삭제
           const newColumns = columns.filter(col => col.id !== columnId);
@@ -1137,30 +1158,36 @@ const Layout = () => {
           // 현재 엔티티를 부모로 하는 모든 관계 찾기
           const childEdges = allEdges.filter(edge => edge.source === selectedNodeId);
           
-          if (childEdges.length > 0) {
-            // 하위 관계 해제에 대한 토스트 알림
-            const childEntityNames = childEdges.map(edge => {
-              const childNode = allNodes.find(n => n.id === edge.target);
-              return childNode?.data.label || '알 수 없는 엔티티';
-            });
-            
-            if (childEntityNames.length > 0) {
-              const childNamesText = childEntityNames.join(', ');
-              toast.success(`PK 컬럼 '${columnToDelete.name}' 삭제로 하위 관계가 해제되었습니다. (${currentEntity.data.label} → ${childNamesText})`);
+          childEdges.forEach(edge => {
+            const targetNode = allNodes.find(n => n.id === edge.target);
+            if (targetNode?.type === 'entity') {
+              const fkColumnName = `${currentEntity.data.label.toLowerCase()}_${columnToDelete.name}`;
+              const targetColumns = targetNode.data.columns || [];
+              
+              // 해당 FK 컬럼 제거
+              const updatedTargetColumns = targetColumns.filter((col: any) => col.name !== fkColumnName);
+              
+              // 타겟 노드 업데이트
+              const updatedNodes = useStore.getState().nodes.map(node => 
+                node.id === edge.target 
+                  ? { ...node, data: { ...node.data, columns: updatedTargetColumns } }
+                  : node
+              );
+              useStore.getState().setNodes(updatedNodes);
+              
+              // 남은 PK가 없으면 관계 끊기
+              if (remainingPkColumns.length === 0) {
+                useStore.getState().deleteEdge(edge.id);
+              }
             }
-            
-            // 재귀적으로 하위 계층까지 FK 전파
-            const propagationResult = propagateColumnDeletion(
-              selectedNodeId,
-              columnToDelete,
-              allNodes,
-              allEdges
-            );
-            
-            // 전파된 변경사항을 스토어에 반영
-            useStore.getState().setNodes(propagationResult.updatedNodes);
-            useStore.getState().setEdges(propagationResult.updatedEdges);
-          }
+          });
+          
+          // Handle 업데이트
+          setTimeout(() => {
+            updateEdgeHandles();
+          }, 200);
+          
+          return; // 여기서 종료
         }
         
         // 8. 일반 컬럼 삭제
@@ -1216,15 +1243,23 @@ const Layout = () => {
   };
 
   const updateColumnField = (columnId: string, field: string, value: any, skipValidation = false) => {
-    // 물리명 필드인 경우 입력 제한 적용
-    if (field === 'name' && !skipValidation) {
-      if (value && !validatePhysicalName(value)) {
-        toast.error('컬럼 물리명에는 소문자 영어, 숫자, 밑줄(_)만 사용할 수 있습니다.');
+    // 물리명과 데이터타입은 한국어만 차단
+    if ((field === 'name' || field === 'dataType') && typeof value === 'string') {
+      if (value && /[ㄱ-ㅎ가-힣]/.test(value)) {
+        toast.error(field === 'name' ? 
+          '물리명에는 한국어를 사용할 수 없습니다.' : 
+          '데이터타입에는 한국어를 사용할 수 없습니다.'
+        );
         return;
       }
     }
-
-    // 데이터타입 입력 시에는 어떤 제한도 두지 않음 (자유로운 입력 허용)
+    
+    // 컬럼명 중복 체크 (skipValidation이 true이면 검사하지 않음)
+    if (!skipValidation && field === 'name' && value && value.trim() !== '') {
+      if (!validateColumnName(columnId, value)) {
+        return; // 중복 시 업데이트 중단
+      }
+    }
 
     const newColumns = columns.map(col => {
       if (col.id === columnId) {
@@ -1251,8 +1286,15 @@ const Layout = () => {
                 allEdges
               );
               
-              // 전파된 변경사항을 스토어에 반영
+              // 결과로 받은 노드들로 업데이트
               useStore.getState().setNodes(propagationResult.updatedNodes);
+              
+
+              
+              // FK 추가 후 즉시 Handle 강제 업데이트
+              setTimeout(() => {
+                updateEdgeHandles();
+              }, 250);
             }
           }
         } else if (field === 'pk' && value === false) {
@@ -1309,7 +1351,6 @@ const Layout = () => {
         // UQ 체크박스 변경 시 constraint도 함께 업데이트
         if (field === 'uq') {
           if (value === true) {
-            updatedCol.nn = true; // UQ 체크하면 NN도 자동 체크
             updatedCol.constraint = 'UNIQUE';
           } else {
             // UQ 해제 시 constraint에서 UNIQUE 제거
@@ -1410,9 +1451,7 @@ const Layout = () => {
                   
                   const actionText = value ? '식별자' : '비식별자';
                   const relationshipDescription = isCompositeKeyRelation ? '복합키 ' : '';
-                  
-                  // 토스트 알림 추가
-                  toast.success(`${relationshipDescription}관계가 ${actionText} 관계로 변경되었습니다.`);
+      
                   
                   // 관계 타입 변경 후 즉시 Handle 강제 업데이트 - 더 긴 지연시간
                   setTimeout(() => {
@@ -1716,10 +1755,11 @@ const Layout = () => {
                         visible: true,
                         x: rect.left + rect.width / 2,
                         y: rect.top - 60,
-                        content: 'Primary Key (기본키)\n테이블의 고유 식별자로 사용되는 컬럼입니다.'
+                        content: 'Primary Key (기본키)\n테이블의 고유 식별자로 사용되는 컬럼입니다.',
+                        position: 'top'
                       });
                     }}
-                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '' })}
+                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '', position: 'top' })}
                   >
                     PK
                   </HeaderCell>
@@ -1732,10 +1772,11 @@ const Layout = () => {
                         visible: true,
                         x: rect.left + rect.width / 2,
                         y: rect.top - 60,
-                        content: 'Not Null (널 허용 안함)\nNULL 값을 허용하지 않는 컬럼입니다.'
+                        content: 'Not Null (널 허용 안함)\nNULL 값을 허용하지 않는 컬럼입니다.',
+                        position: 'top'
                       });
                     }}
-                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '' })}
+                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '', position: 'top' })}
                   >
                     NN
                   </HeaderCell>
@@ -1748,10 +1789,11 @@ const Layout = () => {
                         visible: true,
                         x: rect.left + rect.width / 2,
                         y: rect.top - 60,
-                        content: 'Unique (고유키)\n중복된 값을 허용하지 않는 컬럼입니다.'
+                        content: 'Unique (고유키)\n중복된 값을 허용하지 않는 컬럼입니다.',
+                        position: 'top'
                       });
                     }}
-                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '' })}
+                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '', position: 'top' })}
                   >
                     UQ
                   </HeaderCell>
@@ -1764,10 +1806,11 @@ const Layout = () => {
                         visible: true,
                         x: rect.left + rect.width / 2,
                         y: rect.top - 80,
-                        content: 'Auto Increment (자동 증가)\n새 레코드 추가 시 자동으로 증가하는 컬럼입니다.\nPK, INT만 사용가능합니다.'
+                        content: 'Auto Increment (자동 증가)\n새 레코드 추가 시 자동으로 증가하는 컬럼입니다.\nPK, INT만 사용가능합니다.',
+                        position: 'top'
                       });
                     }}
-                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '' })}
+                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '', position: 'top' })}
                   >
                     AI
                   </HeaderCell>
@@ -1847,7 +1890,7 @@ const Layout = () => {
                         $darkMode={isDarkMode}
                         className={editingCell === `${column.id}-name` ? 'editing' : ''}
                         data-editing={editingCell === `${column.id}-name` ? `${column.id}-name` : ''}
-                        value={column.name || ''}
+                        value={column.name === undefined ? '' : column.name}
                         onChange={(e) => {
                           const newValue = e.target.value;
                           // 허용되지 않는 문자만 필터링하여 제거
@@ -1882,7 +1925,7 @@ const Layout = () => {
                         $darkMode={isDarkMode}
                         className={editingCell === `${column.id}-logicalName` ? 'editing' : ''}
                         data-editing={editingCell === `${column.id}-logicalName` ? `${column.id}-logicalName` : ''}
-                        value={column.logicalName || ''}
+                        value={column.logicalName === undefined ? '' : column.logicalName}
                         onChange={(e) => updateColumnField(column.id, 'logicalName', e.target.value)}
                         onBlur={handleCellBlur}
                         onKeyDown={handleCellKeyDown}
@@ -1988,25 +2031,10 @@ const Layout = () => {
                         onChange={(e) => updateColumnField(column.id, 'ai', e.target.checked)}
                       />
                     </CheckboxCell>
-                    <TableCell $darkMode={isDarkMode} key={`${column.id}-default`} onDoubleClick={() => handleCellDoubleClick(column.id, 'defaultValue')}>
-                      <EditableCell 
-                        $darkMode={isDarkMode}
-                        className={editingCell === `${column.id}-defaultValue` ? 'editing' : ''}
-                        data-editing={editingCell === `${column.id}-defaultValue` ? `${column.id}-defaultValue` : ''}
-                        value={column.defaultValue || ''}
-                        onChange={(e) => updateColumnField(column.id, 'defaultValue', e.target.value)}
-                        onBlur={handleCellBlur}
-                        onKeyDown={handleCellKeyDown}
-                        onCompositionStart={handleCompositionStart}
-                        onCompositionEnd={handleCompositionEnd}
-                        readOnly={editingCell !== `${column.id}-defaultValue`}
-                        placeholder="Default value"
-                      />
-                    </TableCell>
                     {/* FK 컬럼일 때만 ON DELETE, ON UPDATE 표시 */}
                     {column.fk && (
                       <>
-                                                <TableCell $darkMode={isDarkMode} key={`${column.id}-onDelete`}>
+                        <TableCell $darkMode={isDarkMode} key={`${column.id}-onDelete`}>
                           <div
                             style={{
                               width: '100%',
@@ -2035,7 +2063,7 @@ const Layout = () => {
                             <span style={{ fontSize: '8px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>▼</span>
                           </div>
                         </TableCell>
-                                                <TableCell $darkMode={isDarkMode} key={`${column.id}-onUpdate`}>
+                        <TableCell $darkMode={isDarkMode} key={`${column.id}-onUpdate`}>
                           <div
                             style={{
                               width: '100%',
@@ -2072,6 +2100,21 @@ const Layout = () => {
                         <TableCell $darkMode={isDarkMode} key={`${column.id}-onUpdate`}></TableCell>
                       </>
                     )}
+                    <TableCell $darkMode={isDarkMode} key={`${column.id}-default`} onDoubleClick={() => handleCellDoubleClick(column.id, 'defaultValue')}>
+                      <EditableCell 
+                        $darkMode={isDarkMode}
+                        className={editingCell === `${column.id}-defaultValue` ? 'editing' : ''}
+                        data-editing={editingCell === `${column.id}-defaultValue` ? `${column.id}-defaultValue` : ''}
+                        value={column.defaultValue || ''}
+                        onChange={(e) => updateColumnField(column.id, 'defaultValue', e.target.value)}
+                        onBlur={handleCellBlur}
+                        onKeyDown={handleCellKeyDown}
+                        onCompositionStart={handleCompositionStart}
+                        onCompositionEnd={handleCompositionEnd}
+                        readOnly={editingCell !== `${column.id}-defaultValue`}
+                        placeholder="Default value"
+                      />
+                    </TableCell>
                     <TableCell $darkMode={isDarkMode} key={`${column.id}-delete`}>
                       <DeleteButton $darkMode={isDarkMode} onClick={() => deleteColumn(column.id)}>
                         Delete
@@ -2089,14 +2132,14 @@ const Layout = () => {
           </TableContainer>
           
           {/* 툴팁 렌더링 */}
-                  <Tooltip 
-          visible={tooltip.visible} 
-          x={tooltip.x} 
-          y={tooltip.y} 
-          content={tooltip.content} 
-          darkMode={isDarkMode}
-          position={tooltip.position}
-        />
+          <Tooltip 
+            visible={tooltip.visible} 
+            x={tooltip.x} 
+            y={tooltip.y} 
+            content={tooltip.content} 
+            darkMode={isDarkMode}
+            position={tooltip.position}
+          />
           
           {/* 테이블 커멘트 입력 영역 */}
           <div style={{ 
@@ -2140,27 +2183,7 @@ const Layout = () => {
                 $darkMode={isDarkMode}
                 type="text" 
                 value={selectedColumn?.name || ''} 
-                onChange={(e) => {
-                  if (selectedColumn) {
-                    const newValue = e.target.value;
-                    // 허용되지 않는 문자만 필터링하여 제거
-                    const filteredValue = newValue.replace(/[^a-zA-Z0-9_]/g, '');
-                    
-                    // MySQL 식별자 규칙: 숫자로 시작할 수 없음
-                    const finalValue = filteredValue.replace(/^[0-9]/, '');
-                    
-                    // 필터링된 값과 원본 값이 다르면 토스트 알림 표시
-                    if (newValue !== finalValue) {
-                      if (newValue.match(/^[0-9]/)) {
-                        toast.error('물리명은 숫자로 시작할 수 없습니다. 영문자나 밑줄(_)로 시작해야 합니다.');
-                      } else {
-                        toast.error('물리명에는 영문 대소문자, 숫자, 밑줄(_)만 사용할 수 있습니다.');
-                      }
-                    }
-                    
-                    updateColumnField(selectedColumn.id, 'name', finalValue, true);
-                  }
-                }}
+                onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'name', e.target.value, true)} // skipValidation=true
                 onBlur={(e) => selectedColumn && validateColumnName(selectedColumn.id, e.target.value)} // 포커스 아웃 시 검증
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !isComposing) {
@@ -2236,29 +2259,6 @@ const Layout = () => {
                     setTooltip={setTooltip}
                   />
                 )}
-                {dropdownOpen === 'fk-options' && dropdownPosition && (
-                  <PortalDropdown
-                    isOpen={true}
-                    position={dropdownPosition}
-                    onClose={() => {
-                      setDropdownOpen(null);
-                      setDropdownPosition(null);
-                    }}
-                    onSelect={(value) => {
-                      if (dropdownType === 'onDelete') {
-                        updateColumnField(dropdownColumnId!, 'onDelete', value);
-                      } else if (dropdownType === 'onUpdate') {
-                        updateColumnField(dropdownColumnId!, 'onUpdate', value);
-                      }
-                      setDropdownOpen(null);
-                      setDropdownPosition(null);
-                    }}
-                    darkMode={isDarkMode}
-                    dropdownType={dropdownType || undefined}
-                    setTooltip={setTooltip}
-                  />
-                )}
-
               </DataTypeInputContainer>
             </BottomField>
             <BottomField>
@@ -2298,6 +2298,30 @@ const Layout = () => {
                 onCompositionEnd={handleCompositionEnd}
               />
             </BottomField>
+            
+            {/* FK 옵션 드롭다운 */}
+            {dropdownOpen === 'fk-options' && dropdownPosition && (
+              <PortalDropdown
+                isOpen={true}
+                position={dropdownPosition}
+                onClose={() => {
+                  setDropdownOpen(null);
+                  setDropdownPosition(null);
+                }}
+                onSelect={(value) => {
+                  if (dropdownType === 'onDelete') {
+                    updateColumnField(dropdownColumnId!, 'onDelete', value);
+                  } else if (dropdownType === 'onUpdate') {
+                    updateColumnField(dropdownColumnId!, 'onUpdate', value);
+                  }
+                  setDropdownOpen(null);
+                  setDropdownPosition(null);
+                }}
+                darkMode={isDarkMode}
+                dropdownType={dropdownType || undefined}
+                setTooltip={setTooltip}
+              />
+            )}
           </BottomSection>
         </BottomPanelContainer>
       )}

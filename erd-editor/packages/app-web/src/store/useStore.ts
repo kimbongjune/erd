@@ -128,6 +128,23 @@ export const propagateColumnAddition = (
         // 관계 타입에 따라 PK 여부 결정
         const isIdentifyingRelationship = edge.type === 'one-to-one-identifying' || edge.type === 'one-to-many-identifying';
         
+        // 부모 컬럼의 논리명과 주석 확인
+        const parentLogicalName = addedColumn.logicalName || '';
+        const parentComment = addedColumn.comment || '';
+        
+        // FK 컬럼의 논리명 설정 (부모에 논리명이 있으면 복사, 없으면 빈 상태)
+        const fkLogicalName = parentLogicalName || '';
+        
+        // FK 컬럼의 주석 설정
+        let fkComment = '';
+        if (parentComment) {
+          // 부모에 주석이 있으면 그대로 복사
+          fkComment = parentComment;
+        } else {
+          // 부모에 주석이 없으면 한국어 기본값 설정
+          fkComment = `외래키 참조: ${parentNode.data.label}.${addedColumn.name}`;
+        }
+        
         const newFkColumn = {
           id: `fk-${edge.target}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           name: fkColumnName,
@@ -138,7 +155,8 @@ export const propagateColumnAddition = (
           nn: isIdentifyingRelationship,
           uq: false,
           ai: false,
-          comment: `Foreign key from ${parentNode.data.label}.${addedColumn.name}`,
+          comment: fkComment,
+          logicalName: fkLogicalName,
           defaultValue: '',
           parentEntityId: nodeId,
           parentColumnId: addedColumn.id || addedColumn.name,
@@ -1150,6 +1168,24 @@ const useStore = create<RFState>((set, get) => ({
 
           if (isIdentifyingRelationship) {
             // 식별자 관계: FK가 PK의 일부가 됨
+            
+            // 부모 컬럼의 논리명과 주석 확인
+            const parentLogicalName = sourcePkColumn.logicalName || '';
+            const parentComment = sourcePkColumn.comment || '';
+            
+            // FK 컬럼의 논리명 설정 (부모에 논리명이 있으면 복사, 없으면 빈 상태)
+            const fkLogicalName = parentLogicalName || '';
+            
+            // FK 컬럼의 주석 설정
+            let fkComment = '';
+            if (parentComment) {
+              // 부모에 주석이 있으면 그대로 복사
+              fkComment = parentComment;
+            } else {
+              // 부모에 주석이 없으면 한국어 기본값 설정
+              fkComment = `외래키 참조: ${sourceNode.data.label}.${sourcePkColumn.name}`;
+            }
+            
             if (existingFkIndex === -1) {
               newTargetColumns.push({ 
                 id: `${Date.now()}_${Math.random()}`,
@@ -1158,7 +1194,8 @@ const useStore = create<RFState>((set, get) => ({
                 pk: true, 
                 fk: true,
                 uk: false,
-                comment: `Foreign key from ${sourceNode.data.label}.${sourcePkColumn.name}`,
+                comment: fkComment,
+                logicalName: fkLogicalName,
                 // FK 관계 추적을 위한 메타데이터 추가 (문제 6 해결)
                 parentEntityId: sourceNode.id,
                 parentColumnId: sourcePkColumn.id || sourcePkColumn.name
@@ -1169,16 +1206,33 @@ const useStore = create<RFState>((set, get) => ({
                 pk: true, 
                 fk: true,
                 type: sourcePkColumn.type, // 타입 동기화
+                comment: fkComment,
+                logicalName: fkLogicalName,
                 // FK 관계 추적을 위한 메타데이터 추가 (문제 6 해결)
                 parentEntityId: sourceNode.id,
-                parentColumnId: sourcePkColumn.id || sourcePkColumn.name,
-                comment: shouldUseAdvancedSearch ? 
-                  `Foreign key from ${sourceNode.data.label}.${sourcePkColumn.name} (재사용됨)` :
-                  `Foreign key from ${sourceNode.data.label}.${sourcePkColumn.name}`
+                parentColumnId: sourcePkColumn.id || sourcePkColumn.name
               };
             }
           } else {
             // 비식별자 관계: FK는 일반 컬럼
+            
+            // 부모 컬럼의 논리명과 주석 확인
+            const parentLogicalName = sourcePkColumn.logicalName || '';
+            const parentComment = sourcePkColumn.comment || '';
+            
+            // FK 컬럼의 논리명 설정 (부모에 논리명이 있으면 복사, 없으면 빈 상태)
+            const fkLogicalName = parentLogicalName || '';
+            
+            // FK 컬럼의 주석 설정
+            let fkComment = '';
+            if (parentComment) {
+              // 부모에 주석이 있으면 그대로 복사
+              fkComment = parentComment;
+            } else {
+              // 부모에 주석이 없으면 한국어 기본값 설정
+              fkComment = `외래키 참조: ${sourceNode.data.label}.${sourcePkColumn.name}`;
+            }
+            
             if (existingFkIndex === -1) {
               newTargetColumns.push({ 
                 id: `${Date.now()}_${Math.random()}`,
@@ -1187,7 +1241,8 @@ const useStore = create<RFState>((set, get) => ({
                 pk: false, 
                 fk: true,
                 uk: false,
-                comment: `Foreign key from ${sourceNode.data.label}.${sourcePkColumn.name}`,
+                comment: fkComment,
+                logicalName: fkLogicalName,
                 // FK 관계 추적을 위한 메타데이터 추가 (문제 6 해결)
                 parentEntityId: sourceNode.id,
                 parentColumnId: sourcePkColumn.id || sourcePkColumn.name
@@ -1198,12 +1253,11 @@ const useStore = create<RFState>((set, get) => ({
                 pk: false, 
                 fk: true,
                 type: sourcePkColumn.type, // 타입 동기화
+                comment: fkComment,
+                logicalName: fkLogicalName,
                 // FK 관계 추적을 위한 메타데이터 추가 (문제 6 해결)
                 parentEntityId: sourceNode.id,
-                parentColumnId: sourcePkColumn.id || sourcePkColumn.name,
-                comment: shouldUseAdvancedSearch ? 
-                  `Foreign key from ${sourceNode.data.label}.${sourcePkColumn.name} (재사용됨)` :
-                  `Foreign key from ${sourceNode.data.label}.${sourcePkColumn.name}`
+                parentColumnId: sourcePkColumn.id || sourcePkColumn.name
               };
             }
           }

@@ -6,7 +6,7 @@ import Toolbox from './Toolbox';
 import Canvas from './Canvas';
 import useStore, { propagateColumnAddition, propagateColumnDeletion, propagateDataTypeChange } from '../store/useStore';
 import { toast } from 'react-toastify';
-import { MYSQL_DATATYPES, validateEnglishOnly, validateDataType } from '../utils/mysqlTypes';
+import { MYSQL_DATATYPES, validateEnglishOnly, validateDataType, validatePhysicalName, validateDataTypeForSQL } from '../utils/mysqlTypes';
 import Tooltip from './Tooltip';
 
 const Container = styled.div<{ $darkMode?: boolean }>`
@@ -413,7 +413,7 @@ const DropdownButton = styled.button<{ $darkMode?: boolean; $visible?: boolean }
 
 const DropdownList = styled.div<{ $darkMode?: boolean; $show?: boolean }>`
   position: fixed;
-  width: 120px;
+  width: 200px; /* 120px에서 200px로 확대 */
   max-height: 150px;
   overflow-y: auto;
   overflow-x: hidden;
@@ -503,7 +503,7 @@ const PortalDropdown: React.FC<{
         position: 'fixed',
         top: position.top,
         left: position.left,
-        width: dropdownType ? '140px' : '120px',
+        width: dropdownType ? '140px' : '200px', /* 데이터타입 드롭다운은 200px로 확대 */
         maxHeight: '150px',
         overflowY: 'auto',
         overflowX: 'hidden',
@@ -555,60 +555,35 @@ const PortalDropdown: React.FC<{
           </div>
         ))
       ) : (
-                MYSQL_DATATYPES.map(type => (
+        MYSQL_DATATYPES.map((type) => (
           <div
             key={type}
             style={{
-              padding: '8px 16px',
-              fontSize: '11px',
+              padding: '8px 12px',
               cursor: 'pointer',
+              fontSize: '12px',
               color: darkMode ? '#e2e8f0' : '#333',
-              borderBottom: `1px solid ${darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
-              transition: 'all 0.2s ease',
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault(); // blur 방지
+              borderBottom: `1px solid ${darkMode ? '#4a5568' : '#eee'}`,
+              transition: 'background-color 0.2s ease',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
             }}
             onClick={() => {
               onSelect(type);
               onClose();
             }}
-            onMouseEnter={(e) => {
-              const target = e.target as HTMLElement;
-              target.style.background = `linear-gradient(135deg, ${darkMode ? '#4a90e2' : '#007acc'} 0%, ${darkMode ? '#357abd' : '#0056a3'} 100%)`;
-              target.style.color = '#ffffff';
-              target.style.transform = 'translateX(2px)';
-              target.style.boxShadow = 'inset 0 0 0 1px rgba(255,255,255,0.2)';
+            onMouseOver={(e) => {
+              e.currentTarget.style.backgroundColor = darkMode ? '#4a5568' : '#f5f5f5';
             }}
-            onMouseLeave={(e) => {
-              const target = e.target as HTMLElement;
-              target.style.background = 'transparent';
-              target.style.color = darkMode ? '#e2e8f0' : '#333';
-              target.style.transform = 'translateX(0)';
-              target.style.boxShadow = 'none';
+            onMouseOut={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
             }}
           >
             {type}
           </div>
         ))
       )}
-      {/* 커스텀 스크롤바 스타일 */}
-      <style>{`
-        [data-dropdown]::-webkit-scrollbar {
-          width: 4px;
-        }
-        [data-dropdown]::-webkit-scrollbar-track {
-          background: ${darkMode ? '#2d3748' : '#f1f1f1'};
-          border-radius: 2px;
-        }
-        [data-dropdown]::-webkit-scrollbar-thumb {
-          background: ${darkMode ? '#4a5568' : '#c1c1c1'};
-          border-radius: 2px;
-        }
-        [data-dropdown]::-webkit-scrollbar-thumb:hover {
-          background: ${darkMode ? '#5a6578' : '#a1a1a1'};
-        }
-      `}</style>
     </div>,
     document.body
   );
@@ -902,8 +877,8 @@ const Layout = () => {
     if (selectedNodeId && isBottomPanelOpen) {
       const selectedNode = nodes.find(node => node.id === selectedNodeId);
       if (selectedNode && selectedNode.type === 'entity') {
-        setTableName(selectedNode.data.physicalName || selectedNode.data.label || 'table1');
-        setTableLogicalName(selectedNode.data.logicalName || 'Table');
+        setTableName(selectedNode.data.physicalName || selectedNode.data.label || '');
+        setTableLogicalName(selectedNode.data.logicalName || '');
         const nodeColumns = selectedNode.data.columns || [];
         // 컬럼이 없으면 빈 배열로 시작
         // id가 없는 컬럼에 고유 id 부여하고 dataType과 type 동기화
@@ -1243,23 +1218,15 @@ const Layout = () => {
   };
 
   const updateColumnField = (columnId: string, field: string, value: any, skipValidation = false) => {
-    // 물리명과 데이터타입은 한국어만 차단
-    if ((field === 'name' || field === 'dataType') && typeof value === 'string') {
-      if (value && /[ㄱ-ㅎ가-힣]/.test(value)) {
-        toast.error(field === 'name' ? 
-          '물리명에는 한국어를 사용할 수 없습니다.' : 
-          '데이터타입에는 한국어를 사용할 수 없습니다.'
-        );
+    // 물리명 필드인 경우 입력 제한 적용
+    if (field === 'name' && !skipValidation) {
+      if (value && !validatePhysicalName(value)) {
+        toast.error('컬럼 물리명에는 소문자 영어, 숫자, 밑줄(_)만 사용할 수 있습니다.');
         return;
       }
     }
-    
-    // 컬럼명 중복 체크 (skipValidation이 true이면 검사하지 않음)
-    if (!skipValidation && field === 'name' && value && value.trim() !== '') {
-      if (!validateColumnName(columnId, value)) {
-        return; // 중복 시 업데이트 중단
-      }
-    }
+
+    // 데이터타입 입력 시에는 어떤 제한도 두지 않음 (자유로운 입력 허용)
 
     const newColumns = columns.map(col => {
       if (col.id === columnId) {
@@ -1286,15 +1253,8 @@ const Layout = () => {
                 allEdges
               );
               
-              // 결과로 받은 노드들로 업데이트
+              // 전파된 변경사항을 스토어에 반영
               useStore.getState().setNodes(propagationResult.updatedNodes);
-              
-
-              
-              // FK 추가 후 즉시 Handle 강제 업데이트
-              setTimeout(() => {
-                updateEdgeHandles();
-              }, 250);
             }
           }
         } else if (field === 'pk' && value === false) {
@@ -1351,6 +1311,7 @@ const Layout = () => {
         // UQ 체크박스 변경 시 constraint도 함께 업데이트
         if (field === 'uq') {
           if (value === true) {
+            updatedCol.nn = true; // UQ 체크하면 NN도 자동 체크
             updatedCol.constraint = 'UNIQUE';
           } else {
             // UQ 해제 시 constraint에서 UNIQUE 제거
@@ -1503,20 +1464,29 @@ const Layout = () => {
   };
 
   const updateTableName = (newName: string) => {
-    // 한국어만 차단 (영어, 숫자, 기호는 허용)
-    if (newName && /[ㄱ-ㅎ가-힣]/.test(newName)) {
-      toast.error('물리명에는 한국어를 사용할 수 없습니다.');
-      return;
+    // 허용되지 않는 문자만 필터링하여 제거
+    const filteredValue = newName.replace(/[^a-zA-Z0-9_]/g, '');
+    
+    // MySQL 식별자 규칙: 숫자로 시작할 수 없음
+    const finalValue = filteredValue.replace(/^[0-9]/, '');
+    
+    // 필터링된 값과 원본 값이 다르면 토스트 알림 표시
+    if (newName !== finalValue) {
+      if (newName.match(/^[0-9]/)) {
+        toast.error('물리명은 숫자로 시작할 수 없습니다. 영문자나 밑줄(_)로 시작해야 합니다.');
+      } else {
+        toast.error('물리명에는 영문 대소문자, 숫자, 밑줄(_)만 사용할 수 있습니다.');
+      }
     }
     
-    setTableName(newName);
+    setTableName(finalValue);
     if (selectedNodeId) {
       const selectedNode = nodes.find(node => node.id === selectedNodeId);
       if (selectedNode) {
         updateNodeData(selectedNodeId, {
           ...selectedNode.data,
-          label: newName,
-          physicalName: newName
+          label: finalValue,
+          physicalName: finalValue
         });
       }
     }
@@ -1878,7 +1848,25 @@ const Layout = () => {
                         className={editingCell === `${column.id}-name` ? 'editing' : ''}
                         data-editing={editingCell === `${column.id}-name` ? `${column.id}-name` : ''}
                         value={column.name || ''}
-                        onChange={(e) => updateColumnField(column.id, 'name', e.target.value, true)} // skipValidation=true
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          // 허용되지 않는 문자만 필터링하여 제거
+                          const filteredValue = newValue.replace(/[^a-zA-Z0-9_]/g, '');
+                          
+                          // MySQL 식별자 규칙: 숫자로 시작할 수 없음
+                          const finalValue = filteredValue.replace(/^[0-9]/, '');
+                          
+                          // 필터링된 값과 원본 값이 다르면 토스트 알림 표시
+                          if (newValue !== finalValue) {
+                            if (newValue.match(/^[0-9]/)) {
+                              toast.error('물리명은 숫자로 시작할 수 없습니다. 영문자나 밑줄(_)로 시작해야 합니다.');
+                            } else {
+                              toast.error('물리명에는 영문 대소문자, 숫자, 밑줄(_)만 사용할 수 있습니다.');
+                            }
+                          }
+                          
+                          updateColumnField(column.id, 'name', finalValue, true);
+                        }}
                         onBlur={(e) => {
                           handleCellBlur();
                           validateColumnName(column.id, e.target.value); // 포커스 아웃 시 검증
@@ -1961,6 +1949,7 @@ const Layout = () => {
                               setEditingCell(null);
                             }}
                             darkMode={isDarkMode}
+                            setTooltip={setTooltip}
                           />
                         )}
                       </DataTypeInputContainer>
@@ -2151,7 +2140,27 @@ const Layout = () => {
                 $darkMode={isDarkMode}
                 type="text" 
                 value={selectedColumn?.name || ''} 
-                onChange={(e) => selectedColumn && updateColumnField(selectedColumn.id, 'name', e.target.value, true)} // skipValidation=true
+                onChange={(e) => {
+                  if (selectedColumn) {
+                    const newValue = e.target.value;
+                    // 허용되지 않는 문자만 필터링하여 제거
+                    const filteredValue = newValue.replace(/[^a-zA-Z0-9_]/g, '');
+                    
+                    // MySQL 식별자 규칙: 숫자로 시작할 수 없음
+                    const finalValue = filteredValue.replace(/^[0-9]/, '');
+                    
+                    // 필터링된 값과 원본 값이 다르면 토스트 알림 표시
+                    if (newValue !== finalValue) {
+                      if (newValue.match(/^[0-9]/)) {
+                        toast.error('물리명은 숫자로 시작할 수 없습니다. 영문자나 밑줄(_)로 시작해야 합니다.');
+                      } else {
+                        toast.error('물리명에는 영문 대소문자, 숫자, 밑줄(_)만 사용할 수 있습니다.');
+                      }
+                    }
+                    
+                    updateColumnField(selectedColumn.id, 'name', finalValue, true);
+                  }
+                }}
                 onBlur={(e) => selectedColumn && validateColumnName(selectedColumn.id, e.target.value)} // 포커스 아웃 시 검증
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !isComposing) {

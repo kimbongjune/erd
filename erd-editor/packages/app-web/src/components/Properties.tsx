@@ -1,6 +1,7 @@
 import styled from 'styled-components';
 import useStore from '../store/useStore';
 import { useState } from 'react';
+import { toast } from 'react-toastify';
 
 const PropertiesContainer = styled.aside<{ $darkMode?: boolean }>`
   grid-area: properties;
@@ -116,9 +117,24 @@ const Properties = () => {
   };
 
   const handlePhysicalNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setPhysicalName(value);
-    updateNodeData(selectedNode.id, { ...selectedNode.data, physicalName: value });
+    const newValue = e.target.value;
+    // 허용되지 않는 문자만 필터링하여 제거
+    const filteredValue = newValue.replace(/[^a-zA-Z0-9_]/g, '');
+    
+    // MySQL 식별자 규칙: 숫자로 시작할 수 없음
+    const finalValue = filteredValue.replace(/^[0-9]/, '');
+    
+    // 필터링된 값과 원본 값이 다르면 토스트 알림 표시
+    if (newValue !== finalValue) {
+      if (newValue.match(/^[0-9]/)) {
+        toast.error('물리명은 숫자로 시작할 수 없습니다. 영문자나 밑줄(_)로 시작해야 합니다.');
+      } else {
+        toast.error('물리명에는 영문 대소문자, 숫자, 밑줄(_)만 사용할 수 있습니다.');
+      }
+    }
+    
+    setPhysicalName(finalValue);
+    updateNodeData(selectedNode.id, { ...selectedNode.data, physicalName: finalValue });
   };
 
   const handleLogicalNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {

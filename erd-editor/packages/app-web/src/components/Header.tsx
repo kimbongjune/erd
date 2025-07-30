@@ -247,7 +247,7 @@ const Header = () => {
           toggleTheme();
         }}
       >
-        {theme === 'dark' ? '☀️' : '🌙'}
+        {theme === 'dark' ? '☀️ ' : '🌙 '}
         {theme === 'dark' ? 'Light' : 'Dark'}
       </ThemeToggleButton>
     </HeaderContainer>

@@ -678,7 +678,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
             {/* 엔티티 보기방식에 따른 조건부 렌더링 */}
             {viewSettings.entityView === 'physical' && (
               <EntityName>
-                {data.physicalName || data.label || 'NewTable'}
+                {data.physicalName || data.label || ''}
               </EntityName>
             )}
             {viewSettings.entityView === 'logical' && (
@@ -689,7 +689,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
             {viewSettings.entityView === 'both' && (
               <>
                 <EntityName>
-                  {data.physicalName || data.label || 'NewTable'}
+                  {data.physicalName || data.label || ''}
                 </EntityName>
                 <EntityLogicalName>
                   {data.logicalName || 'Table'}

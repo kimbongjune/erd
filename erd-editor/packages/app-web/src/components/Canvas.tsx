@@ -249,8 +249,8 @@ const Canvas = () => {
           backgroundColor: '#ffffff',
           width: captureWidth,
           height: captureHeight,
-          pixelRatio: 2, // 고화질을 위해 픽셀 비율 증가
-          quality: 0.95,
+          pixelRatio: 3, // 고화질을 위해 픽셀 비율 증가 (2 → 3)
+          quality: 1.0, // 최고 품질로 설정 (0.95 → 1.0)
           filter: (node) => {
             // 최소한의 필터링만
             if (node.classList) {
@@ -433,7 +433,7 @@ const Canvas = () => {
           type: 'entity',
           position,
           data: {
-            label: 'New Entity',
+            label: 'NewEntity',
             columns: [], // 기본 컬럼 제거
           },
         };

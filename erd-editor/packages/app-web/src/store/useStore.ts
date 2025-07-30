@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Node, Edge, OnNodesChange, OnEdgesChange, applyNodeChanges, applyEdgeChanges, addEdge, Connection, NodeChange, MarkerType } from 'reactflow';
 import { toast } from 'react-toastify';
 import { createHandleId } from '../utils/handleUtils';
+import { validateDataTypeForSQL } from '../utils/mysqlTypes';
 
 // SQL 파싱 관련 타입 정의
 interface ParsedColumn {
@@ -1578,26 +1579,157 @@ const useStore = create<RFState>((set, get) => ({
     const { nodes, edges } = get();
     const entityNodes = nodes.filter(node => node.type === 'entity');
     
-    // 유효성 검사
+    // 엔티티 물리명이 비어있는 경우 검증
+    for (const node of entityNodes) {
+      if (!node.data.label || node.data.label.trim() === '') {
+        // 해당 엔티티를 활성화
+        get().setSelectedNodeId(node.id);
+        get().setBottomPanelOpen(true);
+        
+        // 엔티티를 화면 중앙으로 이동
+        const nodeElement = document.querySelector(`[data-id="${node.id}"]`) as HTMLElement;
+        if (nodeElement) {
+          // ReactFlow의 fitView를 사용하여 특정 노드에 zoom to fit 적용
+          const reactFlowInstance = (window as any).reactFlowInstance;
+          if (reactFlowInstance) {
+            reactFlowInstance.fitView({
+              nodes: [node],
+              padding: 0.2, // 원래대로 복원
+              duration: 500
+            });
+          }
+        }
+        
+        setTimeout(() => {
+          toast.error(`엔티티의 물리명이 비어있습니다. (ID: ${node.id})`);
+        }, 200);
+        return;
+      }
+    }
+    
+    // 중복 테이블명 검증
     const tableNames = entityNodes.map(node => node.data.label);
     const duplicateTableNames = tableNames.filter((name, index) => tableNames.indexOf(name) !== index);
     
     if (duplicateTableNames.length > 0) {
       const uniqueDuplicates = [...new Set(duplicateTableNames)];
-      toast.error(`중복된 테이블 이름이 있습니다: ${uniqueDuplicates.join(', ')}`);
+      const firstDuplicateName = uniqueDuplicates[0];
+      const duplicateNode = entityNodes.find(node => node.data.label === firstDuplicateName);
+      
+      if (duplicateNode) {
+        get().setSelectedNodeId(duplicateNode.id);
+        get().setBottomPanelOpen(true);
+        
+        // 엔티티를 화면 중앙으로 이동
+        const nodeElement = document.querySelector(`[data-id="${duplicateNode.id}"]`) as HTMLElement;
+        if (nodeElement) {
+          // ReactFlow의 fitView를 사용하여 특정 노드에 zoom to fit 적용
+          const reactFlowInstance = (window as any).reactFlowInstance;
+          if (reactFlowInstance) {
+            reactFlowInstance.fitView({
+              nodes: [duplicateNode],
+              padding: 0.2, // 원래대로 복원
+              duration: 500
+            });
+          }
+        }
+      }
+      
+      setTimeout(() => {
+        toast.error(`중복된 테이블 이름이 있습니다: ${uniqueDuplicates.join(', ')}`);
+      }, 200);
       return;
     }
     
-    // 각 테이블 내에서 중복 컬럼 이름 검사
+    // 각 테이블 내에서 컬럼 검증
     for (const node of entityNodes) {
       const columns = node.data.columns || [];
+      
+      // 컬럼 물리명이 비어있는 경우 검증
+      for (const column of columns) {
+        if (!column.name || column.name.trim() === '') {
+          get().setSelectedNodeId(node.id);
+          get().setBottomPanelOpen(true);
+          
+          // 엔티티를 화면 중앙으로 이동
+          const nodeElement = document.querySelector(`[data-id="${node.id}"]`) as HTMLElement;
+          if (nodeElement) {
+            // ReactFlow의 fitView를 사용하여 특정 노드에 zoom to fit 적용
+            const reactFlowInstance = (window as any).reactFlowInstance;
+            if (reactFlowInstance) {
+              reactFlowInstance.fitView({
+                nodes: [node],
+                padding: 0.2, // 원래대로 복원
+                duration: 500
+              });
+            }
+          }
+          
+          setTimeout(() => {
+            toast.error(`테이블 '${node.data.label}'의 컬럼 물리명이 비어있습니다.`);
+          }, 200);
+          return;
+        }
+      }
+      
+      // 중복 컬럼명 검증
       const columnNames = columns.map((col: any) => col.name);
       const duplicateColumnNames = columnNames.filter((name: string, index: number) => columnNames.indexOf(name) !== index);
       
       if (duplicateColumnNames.length > 0) {
         const uniqueDuplicates = [...new Set(duplicateColumnNames)];
-        toast.error(`테이블 '${node.data.label}'에 중복된 컬럼 이름이 있습니다: ${uniqueDuplicates.join(', ')}`);
+        get().setSelectedNodeId(node.id);
+        get().setBottomPanelOpen(true);
+        
+        // 엔티티를 화면 중앙으로 이동
+        const nodeElement = document.querySelector(`[data-id="${node.id}"]`) as HTMLElement;
+        if (nodeElement) {
+          // ReactFlow의 fitView를 사용하여 특정 노드에 zoom to fit 적용
+          const reactFlowInstance = (window as any).reactFlowInstance;
+          if (reactFlowInstance) {
+            reactFlowInstance.fitView({
+              nodes: [node],
+              padding: 0.2, // 원래대로 복원
+              duration: 500
+            });
+          }
+        }
+        
+        setTimeout(() => {
+          toast.error(`테이블 '${node.data.label}'에 중복된 컬럼 이름이 있습니다: ${uniqueDuplicates.join(', ')}`);
+        }, 200);
         return;
+      }
+      
+      // 데이터타입 유효성 검사
+      for (const column of columns) {
+        const dataType = column.dataType || column.type;
+        if (dataType) {
+          const validation = validateDataTypeForSQL(dataType);
+          if (!validation.isValid) {
+            get().setSelectedNodeId(node.id);
+            get().setBottomPanelOpen(true);
+            
+            // 엔티티를 화면 중앙으로 이동
+            const nodeElement = document.querySelector(`[data-id="${node.id}"]`) as HTMLElement;
+            if (nodeElement) {
+              // ReactFlow의 fitView를 사용하여 특정 노드에 zoom to fit 적용
+              const reactFlowInstance = (window as any).reactFlowInstance;
+              if (reactFlowInstance) {
+                reactFlowInstance.fitView({
+                  nodes: [node],
+                  padding: 0.2, // 원래대로 복원
+                  duration: 500
+                });
+              }
+            }
+            
+            setTimeout(() => {
+              toast.error(`테이블 '${node.data.label}'의 컬럼 '${column.name}': ${validation.error}`);
+            }, 200);
+            return;
+          }
+        }
       }
     }
     
@@ -1674,21 +1806,22 @@ const useStore = create<RFState>((set, get) => ({
                 sql += ` ON UPDATE ${fkCol.onUpdate}`;
               }
               
-              sql += `;\n\n`;
+              sql += ';\n\n';
             }
           });
         }
       }
     });
     
-    // SQL 파일로 다운로드
-    const blob = new Blob([sql], { type: 'text/sql;charset=utf-8' });
+    // 파일 다운로드
+    const blob = new Blob([sql], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'schema.sql';
-    a.click();
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'database_schema.sql';
+    link.click();
     URL.revokeObjectURL(url);
+    toast.success('SQL 파일이 다운로드되었습니다.');
   },
   
   // 뷰 설정 함수들

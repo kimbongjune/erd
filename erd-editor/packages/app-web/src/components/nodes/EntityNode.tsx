@@ -76,7 +76,21 @@ const NodeContainer = styled.div<{ $isSelected: boolean; $darkMode?: boolean; $c
 const Header = styled.div<{ $darkMode?: boolean; $color?: string }>`
   padding: 8px 12px;
   background: ${props => props.$color ? `linear-gradient(135deg, ${props.$color} 0%, ${getActiveColor(props.$color)} 100%)` : 'linear-gradient(135deg, #007acc 0%, #005999 100%)'};
-  color: white;
+  color: ${props => {
+    if (!props.$color) return 'white';
+    
+    // 배경색의 명도를 계산하여 텍스트 색상 결정
+    const hex = props.$color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // 명도 계산 (0-255)
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    
+    // 명도가 128 이상이면 어두운 텍스트, 그렇지 않으면 밝은 텍스트
+    return brightness > 128 ? '#000000' : '#ffffff';
+  }};
   font-weight: 600;
   font-size: 16px;
   border-radius: 5px 5px 0 0;

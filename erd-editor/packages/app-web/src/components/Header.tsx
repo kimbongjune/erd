@@ -1,8 +1,9 @@
-import { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash, FaUpload } from 'react-icons/fa';
 import useStore from '../store/useStore';
 import { toast } from 'react-toastify';
+import { customConfirm } from '../utils/confirmUtils';
 
 const HeaderContainer = styled.header<{ $darkMode?: boolean }>`
   grid-area: header;
@@ -170,9 +171,16 @@ const Header = () => {
       
       <ThemeToggleButton 
         $darkMode={theme === 'dark'} 
-        onClick={(e) => {
+        onClick={async (e) => {
           e.stopPropagation();
-          if (confirm('저장된 모든 데이터를 삭제하시겠습니까?')) {
+          const confirmed = await customConfirm('저장된 모든 데이터를 삭제하시겠습니까?', {
+            title: '데이터 삭제',
+            confirmText: '삭제',
+            cancelText: '취소',
+            type: 'danger',
+            darkMode: theme === 'dark'
+          });
+          if (confirmed) {
             clearLocalStorage();
           }
         }}

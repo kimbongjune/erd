@@ -1069,6 +1069,9 @@ const Layout = () => {
                 }
                 // 관계선 삭제
                 useStore.getState().deleteEdge(relationEdge.id);
+                
+                // 토스트 알림 추가
+                toast.success(`복합키 관계가 해제되었습니다. (${parentEntity.data.label} ↔ ${currentEntity.data.label})`);
 
                 setTimeout(() => {
                   updateEdgeHandles();
@@ -1099,7 +1102,8 @@ const Layout = () => {
                 // 관계선 삭제
                 useStore.getState().deleteEdge(relationEdge.id);
                 
-                
+                // 토스트 알림 추가
+                toast.success(`관계가 해제되었습니다. (${parentEntity.data.label} ↔ ${currentEntity.data.label})`);
                 
                 // Handle 업데이트
                 setTimeout(() => {
@@ -1114,7 +1118,7 @@ const Layout = () => {
         
         // 7. PK 컬럼을 삭제한 경우 - 자식 엔티티들의 관련 FK 처리
         if (columnToDelete.pk) {
-          console.log(`� PK 컬럼 삭제: ${columnToDelete.name}`);
+          console.log(`🗑️ PK 컬럼 삭제: ${columnToDelete.name}`);
           
           // 먼저 해당 컬럼 삭제
           const newColumns = columns.filter(col => col.id !== columnId);
@@ -1133,36 +1137,30 @@ const Layout = () => {
           // 현재 엔티티를 부모로 하는 모든 관계 찾기
           const childEdges = allEdges.filter(edge => edge.source === selectedNodeId);
           
-          childEdges.forEach(edge => {
-            const targetNode = allNodes.find(n => n.id === edge.target);
-            if (targetNode?.type === 'entity') {
-              const fkColumnName = `${currentEntity.data.label.toLowerCase()}_${columnToDelete.name}`;
-              const targetColumns = targetNode.data.columns || [];
-              
-              // 해당 FK 컬럼 제거
-              const updatedTargetColumns = targetColumns.filter((col: any) => col.name !== fkColumnName);
-              
-              // 타겟 노드 업데이트
-              const updatedNodes = useStore.getState().nodes.map(node => 
-                node.id === edge.target 
-                  ? { ...node, data: { ...node.data, columns: updatedTargetColumns } }
-                  : node
-              );
-              useStore.getState().setNodes(updatedNodes);
-              
-              // 남은 PK가 없으면 관계 끊기
-              if (remainingPkColumns.length === 0) {
-                useStore.getState().deleteEdge(edge.id);
-              }
+          if (childEdges.length > 0) {
+            // 하위 관계 해제에 대한 토스트 알림
+            const childEntityNames = childEdges.map(edge => {
+              const childNode = allNodes.find(n => n.id === edge.target);
+              return childNode?.data.label || '알 수 없는 엔티티';
+            });
+            
+            if (childEntityNames.length > 0) {
+              const childNamesText = childEntityNames.join(', ');
+              toast.success(`PK 컬럼 '${columnToDelete.name}' 삭제로 하위 관계가 해제되었습니다. (${currentEntity.data.label} → ${childNamesText})`);
             }
-          });
-          
-          // Handle 업데이트
-          setTimeout(() => {
-            updateEdgeHandles();
-          }, 200);
-          
-          return; // 여기서 종료
+            
+            // 재귀적으로 하위 계층까지 FK 전파
+            const propagationResult = propagateColumnDeletion(
+              selectedNodeId,
+              columnToDelete,
+              allNodes,
+              allEdges
+            );
+            
+            // 전파된 변경사항을 스토어에 반영
+            useStore.getState().setNodes(propagationResult.updatedNodes);
+            useStore.getState().setEdges(propagationResult.updatedEdges);
+          }
         }
         
         // 8. 일반 컬럼 삭제
@@ -1412,7 +1410,9 @@ const Layout = () => {
                   
                   const actionText = value ? '식별자' : '비식별자';
                   const relationshipDescription = isCompositeKeyRelation ? '복합키 ' : '';
-      
+                  
+                  // 토스트 알림 추가
+                  toast.success(`${relationshipDescription}관계가 ${actionText} 관계로 변경되었습니다.`);
                   
                   // 관계 타입 변경 후 즉시 Handle 강제 업데이트 - 더 긴 지연시간
                   setTimeout(() => {

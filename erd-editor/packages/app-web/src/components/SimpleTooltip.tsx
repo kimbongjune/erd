@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import styled from 'styled-components';
 
 interface SimpleTooltipProps {
@@ -21,7 +21,7 @@ const TooltipContainer = styled.div<{ $visible: boolean; $x: number; $y: number;
   z-index: 99999;
   opacity: ${props => props.$visible ? 1 : 0};
   visibility: ${props => props.$visible ? 'visible' : 'hidden'};
-  transition: all 0.2s ease;
+  transition: opacity 0.15s ease;
   white-space: nowrap;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   border: 1px solid ${props => props.$darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)'};
@@ -40,22 +40,26 @@ const TooltipContainer = styled.div<{ $visible: boolean; $x: number; $y: number;
 const SimpleTooltip: React.FC<SimpleTooltipProps> = ({ text, children, darkMode }) => {
   const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0 });
 
-  const handleMouseEnter = (e: React.MouseEvent) => {
+  const handleMouseEnter = useCallback((e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
     setTooltip({
       visible: true,
       x: rect.left + rect.width / 2,
       y: rect.top - 8
     });
-  };
+  }, []);
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     setTooltip({ visible: false, x: 0, y: 0 });
-  };
+  }, []);
 
   return (
     <>
-      <div onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+      <div 
+        onMouseEnter={handleMouseEnter} 
+        onMouseLeave={handleMouseLeave}
+        style={{ display: 'inline-block' }}
+      >
         {children}
       </div>
       <TooltipContainer 

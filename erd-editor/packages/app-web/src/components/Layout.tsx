@@ -1934,7 +1934,7 @@ const Layout = () => {
                         readOnly={editingCell !== `${column.id}-logicalName`}
                       />
                     </TableCell>
-                    <TableCell $darkMode={isDarkMode} key={`${column.id}-datatype`} onDoubleClick={() => handleCellDoubleClick(column.id, 'dataType')}>
+                    <TableCell $darkMode={isDarkMode} key={`${column.id}-datatype`} onDoubleClick={() => !column.fk && handleCellDoubleClick(column.id, 'dataType')}>
                       <DataTypeInputContainer $isOpen={dropdownOpen === `${column.id}-datatype`}>
                         <DataTypeInput 
                           $darkMode={isDarkMode}
@@ -1953,17 +1953,17 @@ const Layout = () => {
                           onKeyDown={handleCellKeyDown}
                           onCompositionStart={handleCompositionStart}
                           onCompositionEnd={handleCompositionEnd}
-                          readOnly={editingCell !== `${column.id}-dataType`}
-                          placeholder="데이터타입 선택 또는 입력"
+                          readOnly={editingCell !== `${column.id}-dataType` || column.fk}
+                          placeholder={column.fk ? "FK 컬럼은 수정 불가" : "데이터타입 선택 또는 입력"}
                         />
                         <DropdownButton 
                           $darkMode={isDarkMode} 
-                          $visible={editingCell === `${column.id}-dataType`}
+                          $visible={editingCell === `${column.id}-dataType` && !column.fk}
                           data-dropdown-button="true"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            if (editingCell === `${column.id}-dataType`) {
+                            if (editingCell === `${column.id}-dataType` && !column.fk) {
                               if (dropdownOpen === `${column.id}-datatype`) {
                                 setDropdownOpen(null);
                                 setDropdownPosition(null);
@@ -1976,7 +1976,7 @@ const Layout = () => {
                         >
                           ▼
                         </DropdownButton>
-                        {dropdownOpen === `${column.id}-datatype` && editingCell === `${column.id}-dataType` && dropdownPosition && (
+                        {dropdownOpen === `${column.id}-datatype` && editingCell === `${column.id}-dataType` && !column.fk && dropdownPosition && (
                           <PortalDropdown
                             isOpen={true}
                             position={dropdownPosition}

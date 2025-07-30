@@ -6,7 +6,6 @@ import { useReactFlow } from 'reactflow';
 import useStore from '../store/useStore';
 import AlignPopup from './AlignPopup';
 import ViewPopup from './ViewPopup';
-import SimpleTooltip from './SimpleTooltip';
 
 const ToolbarContainer = styled.div<{ $darkMode?: boolean }>`
   position: fixed;
@@ -24,10 +23,39 @@ const ToolbarContainer = styled.div<{ $darkMode?: boolean }>`
   z-index: 100;
 `;
 
+const TooltipContainer = styled.div<{ $visible: boolean; $darkMode?: boolean }>`
+  position: fixed;
+  background: ${props => props.$darkMode ? 'rgba(0, 0, 0, 0.95)' : 'rgba(0, 0, 0, 0.9)'};
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  z-index: 999999;
+  opacity: ${props => props.$visible ? 1 : 0};
+  pointer-events: none;
+  border: 1px solid ${props => props.$darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)'};
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  transition: opacity 0.2s ease;
+  &::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: ${props => props.$darkMode ? 'rgba(0, 0, 0, 0.95)' : 'rgba(0, 0, 0, 0.9)'};
+  }
+`;
+
 const ZoomDisplay = styled.div<{ $darkMode?: boolean }>`
   font-size: 14px;
   color: ${props => props.$darkMode ? '#e2e8f0' : '#666'};
   min-width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   padding: 0 6px;
   font-weight: 500;
@@ -136,6 +164,40 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   const arrangeSnowflake = useStore((state) => state.arrangeSnowflake);
   const arrangeCompact = useStore((state) => state.arrangeCompact);
 
+  // 툴팁 상태
+  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, text: '' });
+  const [tooltipTimer, setTooltipTimer] = useState<number | null>(null);
+
+  const handleMouseEnter = (e: React.MouseEvent, text: string) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    
+    // 기존 타이머가 있으면 클리어
+    if (tooltipTimer) {
+      clearTimeout(tooltipTimer);
+    }
+    
+    // 300ms 딜레이 후 툴팁 표시
+    const timer = window.setTimeout(() => {
+      setTooltip({
+        visible: true,
+        x: rect.left + (rect.width / 2) - 2.5, // 왼쪽으로 2px 조정
+        y: rect.top - 35, // 더 위로 올림
+        text
+      });
+    }, 300);
+    
+    setTooltipTimer(timer);
+  };
+
+  const handleMouseLeave = () => {
+    // 타이머 클리어
+    if (tooltipTimer) {
+      window.clearTimeout(tooltipTimer);
+      setTooltipTimer(null);
+    }
+    setTooltip({ visible: false, x: 0, y: 0, text: '' });
+  };
+
   const handleZoomToFit = () => {
     fitView({ padding: 0.1, duration: 500 });
   };
@@ -236,59 +298,59 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   return (
     <>
       <ToolbarContainer $darkMode={isDarkMode}>
-        <SimpleTooltip text="줌 아웃" darkMode={isDarkMode}>
+        <div onMouseEnter={(e) => handleMouseEnter(e, '줌 아웃')} onMouseLeave={handleMouseLeave}>
           <ToolbarButton onClick={handleZoomOut} $darkMode={isDarkMode}>
             <FaMinus size={14} />
           </ToolbarButton>
-        </SimpleTooltip>
+        </div>
         
-        <SimpleTooltip text="100%로 리셋" darkMode={isDarkMode}>
+        <div onMouseEnter={(e) => handleMouseEnter(e, '100%로 리셋')} onMouseLeave={handleMouseLeave}>
           <ZoomDisplay $darkMode={isDarkMode} onClick={handleZoomReset}>
             {Math.round(zoom * 100)}%
           </ZoomDisplay>
-        </SimpleTooltip>
+        </div>
         
-        <SimpleTooltip text="줌 인" darkMode={isDarkMode}>
+        <div onMouseEnter={(e) => handleMouseEnter(e, '줌 인')} onMouseLeave={handleMouseLeave}>
           <ToolbarButton onClick={handleZoomIn} $darkMode={isDarkMode}>
             <FaPlus size={14} />
           </ToolbarButton>
-        </SimpleTooltip>
+        </div>
         
         <Divider $darkMode={isDarkMode} />
         
-        <SimpleTooltip text="검색" darkMode={isDarkMode}>
+        <div onMouseEnter={(e) => handleMouseEnter(e, '검색')} onMouseLeave={handleMouseLeave}>
           <ToolbarButton onClick={handleSearch} $active={isSearchPanelOpen} $darkMode={isDarkMode}>
             <FaSearch size={16} />
           </ToolbarButton>
-        </SimpleTooltip>
+        </div>
         
-        <SimpleTooltip text="한눈에보기" darkMode={isDarkMode}>
+        <div onMouseEnter={(e) => handleMouseEnter(e, '한눈에보기')} onMouseLeave={handleMouseLeave}>
           <ToolbarButton onClick={handleZoomToFit} $darkMode={isDarkMode}>
             <FaExpand size={16} />
           </ToolbarButton>
-        </SimpleTooltip>
+        </div>
         
-        <SimpleTooltip text="정렬" darkMode={isDarkMode}>
+        <div onMouseEnter={(e) => handleMouseEnter(e, '정렬')} onMouseLeave={handleMouseLeave}>
           <ToolbarButton onClick={handleAlign} $active={showAlignPopup} $darkMode={isDarkMode}>
             <FaTh size={16} />
           </ToolbarButton>
-        </SimpleTooltip>
+        </div>
         
-        <SimpleTooltip text="관계선 하이라이트" darkMode={isDarkMode}>
+        <div onMouseEnter={(e) => handleMouseEnter(e, '관계선 하이라이트')} onMouseLeave={handleMouseLeave}>
           <ToolbarButton onClick={handleRelations} $active={relationsHighlight} $darkMode={isDarkMode}>
             <FaProjectDiagram size={16} />
           </ToolbarButton>
-        </SimpleTooltip>
+        </div>
         
-        <SimpleTooltip text="그리드" darkMode={isDarkMode}>
+        <div onMouseEnter={(e) => handleMouseEnter(e, '그리드')} onMouseLeave={handleMouseLeave}>
           <ToolbarButton onClick={handleGrid} $active={showGrid} $darkMode={isDarkMode}>
             <MdGridOn size={16} />
           </ToolbarButton>
-        </SimpleTooltip>
+        </div>
         
         <Divider $darkMode={isDarkMode} />
         
-        <SimpleTooltip text="보기 항목" darkMode={isDarkMode}>
+        <div onMouseEnter={(e) => handleMouseEnter(e, '보기 항목')} onMouseLeave={handleMouseLeave}>
           <ShowSection 
             onClick={handleShow}
             $active={showViewPopup}
@@ -299,8 +361,21 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
               <FaTable size={12} />
             </ShowIcon>
           </ShowSection>
-        </SimpleTooltip>
+        </div>
       </ToolbarContainer>
+
+      {/* 툴팁 */}
+      <TooltipContainer
+        $visible={tooltip.visible}
+        $darkMode={isDarkMode}
+        style={{
+          left: tooltip.x,
+          top: tooltip.y,
+          transform: 'translateX(-50%)'
+        }}
+      >
+        {tooltip.text}
+      </TooltipContainer>
 
       {/* 정렬 팝업 */}
       <AlignPopup

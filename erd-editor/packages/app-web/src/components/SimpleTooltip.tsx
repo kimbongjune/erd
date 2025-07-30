@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 
 interface SimpleTooltipProps {
@@ -7,25 +7,19 @@ interface SimpleTooltipProps {
   darkMode?: boolean;
 }
 
-const TooltipContainer = styled.div<{ $visible: boolean; $x: number; $y: number; $darkMode?: boolean }>`
+const TooltipContainer = styled.div<{ $visible: boolean; $darkMode?: boolean }>`
   position: fixed;
-  left: ${props => props.$x}px;
-  top: ${props => props.$y}px;
-  transform: translateX(-50%);
   background: ${props => props.$darkMode ? 'rgba(0, 0, 0, 0.95)' : 'rgba(0, 0, 0, 0.9)'};
   color: white;
   padding: 6px 10px;
   border-radius: 4px;
   font-size: 11px;
-  pointer-events: none;
-  z-index: 99999;
+  z-index: 999999;
   opacity: ${props => props.$visible ? 1 : 0};
-  visibility: ${props => props.$visible ? 'visible' : 'hidden'};
-  transition: opacity 0.15s ease;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
   border: 1px solid ${props => props.$darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)'};
-  
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
   &::after {
     content: '';
     position: absolute;
@@ -38,35 +32,35 @@ const TooltipContainer = styled.div<{ $visible: boolean; $x: number; $y: number;
 `;
 
 const SimpleTooltip: React.FC<SimpleTooltipProps> = ({ text, children, darkMode }) => {
-  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0 });
+  const [visible, setVisible] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
 
-  const handleMouseEnter = useCallback((e: React.MouseEvent) => {
+  const handleMouseEnter = (e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    setTooltip({
-      visible: true,
+    setPosition({
       x: rect.left + rect.width / 2,
-      y: rect.top - 8
+      y: rect.top - 20
     });
-  }, []);
+    setVisible(true);
+  };
 
-  const handleMouseLeave = useCallback(() => {
-    setTooltip({ visible: false, x: 0, y: 0 });
-  }, []);
+  const handleMouseLeave = () => {
+    setVisible(false);
+  };
 
   return (
     <>
-      <div 
-        onMouseEnter={handleMouseEnter} 
-        onMouseLeave={handleMouseLeave}
-        style={{ display: 'inline-block' }}
-      >
+      <div onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
         {children}
       </div>
-      <TooltipContainer 
-        $visible={tooltip.visible} 
-        $x={tooltip.x} 
-        $y={tooltip.y} 
+      <TooltipContainer
+        $visible={visible}
         $darkMode={darkMode}
+        style={{
+          left: position.x,
+          top: position.y,
+          transform: 'translateX(-50%)'
+        }}
       >
         {text}
       </TooltipContainer>

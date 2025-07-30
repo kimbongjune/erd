@@ -126,7 +126,7 @@ const EntityLogicalName = styled.div`
   min-width: 0;
 `;
 
-const PaletteIcon = styled.div<{ $isVisible: boolean }>`
+const PaletteIcon = styled.div<{ $isVisible: boolean; $headerColor?: string }>`
   display: ${props => props.$isVisible ? 'flex' : 'none'};
   align-items: center;
   justify-content: center;
@@ -145,7 +145,19 @@ const PaletteIcon = styled.div<{ $isVisible: boolean }>`
   svg {
     width: 12px;
     height: 12px;
-    color: white;
+    color: ${props => {
+      if (!props.$headerColor) return 'white';
+      
+      // 헤더 색상의 밝기를 계산하여 대비되는 색상 선택
+      const hex = props.$headerColor.replace('#', '');
+      const r = parseInt(hex.substr(0, 2), 16);
+      const g = parseInt(hex.substr(2, 2), 16);
+      const b = parseInt(hex.substr(4, 2), 16);
+      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      
+      // 밝은 배경에는 어두운 색, 어두운 배경에는 밝은 색
+      return brightness > 128 ? '#000000' : '#ffffff';
+    }};
   }
 `;
 
@@ -712,7 +724,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
             )}
             
             {/* 팔레트 아이콘 - 선택된 상태일 때만 표시 */}
-            <PaletteIcon $isVisible={isSelected} onClick={handlePaletteClick}>
+            <PaletteIcon $isVisible={isSelected} $headerColor={actualNodeColor} onClick={handlePaletteClick}>
               <FaPalette />
             </PaletteIcon>
           </Header>

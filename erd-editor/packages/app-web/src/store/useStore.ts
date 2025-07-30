@@ -1482,6 +1482,15 @@ const useStore = create<RFState>((set, get) => ({
   
   // 내보내기 관련 함수들
   exportToImage: () => {
+    const { nodes } = get();
+    const entityNodes = nodes.filter(node => node.type === 'entity');
+    
+    // 엔티티가 없으면 경고 메시지 표시
+    if (entityNodes.length === 0) {
+      toast.warning('내보낼 엔티티가 없습니다. 먼저 엔티티를 생성해주세요.');
+      return;
+    }
+    
     // 이 함수는 Canvas 컴포넌트에서 ReactFlow 컨텍스트 내에서 실행되어야 함
     // 여기서는 상태만 변경하고 실제 내보내기는 Canvas에서 수행
     const event = new CustomEvent('exportToImage');
@@ -1491,6 +1500,12 @@ const useStore = create<RFState>((set, get) => ({
   exportToSQL: () => {
     const { nodes, edges } = get();
     const entityNodes = nodes.filter(node => node.type === 'entity');
+    
+    // 엔티티가 없으면 경고 메시지 표시
+    if (entityNodes.length === 0) {
+      toast.warning('내보낼 엔티티가 없습니다. 먼저 엔티티를 생성해주세요.');
+      return;
+    }
     
     // 엔티티 물리명이 비어있는 경우 검증
     for (const node of entityNodes) {

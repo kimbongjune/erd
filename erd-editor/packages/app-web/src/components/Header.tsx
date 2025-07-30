@@ -95,10 +95,56 @@ const Header = () => {
     saveToLocalStorage,
     loadFromLocalStorage,
     clearLocalStorage,
-    importFromSQL
+    importFromSQL,
+    nodes
   } = useStore();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 엔티티 존재 여부 확인
+  const hasEntities = nodes.some(node => node.type === 'entity');
+
+  // 엔티티가 없을 때 경고 메시지 표시
+  const showNoEntitiesWarning = () => {
+    toast.warning('내보낼 엔티티가 없습니다. 먼저 엔티티를 생성해주세요.');
+  };
+
+  // 데이터 삭제 함수 (엔티티 존재 여부 체크)
+  const handleDataDelete = async () => {
+    if (!hasEntities) {
+      toast.warning('삭제할 데이터가 없습니다.');
+      return;
+    }
+
+    const confirmed = await customConfirm('저장된 모든 데이터를 삭제하시겠습니까?', {
+      title: '데이터 삭제',
+      confirmText: '삭제',
+      cancelText: '취소',
+      type: 'danger',
+      darkMode: theme === 'dark'
+    });
+    if (confirmed) {
+      clearLocalStorage();
+    }
+  };
+
+  // 이미지 내보내기 함수 (엔티티 존재 여부 체크)
+  const handleImageExport = () => {
+    if (!hasEntities) {
+      showNoEntitiesWarning();
+      return;
+    }
+    exportToImage();
+  };
+
+  // SQL 내보내기 함수 (엔티티 존재 여부 체크)
+  const handleSQLExport = () => {
+    if (!hasEntities) {
+      showNoEntitiesWarning();
+      return;
+    }
+    exportToSQL();
+  };
 
   // JSON 관련 함수들 제거
 
@@ -171,19 +217,7 @@ const Header = () => {
       
       <ThemeToggleButton 
         $darkMode={theme === 'dark'} 
-        onClick={async (e) => {
-          e.stopPropagation();
-          const confirmed = await customConfirm('저장된 모든 데이터를 삭제하시겠습니까?', {
-            title: '데이터 삭제',
-            confirmText: '삭제',
-            cancelText: '취소',
-            type: 'danger',
-            darkMode: theme === 'dark'
-          });
-          if (confirmed) {
-            clearLocalStorage();
-          }
-        }}
+        onClick={handleDataDelete}
       >
         <FaTrash />
         데이터 삭제
@@ -229,7 +263,7 @@ const Header = () => {
             $darkMode={theme === 'dark'}
             onClick={(e) => {
               e.stopPropagation();
-              exportToImage();
+              handleImageExport();
               setIsExportOpen(false);
             }}
           >
@@ -239,7 +273,7 @@ const Header = () => {
             $darkMode={theme === 'dark'}
             onClick={(e) => {
               e.stopPropagation();
-              exportToSQL();
+              handleSQLExport();
               setIsExportOpen(false);
             }}
           >

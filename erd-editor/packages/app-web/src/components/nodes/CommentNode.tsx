@@ -67,12 +67,12 @@ const Header = styled.div<{ $color?: string }>`
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 `;
 
-const PaletteIcon = styled.div<{ $isVisible: boolean }>`
+const PaletteIcon = styled.div<{ $isVisible: boolean; $headerColor?: string }>`
   display: ${props => props.$isVisible ? 'flex' : 'none'};
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 4px;
   cursor: pointer;
@@ -84,9 +84,21 @@ const PaletteIcon = styled.div<{ $isVisible: boolean }>`
   }
   
   svg {
-    width: 10px;
-    height: 10px;
-    color: white;
+    width: 12px;
+    height: 12px;
+    color: ${props => {
+      if (!props.$headerColor) return 'white';
+      
+      // 헤더 색상의 밝기를 계산하여 대비되는 색상 선택
+      const hex = props.$headerColor.replace('#', '');
+      const r = parseInt(hex.substr(0, 2), 16);
+      const g = parseInt(hex.substr(2, 2), 16);
+      const b = parseInt(hex.substr(4, 2), 16);
+      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      
+      // 밝은 배경에는 어두운 색, 어두운 배경에는 밝은 색
+      return brightness > 128 ? '#000000' : '#ffffff';
+    }};
   }
 `;
 
@@ -277,6 +289,7 @@ const CommentNode = ({ data, selected, id }: any) => {
           <Header $color={actualColor}>
             <PaletteIcon 
               $isVisible={isSelected}
+              $headerColor={actualColor}
               onClick={handlePaletteClick}
             >
               <FaPalette />

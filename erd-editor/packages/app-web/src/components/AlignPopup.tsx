@@ -115,7 +115,7 @@ const AlignPopup: React.FC<AlignPopupProps> = ({ visible, onClose, onSelect }) =
           <FaArrowsAltH size={16} />
         </IconContainer>
         <OptionContent>
-          <OptionTitle $darkMode={isDarkMode}>왼쪽-오른쪽 배치</OptionTitle>
+          <OptionTitle $darkMode={isDarkMode}>좌우배치</OptionTitle>
           <OptionDescription $darkMode={isDarkMode}>
             관계 방향에 따라 테이블을 왼쪽에서 오른쪽으로 배치합니다.
             ETL 파이프라인과 같은 긴 관계 계보가 있는 다이어그램에 이상적입니다.

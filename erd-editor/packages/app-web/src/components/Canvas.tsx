@@ -244,9 +244,12 @@ const Canvas = () => {
         const captureWidth = reactFlowBounds.width;
         const captureHeight = reactFlowBounds.height;
         
+        // 다크모드인지 확인
+        const isDarkMode = theme === 'dark';
+        
         // 이미지 export - 실제 캔버스 크기로 캡처
         const dataUrl = await toPng(reactFlowWrapper, {
-          backgroundColor: '#ffffff',
+          backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
           width: captureWidth,
           height: captureHeight,
           pixelRatio: 3, // 고화질을 위해 픽셀 비율 증가 (2 → 3)

@@ -1,6 +1,7 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash, FaUpload } from 'react-icons/fa';
+import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash, FaUpload, FaImage} from 'react-icons/fa';
+import { GrMysql } from "react-icons/gr";
 import useStore from '../store/useStore';
 import { toast } from 'react-toastify';
 import { customConfirm } from '../utils/confirmUtils';
@@ -267,6 +268,7 @@ const Header = () => {
               setIsExportOpen(false);
             }}
           >
+            <FaImage style={{ marginRight: '8px' }} />
             이미지로 내보내기
           </ExportOption>
           <ExportOption 
@@ -277,7 +279,8 @@ const Header = () => {
               setIsExportOpen(false);
             }}
           >
-            MySQL SQL 내보내기
+            <GrMysql style={{ marginRight: '8px' }} />
+            SQL로 내보내기
           </ExportOption>
         </ExportDropdown>
       </ExportContainer>

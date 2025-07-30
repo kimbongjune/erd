@@ -774,7 +774,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
                       <ColumnDetails $darkMode={isDarkMode}>AI</ColumnDetails>
                     )}
                     {(col.nn || col.nullable === false) && (
-                      <ColumnDetails $darkMode={isDarkMode}>NN</ColumnDetails>
+                      <ColumnDetails $darkMode={isDarkMode}>N•N</ColumnDetails>
                     )}
                   </ColumnConstraints>
                   

@@ -142,8 +142,8 @@ export const propagateColumnAddition = (
           defaultValue: '',
           parentEntityId: nodeId,
           parentColumnId: addedColumn.id || addedColumn.name,
-          onDelete: 'RESTRICT',
-          onUpdate: 'CASCADE'
+          onDelete: 'NO ACTION',
+          onUpdate: 'NO ACTION'
         };
         
         const updatedChildColumns = [...childColumns, newFkColumn];
@@ -1585,6 +1585,37 @@ const useStore = create<RFState>((set, get) => ({
       return;
     }
     
+    // 컬럼이 없는 엔티티가 있는지 확인
+    const emptyEntityNodes = entityNodes.filter(node => {
+      const columns = node.data.columns || [];
+      return columns.length === 0;
+    });
+    
+    if (emptyEntityNodes.length > 0) {
+      // 첫 번째 컬럼이 없는 엔티티에 포커스
+      const firstEmptyEntity = emptyEntityNodes[0];
+      get().setSelectedNodeId(firstEmptyEntity.id);
+      get().setBottomPanelOpen(true);
+      
+      // 엔티티를 화면 중앙으로 이동
+      const nodeElement = document.querySelector(`[data-id="${firstEmptyEntity.id}"]`) as HTMLElement;
+      if (nodeElement) {
+        const reactFlowInstance = (window as any).reactFlowInstance;
+        if (reactFlowInstance) {
+          reactFlowInstance.fitView({
+            nodes: [firstEmptyEntity],
+            padding: 0.2,
+            duration: 500
+          });
+        }
+      }
+      
+      setTimeout(() => {
+        toast.error(`컬럼이 없는 엔티티가 있습니다. (ID: ${firstEmptyEntity.id})`);
+      }, 200);
+      return;
+    }
+    
     // 엔티티 물리명이 비어있는 경우 검증
     for (const node of entityNodes) {
       if (!node.data.label || node.data.label.trim() === '') {
@@ -1804,13 +1835,10 @@ const useStore = create<RFState>((set, get) => ({
               sql += `ALTER TABLE \`${targetTable}\` ADD CONSTRAINT \`fk_${targetTable}_${sourceTable}_${fkCol.name}\`\n`;
               sql += `  FOREIGN KEY (\`${fkCol.name}\`) REFERENCES \`${sourceTable}\`(\`${sourcePkCol.name}\`)`;
               
-              // ON DELETE와 ON UPDATE 옵션 추가
-              if (fkCol.onDelete) {
-                sql += ` ON DELETE ${fkCol.onDelete}`;
-              }
-              if (fkCol.onUpdate) {
-                sql += ` ON UPDATE ${fkCol.onUpdate}`;
-              }
+              // ON DELETE와 ON UPDATE 옵션 추가 (기본값: NO ACTION)
+              const onDelete = fkCol.onDelete || 'NO ACTION';
+              const onUpdate = fkCol.onUpdate || 'NO ACTION';
+              sql += ` ON DELETE ${onDelete} ON UPDATE ${onUpdate}`;
               
               sql += ';\n\n';
             }

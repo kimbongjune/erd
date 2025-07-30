@@ -1814,9 +1814,9 @@ const Layout = () => {
                   >
                     AI
                   </HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="default">기본값/표현식</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="onDelete">ON DELETE</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="onUpdate">ON UPDATE</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="default">기본값</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="onDelete">On Delete</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="onUpdate">On Update</HeaderCell>
                   <HeaderCell $darkMode={isDarkMode} key="delete">삭제</HeaderCell>
                 </HeaderRow>
               </TableHeader>
@@ -2031,8 +2031,23 @@ const Layout = () => {
                         onChange={(e) => updateColumnField(column.id, 'ai', e.target.checked)}
                       />
                     </CheckboxCell>
-                    {/* FK 컬럼일 때만 ON DELETE, ON UPDATE 표시 */}
-                    {column.fk && (
+
+                    <TableCell $darkMode={isDarkMode} key={`${column.id}-default`} onDoubleClick={() => handleCellDoubleClick(column.id, 'defaultValue')}>
+                      <EditableCell 
+                        $darkMode={isDarkMode}
+                        className={editingCell === `${column.id}-defaultValue` ? 'editing' : ''}
+                        data-editing={editingCell === `${column.id}-defaultValue` ? `${column.id}-defaultValue` : ''}
+                        value={column.defaultValue || ''}
+                        onChange={(e) => updateColumnField(column.id, 'defaultValue', e.target.value)}
+                        onBlur={handleCellBlur}
+                        onKeyDown={handleCellKeyDown}
+                        onCompositionStart={handleCompositionStart}
+                        onCompositionEnd={handleCompositionEnd}
+                        readOnly={editingCell !== `${column.id}-defaultValue`}
+                        placeholder="null"
+                      />
+                    </TableCell>
+                    {column.fk ? (
                       <>
                         <TableCell $darkMode={isDarkMode} key={`${column.id}-onDelete`}>
                           <div
@@ -2059,7 +2074,7 @@ const Layout = () => {
                               setDropdownOpen('fk-options');
                             }}
                           >
-                            <span>{column.onDelete || 'RESTRICT'}</span>
+                            <span>{column.onDelete || 'NO ACTION'}</span>
                             <span style={{ fontSize: '8px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>▼</span>
                           </div>
                         </TableCell>
@@ -2088,33 +2103,17 @@ const Layout = () => {
                               setDropdownOpen('fk-options');
                             }}
                           >
-                            <span>{column.onUpdate || 'CASCADE'}</span>
+                            <span>{column.onUpdate || 'NO ACTION'}</span>
                             <span style={{ fontSize: '8px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>▼</span>
                           </div>
                         </TableCell>
                       </>
-                    )}
-                    {!column.fk && (
+                    ) : (
                       <>
                         <TableCell $darkMode={isDarkMode} key={`${column.id}-onDelete`}></TableCell>
                         <TableCell $darkMode={isDarkMode} key={`${column.id}-onUpdate`}></TableCell>
                       </>
                     )}
-                    <TableCell $darkMode={isDarkMode} key={`${column.id}-default`} onDoubleClick={() => handleCellDoubleClick(column.id, 'defaultValue')}>
-                      <EditableCell 
-                        $darkMode={isDarkMode}
-                        className={editingCell === `${column.id}-defaultValue` ? 'editing' : ''}
-                        data-editing={editingCell === `${column.id}-defaultValue` ? `${column.id}-defaultValue` : ''}
-                        value={column.defaultValue || ''}
-                        onChange={(e) => updateColumnField(column.id, 'defaultValue', e.target.value)}
-                        onBlur={handleCellBlur}
-                        onKeyDown={handleCellKeyDown}
-                        onCompositionStart={handleCompositionStart}
-                        onCompositionEnd={handleCompositionEnd}
-                        readOnly={editingCell !== `${column.id}-defaultValue`}
-                        placeholder="Default value"
-                      />
-                    </TableCell>
                     <TableCell $darkMode={isDarkMode} key={`${column.id}-delete`}>
                       <DeleteButton $darkMode={isDarkMode} onClick={() => deleteColumn(column.id)}>
                         Delete

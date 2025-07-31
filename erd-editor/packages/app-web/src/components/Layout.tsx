@@ -264,7 +264,9 @@ const TableHeader = styled.thead<{ $darkMode?: boolean }>`
   background-color: ${props => props.$darkMode ? '#2d3748' : '#f8f8f8'};
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 `;
 
 const HeaderRow = styled.tr<{ $darkMode?: boolean }>`

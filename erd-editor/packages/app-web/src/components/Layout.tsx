@@ -544,10 +544,10 @@ const PortalDropdown: React.FC<{
                 position: 'left'
               });
             }}
-            onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '', position: 'left' })}
+            onMouseLeave={() => setTooltip({ visible: false, x: -9999, y: -9999, content: '', position: 'left' })}
             onClick={() => {
               onSelect(option.value);
-              setTooltip({ visible: false, x: 0, y: 0, content: '', position: 'left' });
+              setTooltip({ visible: false, x: -9999, y: -9999, content: '', position: 'left' });
               onClose();
             }}
             onMouseOver={(e) => {
@@ -850,11 +850,30 @@ const Layout = () => {
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (!target.closest('[data-dropdown]') && !target.closest('[data-dropdown-button]') && !target.closest('[data-editing]')) {
-        setDropdownOpen(null);
-        setDropdownPosition(null);
-        // editing 상태도 해제하여 border 제거
-        setEditingCell(null);
+      
+      // FK 드롭다운이 열려있을 때
+      if (dropdownOpen === 'fk-options') {
+        const isDropdownClick = target.closest('[data-dropdown="fk-options"]');
+        const isDropdownButtonClick = target.closest('[data-dropdown-button="fk-options"]');
+        
+        // 드롭다운 영역이나 버튼을 클릭하지 않았으면 드롭다운 닫기
+        if (!isDropdownClick && !isDropdownButtonClick) {
+          console.log('FK 드롭다운 닫기 - 외부 클릭 감지');
+          setDropdownOpen(null);
+          setDropdownPosition(null);
+          setDropdownType(null);
+          setDropdownColumnId(null);
+        }
+      }
+      
+      // 기존 데이터타입 드롭다운 처리
+      if (dropdownOpen && dropdownOpen !== 'fk-options') {
+        if (!target.closest('[data-dropdown]') && !target.closest('[data-dropdown-button]') && !target.closest('[data-editing]')) {
+          setDropdownOpen(null);
+          setDropdownPosition(null);
+          // editing 상태도 해제하여 border 제거
+          setEditingCell(null);
+        }
       }
     };
 
@@ -1665,9 +1684,20 @@ const Layout = () => {
           <ToolboxContainer $darkMode={isDarkMode}>
             <Toolbox />
           </ToolboxContainer>
-          <CanvasContainer $darkMode={isDarkMode}>
-            {!isLoading && <Canvas />}
-          </CanvasContainer>
+                  <CanvasContainer 
+          $darkMode={isDarkMode}
+          onClick={() => {
+            if (dropdownOpen === 'fk-options') {
+              console.log('캔버스 클릭으로 FK 드롭다운 닫기');
+              setDropdownOpen(null);
+              setDropdownPosition(null);
+              setDropdownType(null);
+              setDropdownColumnId(null);
+            }
+          }}
+        >
+          {!isLoading && <Canvas />}
+        </CanvasContainer>
         </TopContainer>
       {isBottomPanelOpen && (
         <BottomPanelContainer $height={bottomPanelHeight} $darkMode={isDarkMode}>
@@ -2119,6 +2149,7 @@ const Layout = () => {
                       <>
                         <TableCell $darkMode={isDarkMode} key={`${column.id}-onDelete`}>
                           <div
+                            data-dropdown-button="fk-options"
                             style={{
                               width: '100%',
                               padding: '2px 4px',
@@ -2135,6 +2166,17 @@ const Layout = () => {
                             }}
                             onClick={(e) => {
                               e.stopPropagation();
+                              
+                              // 이미 열린 드롭다운이면 닫기
+                              if (dropdownOpen === 'fk-options') {
+                                setDropdownOpen(null);
+                                setDropdownPosition(null);
+                                setDropdownType(null);
+                                setDropdownColumnId(null);
+                                return;
+                              }
+                              
+                              // 새로 열기
                               const rect = e.currentTarget.getBoundingClientRect();
                               setDropdownPosition({ top: rect.bottom + 2, left: rect.left });
                               setDropdownType('onDelete');
@@ -2148,6 +2190,7 @@ const Layout = () => {
                         </TableCell>
                         <TableCell $darkMode={isDarkMode} key={`${column.id}-onUpdate`}>
                           <div
+                            data-dropdown-button="fk-options"
                             style={{
                               width: '100%',
                               padding: '2px 4px',
@@ -2164,6 +2207,17 @@ const Layout = () => {
                             }}
                             onClick={(e) => {
                               e.stopPropagation();
+                              
+                              // 이미 열린 드롭다운이면 닫기
+                              if (dropdownOpen === 'fk-options') {
+                                setDropdownOpen(null);
+                                setDropdownPosition(null);
+                                setDropdownType(null);
+                                setDropdownColumnId(null);
+                                return;
+                              }
+                              
+                              // 새로 열기
                               const rect = e.currentTarget.getBoundingClientRect();
                               setDropdownPosition({ top: rect.bottom + 2, left: rect.left });
                               setDropdownType('onUpdate');
@@ -2211,20 +2265,22 @@ const Layout = () => {
           
           {/* FK 옵션 드롭다운 */}
           {dropdownOpen === 'fk-options' && dropdownPosition && (
-            <PortalDropdown
-              isOpen={true}
-              position={dropdownPosition}
-              onClose={() => setDropdownOpen(null)}
-              onSelect={(value) => {
-                if (dropdownColumnId && dropdownType) {
-                  updateColumnField(dropdownColumnId, dropdownType, value);
-                }
-                setDropdownOpen(null);
-              }}
-              darkMode={isDarkMode}
-              dropdownType={dropdownType || undefined}
-              setTooltip={setTooltip}
-            />
+            <div data-dropdown="fk-options">
+              <PortalDropdown
+                isOpen={true}
+                position={dropdownPosition}
+                onClose={() => setDropdownOpen(null)}
+                onSelect={(value) => {
+                  if (dropdownColumnId && dropdownType) {
+                    updateColumnField(dropdownColumnId, dropdownType, value);
+                  }
+                  setDropdownOpen(null);
+                }}
+                darkMode={isDarkMode}
+                dropdownType={dropdownType || undefined}
+                setTooltip={setTooltip}
+              />
+            </div>
           )}
           
           {/* 테이블 커멘트 입력 영역 */}

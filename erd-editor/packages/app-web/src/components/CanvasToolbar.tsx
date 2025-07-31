@@ -195,7 +195,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
       window.clearTimeout(tooltipTimer);
       setTooltipTimer(null);
     }
-    setTooltip({ visible: false, x: 0, y: 0, text: '' });
+    setTooltip({ visible: false, x: -9999, y: -9999, text: '' });
   };
 
   const handleZoomToFit = () => {

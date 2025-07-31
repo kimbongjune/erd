@@ -120,7 +120,7 @@ const ProgressPercentage = styled.div`
 `;
 
 const BottomPanelContainer = styled.div<{ $height: number; $darkMode?: boolean }>`
-  background-color: ${props => props.$darkMode ? '#2d3748' : '#ffffff'};
+  background-color: ${props => props.$darkMode ? '#1E1E1E' : '#f5f5f5'};
   height: ${props => props.$height}px;
   border-top: 1px solid ${props => props.$darkMode ? '#404040' : '#d0d0d0'};
   display: flex;
@@ -167,7 +167,6 @@ const BottomPanelHeader = styled.div<{ $darkMode?: boolean }>`
   justify-content: space-between;
   padding: 8px 12px;
   background-color: ${props => props.$darkMode ? '#1E1E1E' : '#f5f5f5'};
-  border-bottom: 1px solid ${props => props.$darkMode ? '#404040' : '#d0d0d0'};
   font-size: 12px;
   font-weight: normal;
   color: ${props => props.$darkMode ? '#e2e8f0' : '#333'};
@@ -219,10 +218,18 @@ const CloseButton = styled.button<{ $darkMode?: boolean }>`
 
 const TableContainer = styled.div<{ $darkMode?: boolean }>`
   flex: 1;
+  overflow: hidden;
+  background-color: ${props => props.$darkMode ? '#1E1E1E' : '#f5f5f5'};
+  position: relative;
+`;
+
+const TableScrollContainer = styled.div<{ $darkMode?: boolean }>`
+  width: 100%;
+  height: 100%;
   overflow-x: auto;
   overflow-y: auto;
-  background-color: ${props => props.$darkMode ? '#1E1E1E' : '#ffffff'};
-  position: relative;
+  margin-top: 0;
+  transform: translateZ(0); // Hardware acceleration to prevent layout shifts
   
   /* 커스텀 스크롤바 스타일 */
   &::-webkit-scrollbar {
@@ -263,14 +270,11 @@ const Table = styled.table<{ $darkMode?: boolean }>`
 const TableHeader = styled.thead<{ $darkMode?: boolean }>`
   background-color: ${props => props.$darkMode ? '#2d3748' : '#f8f8f8'};
   position: sticky;
-  top: 0;
+  top: -1px;
   z-index: 10;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 `;
 
 const HeaderRow = styled.tr<{ $darkMode?: boolean }>`
-  border-bottom: 1px solid ${props => props.$darkMode ? '#404040' : '#d0d0d0'};
 `;
 
 const HeaderCell = styled.th<{ $darkMode?: boolean }>`
@@ -1741,7 +1745,8 @@ const Layout = () => {
             </CloseButton>
           </BottomPanelHeader>
           <TableContainer $darkMode={isDarkMode}>
-            <Table $darkMode={isDarkMode}>
+            <TableScrollContainer $darkMode={isDarkMode}>
+              <Table $darkMode={isDarkMode}>
               <TableHeader $darkMode={isDarkMode}>
                 <HeaderRow $darkMode={isDarkMode}>
                   <HeaderCell $darkMode={isDarkMode} key="order" style={{ width: '60px' }}>순서</HeaderCell>
@@ -2130,6 +2135,7 @@ const Layout = () => {
                 </AddColumnRow>
               </TableBody>
             </Table>
+            </TableScrollContainer>
           </TableContainer>
           
           {/* 툴팁 렌더링 */}

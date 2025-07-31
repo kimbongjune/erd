@@ -795,8 +795,23 @@ const Layout = () => {
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
   const [dropdownType, setDropdownType] = useState<string | null>(null);
   const [dropdownColumnId, setDropdownColumnId] = useState<string | null>(null);
-  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, content: '', position: 'top' as 'top' | 'left' | undefined });
+  const [tooltip, setTooltip] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    content: string;
+    position: 'top' | 'left' | undefined;
+  }>({
+    visible: false,
+    x: 0,
+    y: 0,
+    content: '',
+    position: 'top'
+  });
+  const [hoveredHeaderId, setHoveredHeaderId] = useState<string | null>(null);
+  const tooltipTimeoutRef = useRef<number | null>(null);
   const [initialRender, setInitialRender] = useState(true);
+
   const { 
     isBottomPanelOpen, 
     setBottomPanelOpen, 
@@ -1712,15 +1727,38 @@ const Layout = () => {
                     key="pk" 
                     onMouseEnter={(e) => {
                       const rect = e.currentTarget.getBoundingClientRect();
-                      setTooltip({
-                        visible: true,
-                        x: rect.left + rect.width / 2,
-                        y: rect.top - 60,
-                        content: 'Primary Key (기본키)\n테이블의 고유 식별자로 사용되는 컬럼입니다.',
-                        position: 'top'
-                      });
+                      if (hoveredHeaderId !== 'pk') {
+                        setHoveredHeaderId('pk');
+                        if (tooltipTimeoutRef.current) {
+                          clearTimeout(tooltipTimeoutRef.current);
+                        }
+                        tooltipTimeoutRef.current = setTimeout(() => {
+                          setTooltip({
+                            visible: true,
+                            x: rect.left + rect.width / 2,
+                            y: rect.top - 60,
+                            content: 'Primary Key (기본키)\n테이블의 고유 식별자로 사용되는 컬럼입니다.',
+                            position: 'top'
+                          });
+                        }, 500);
+                      } else {
+                        setTooltip({
+                          visible: true,
+                          x: rect.left + rect.width / 2,
+                          y: rect.top - 60,
+                          content: 'Primary Key (기본키)\n테이블의 고유 식별자로 사용되는 컬럼입니다.',
+                          position: 'top'
+                        });
+                      }
                     }}
-                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '', position: 'top' })}
+                    onMouseLeave={() => {
+                      setHoveredHeaderId(null);
+                      if (tooltipTimeoutRef.current) {
+                        clearTimeout(tooltipTimeoutRef.current);
+                        tooltipTimeoutRef.current = null;
+                      }
+                      setTooltip({ visible: false, x: -9999, y: -9999, content: '', position: 'top' });
+                    }}
                   >
                     PK
                   </HeaderCell>
@@ -1729,15 +1767,38 @@ const Layout = () => {
                     key="nn" 
                     onMouseEnter={(e) => {
                       const rect = e.currentTarget.getBoundingClientRect();
-                      setTooltip({
-                        visible: true,
-                        x: rect.left + rect.width / 2,
-                        y: rect.top - 60,
-                        content: 'Not Null (널 허용 안함)\nNULL 값을 허용하지 않는 컬럼입니다.',
-                        position: 'top'
-                      });
+                                              if (hoveredHeaderId !== 'nn') {
+                          setHoveredHeaderId('nn');
+                          if (tooltipTimeoutRef.current) {
+                            clearTimeout(tooltipTimeoutRef.current);
+                          }
+                          tooltipTimeoutRef.current = setTimeout(() => {
+                            setTooltip({
+                              visible: true,
+                              x: rect.left + rect.width / 2,
+                              y: rect.top - 60,
+                              content: 'Not Null (널 허용 안함)\nNULL 값을 허용하지 않는 컬럼입니다.',
+                              position: 'top'
+                            });
+                          }, 500);
+                        } else {
+                        setTooltip({
+                          visible: true,
+                          x: rect.left + rect.width / 2,
+                          y: rect.top - 60,
+                          content: 'Not Null (널 허용 안함)\nNULL 값을 허용하지 않는 컬럼입니다.',
+                          position: 'top'
+                        });
+                      }
                     }}
-                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '', position: 'top' })}
+                    onMouseLeave={() => {
+                      setHoveredHeaderId(null);
+                      if (tooltipTimeoutRef.current) {
+                        clearTimeout(tooltipTimeoutRef.current);
+                        tooltipTimeoutRef.current = null;
+                      }
+                      setTooltip({ visible: false, x: -9999, y: -9999, content: '', position: 'top' });
+                    }}
                   >
                     NN
                   </HeaderCell>
@@ -1746,15 +1807,38 @@ const Layout = () => {
                     key="uq" 
                     onMouseEnter={(e) => {
                       const rect = e.currentTarget.getBoundingClientRect();
-                      setTooltip({
-                        visible: true,
-                        x: rect.left + rect.width / 2,
-                        y: rect.top - 60,
-                        content: 'Unique (고유키)\n중복된 값을 허용하지 않는 컬럼입니다.',
-                        position: 'top'
-                      });
+                                              if (hoveredHeaderId !== 'uq') {
+                          setHoveredHeaderId('uq');
+                          if (tooltipTimeoutRef.current) {
+                            clearTimeout(tooltipTimeoutRef.current);
+                          }
+                          tooltipTimeoutRef.current = setTimeout(() => {
+                            setTooltip({
+                              visible: true,
+                              x: rect.left + rect.width / 2,
+                              y: rect.top - 60,
+                              content: 'Unique (고유키)\n중복된 값을 허용하지 않는 컬럼입니다.',
+                              position: 'top'
+                            });
+                          }, 500);
+                        } else {
+                        setTooltip({
+                          visible: true,
+                          x: rect.left + rect.width / 2,
+                          y: rect.top - 60,
+                          content: 'Unique (고유키)\n중복된 값을 허용하지 않는 컬럼입니다.',
+                          position: 'top'
+                        });
+                      }
                     }}
-                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '', position: 'top' })}
+                    onMouseLeave={() => {
+                      setHoveredHeaderId(null);
+                      if (tooltipTimeoutRef.current) {
+                        clearTimeout(tooltipTimeoutRef.current);
+                        tooltipTimeoutRef.current = null;
+                      }
+                      setTooltip({ visible: false, x: -9999, y: -9999, content: '', position: 'top' });
+                    }}
                   >
                     UQ
                   </HeaderCell>
@@ -1763,15 +1847,38 @@ const Layout = () => {
                     key="ai" 
                     onMouseEnter={(e) => {
                       const rect = e.currentTarget.getBoundingClientRect();
-                      setTooltip({
-                        visible: true,
-                        x: rect.left + rect.width / 2,
-                        y: rect.top - 80,
-                        content: 'Auto Increment (자동 증가)\n새 레코드 추가 시 자동으로 증가하는 컬럼입니다.\nPK, INT만 사용가능합니다.',
-                        position: 'top'
-                      });
+                                              if (hoveredHeaderId !== 'ai') {
+                          setHoveredHeaderId('ai');
+                          if (tooltipTimeoutRef.current) {
+                            clearTimeout(tooltipTimeoutRef.current);
+                          }
+                          tooltipTimeoutRef.current = setTimeout(() => {
+                            setTooltip({
+                              visible: true,
+                              x: rect.left + rect.width / 2,
+                              y: rect.top - 80,
+                              content: 'Auto Increment (자동 증가)\n새 레코드 추가 시 자동으로 증가하는 컬럼입니다.\nPK, INT만 사용가능합니다.',
+                              position: 'top'
+                            });
+                          }, 500);
+                        } else {
+                        setTooltip({
+                          visible: true,
+                          x: rect.left + rect.width / 2,
+                          y: rect.top - 80,
+                          content: 'Auto Increment (자동 증가)\n새 레코드 추가 시 자동으로 증가하는 컬럼입니다.\nPK, INT만 사용가능합니다.',
+                          position: 'top'
+                        });
+                      }
                     }}
-                    onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '', position: 'top' })}
+                    onMouseLeave={() => {
+                      setHoveredHeaderId(null);
+                      if (tooltipTimeoutRef.current) {
+                        clearTimeout(tooltipTimeoutRef.current);
+                        tooltipTimeoutRef.current = null;
+                      }
+                      setTooltip({ visible: false, x: -9999, y: -9999, content: '', position: 'top' });
+                    }}
                   >
                     AI
                   </HeaderCell>
@@ -2101,6 +2208,24 @@ const Layout = () => {
             darkMode={isDarkMode}
             position={tooltip.position}
           />
+          
+          {/* FK 옵션 드롭다운 */}
+          {dropdownOpen === 'fk-options' && dropdownPosition && (
+            <PortalDropdown
+              isOpen={true}
+              position={dropdownPosition}
+              onClose={() => setDropdownOpen(null)}
+              onSelect={(value) => {
+                if (dropdownColumnId && dropdownType) {
+                  updateColumnField(dropdownColumnId, dropdownType, value);
+                }
+                setDropdownOpen(null);
+              }}
+              darkMode={isDarkMode}
+              dropdownType={dropdownType || undefined}
+              setTooltip={setTooltip}
+            />
+          )}
           
           {/* 테이블 커멘트 입력 영역 */}
           <div style={{ 

@@ -21,10 +21,8 @@ const TooltipContainer = styled.div<{ $visible: boolean; $x: number; $y: number;
   border-radius: 6px;
   font-size: 12px;
   pointer-events: none;
-  z-index: 99999;
+  z-index: 9999;
   opacity: ${props => props.$visible ? 1 : 0};
-  visibility: ${props => props.$visible ? 'visible' : 'hidden'};
-  transition: all 0.2s ease;
   max-width: 300px;
   white-space: pre-wrap;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
@@ -53,10 +51,8 @@ const LeftTooltipContainer = styled.div<{ $visible: boolean; $x: number; $y: num
   border-radius: 6px;
   font-size: 12px;
   pointer-events: none;
-  z-index: 99999;
+  z-index: 9999;
   opacity: ${props => props.$visible ? 1 : 0};
-  visibility: ${props => props.$visible ? 'visible' : 'hidden'};
-  transition: all 0.2s ease;
   max-width: 300px;
   white-space: pre-wrap;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
@@ -75,6 +71,10 @@ const LeftTooltipContainer = styled.div<{ $visible: boolean; $x: number; $y: num
 `;
 
 const Tooltip: React.FC<TooltipProps> = ({ visible, x, y, content, darkMode, position = 'top' }) => {
+  if (!visible) {
+    return null;
+  }
+
   if (position === 'left') {
     return (
       <LeftTooltipContainer $visible={visible} $x={x} $y={y} $darkMode={darkMode}>

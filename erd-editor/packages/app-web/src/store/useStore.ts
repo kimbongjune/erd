@@ -1193,7 +1193,7 @@ const useStore = create<RFState>((set, get) => ({
                 type: sourcePkColumn.type, 
                 pk: true, 
                 fk: true,
-                uk: false,
+                uq: false, // 식별자 관계에서는 UQ 설정하지 않음
                 comment: fkComment,
                 logicalName: fkLogicalName,
                 // FK 관계 추적을 위한 메타데이터 추가 (문제 6 해결)
@@ -1205,6 +1205,7 @@ const useStore = create<RFState>((set, get) => ({
                 ...newTargetColumns[existingFkIndex], 
                 pk: true, 
                 fk: true,
+                uq: false, // 식별자 관계 설정 시 UQ 해제
                 type: sourcePkColumn.type, // 타입 동기화
                 comment: fkComment,
                 logicalName: fkLogicalName,

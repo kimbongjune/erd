@@ -7,6 +7,7 @@ import useStore from '../store/useStore';
 import EntityNode from './nodes/EntityNode';
 import CommentNode from './nodes/CommentNode';
 import TextNode from './nodes/TextNode';
+import ImageNode from './nodes/ImageNode';
 import OneToOneIdentifyingEdge from './edges/OneToOneIdentifyingEdge';
 import OneToOneNonIdentifyingEdge from './edges/OneToOneNonIdentifyingEdge';
 import OneToManyIdentifyingEdge from './edges/OneToManyIdentifyingEdge';
@@ -54,6 +55,7 @@ const nodeTypes = {
   entity: EntityNodeWrapper,
   comment: CommentNode,
   text: TextNode,
+  image: ImageNode,
 };
 
 const Canvas = () => {
@@ -461,6 +463,22 @@ const Canvas = () => {
         // 생성 후 선택 모드로 돌아가기
         useStore.getState().setCreateMode(null);
         useStore.getState().setSelectMode(true);
+      } else if (createMode === 'image') {
+        const newNode = {
+          id: `image_${Date.now()}`,
+          type: 'image',
+          position,
+          data: { 
+            label: 'Image',
+            imageUrl: '',
+            width: 200,
+            height: 150
+          },
+        };
+        useStore.getState().setNodes([...nodes, newNode]);
+        // 생성 후 선택 모드로 돌아가기
+        useStore.getState().setCreateMode(null);
+        useStore.getState().setSelectMode(true);
       }
     } else {
       // 캔버스 빈 공간 클릭 시 모든 선택 해제
@@ -471,7 +489,7 @@ const Canvas = () => {
   }, [createMode, nodes, screenToFlowPosition, setSelectedNodeId, setSelectedEdgeId, setBottomPanelOpen, setShowAlignPopup, setShowViewPopup]);
 
   const handleNodeDoubleClick = useCallback((_: MouseEvent, node: Node) => {
-    if (node.type === 'text') return;
+    if (node.type === 'text' || node.type === 'image') return; // 이미지 노드는 자체적으로 더블클릭 처리
     setSelectedNodeId(node.id);
     setSelectedEdgeId(null); // Clear edge selection when node is selected
     setBottomPanelOpen(true);
@@ -907,13 +925,13 @@ const Canvas = () => {
       >
         <MiniMap 
           nodeColor={(node) => {
-            if (node.type === 'comment') return 'transparent';
+            if (node.type === 'comment' || node.type === 'image') return 'transparent';
             // 실제 노드 색상 가져오기
             const getNodeColor = useStore.getState().getNodeColor;
             return getNodeColor(node.id);
           }}
           nodeStrokeColor={(node) => {
-            if (node.type === 'comment') return 'transparent';
+            if (node.type === 'comment' || node.type === 'image') return 'transparent';
             // 실제 노드 색상의 어두운 버전을 stroke 색상으로 사용
             const getNodeColor = useStore.getState().getNodeColor;
             const nodeColor = getNodeColor(node.id);

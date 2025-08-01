@@ -3,6 +3,7 @@ import useStore from '../store/useStore';
 import { 
   FiMousePointer, 
   FiMessageSquare,
+  FiImage,
 } from 'react-icons/fi';
 import { FaTable } from "react-icons/fa";
 
@@ -120,7 +121,7 @@ const Toolbox = () => {
       setSelectMode(true);
       setConnectionMode(null);
       setCreateMode(null);
-    } else if (tool === 'entity' || tool === 'comment') {
+    } else if (tool === 'entity' || tool === 'comment' || tool === 'image') {
       setCreateMode(tool);
       setConnectionMode(null);
       setSelectMode(false);
@@ -158,6 +159,15 @@ const Toolbox = () => {
         title="코멘트 생성"
       >
         <FiMessageSquare />
+      </ToolButton>
+
+      <ToolButton
+        $isActive={createMode === 'image'}
+        $darkMode={isDarkMode}
+        onClick={() => handleToolClick('image')}
+        title="이미지 생성"
+      >
+        <FiImage />
       </ToolButton>
 
       <ToolButton

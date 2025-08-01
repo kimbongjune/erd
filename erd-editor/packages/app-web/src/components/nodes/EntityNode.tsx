@@ -51,7 +51,8 @@ const NodeContainer = styled.div<{ $isSelected: boolean; $darkMode?: boolean; $c
   overflow: visible;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  will-change: border-color, box-shadow, background-color;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   
   &:hover {
     border-color: ${props => {
@@ -135,7 +136,8 @@ const PaletteIcon = styled.div<{ $isVisible: boolean; $headerColor?: string }>`
   background: rgba(255, 255, 255, 0.2);
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  will-change: background, transform;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   
   &:hover {
     background: rgba(255, 255, 255, 0.3);
@@ -377,7 +379,9 @@ const Tooltip = styled.div<{ $visible: boolean; $x: number; $y: number }>`
   z-index: 99999;
   opacity: ${props => props.$visible ? 1 : 0};
   visibility: ${props => props.$visible ? 'visible' : 'hidden'};
-  transition: all 0.1s ease;
+  will-change: opacity, visibility;
+  transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1), 
+              visibility 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   min-width: 200px;
   max-width: 350px;
   white-space: nowrap;

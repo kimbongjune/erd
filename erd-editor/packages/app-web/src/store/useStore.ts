@@ -968,12 +968,24 @@ const useStore = create<RFState>((set, get) => ({
   },
   setSelectedNodeId: (id) => {
     const state = get();
-    // 선택이 해제되거나 다른 노드가 선택될 때 팔레트 숨김
-    if (state.selectedNodeId !== id) {
+    
+    // 동일한 노드 선택 시 불필요한 재처리 방지
+    if (state.selectedNodeId === id) {
+      return;
+    }
+    
+    // 이전 노드와 다른 경우에만 팔레트 숨김
+    if (state.selectedNodeId !== id && state.selectedNodeId !== null) {
       state.hidePalette();
     }
+    
+    // 상태 업데이트를 한 번에 처리하여 애니메이션 안정화
     set({ selectedNodeId: id });
-    get().updateAllHighlights();
+    
+    // 하이라이트 업데이트를 다음 프레임에서 처리하여 부드러운 전환
+    requestAnimationFrame(() => {
+      get().updateAllHighlights();
+    });
   },
   
   // 편집 상태 관리

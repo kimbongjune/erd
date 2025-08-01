@@ -75,32 +75,49 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
   React.useEffect(() => {
     const handleClickOutside = (e: Event) => {
       if (visible) {
-        onClose();
+        // 메뉴 자체를 클릭한 경우가 아니라면 닫기
+        const target = e.target as HTMLElement;
+        const menuElement = document.querySelector('[data-context-menu]');
+        if (menuElement && !menuElement.contains(target)) {
+          e.preventDefault();
+          e.stopPropagation();
+          onClose();
+        }
       }
     };
 
     const handleContextMenuOutside = (e: Event) => {
       if (visible) {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (visible && e.key === 'Escape') {
+        e.preventDefault();
         onClose();
       }
     };
 
     if (visible) {
-      // 약간의 지연을 두어 컨텍스트 메뉴가 즉시 닫히지 않도록
-      setTimeout(() => {
-        document.addEventListener('click', handleClickOutside);
-        document.addEventListener('contextmenu', handleContextMenuOutside);
-      }, 100);
+      // 즉시 이벤트 리스너 등록 (capture phase에서 처리)
+      document.addEventListener('click', handleClickOutside, true);
+      document.addEventListener('contextmenu', handleContextMenuOutside, true);
+      document.addEventListener('keydown', handleKeyDown, true);
+      document.addEventListener('mousedown', handleClickOutside, true);
     }
 
     return () => {
-      document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('contextmenu', handleContextMenuOutside);
+      document.removeEventListener('click', handleClickOutside, true);
+      document.removeEventListener('contextmenu', handleContextMenuOutside, true);
+      document.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('mousedown', handleClickOutside, true);
     };
   }, [visible, onClose]);
 
   return createPortal(
-    <MenuContainer $x={x} $y={y} $visible={visible}>
+    <MenuContainer $x={x} $y={y} $visible={visible} data-context-menu>
       <MenuItem onClick={handleDelete}>
         <FaTrash className="icon" />
         삭제

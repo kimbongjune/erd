@@ -416,6 +416,9 @@ const Canvas = () => {
     setShowAlignPopup(false);
     setShowViewPopup(false);
     
+    // 콘텍스트 메뉴 닫기
+    setContextMenu(prev => ({ ...prev, visible: false }));
+    
     // 색상 팔레트가 열려있을 때만 닫기
     const showColorPalette = useStore.getState().showColorPalette;
     if (showColorPalette) {
@@ -475,6 +478,9 @@ const Canvas = () => {
   }, [setSelectedNodeId, setSelectedEdgeId, setBottomPanelOpen]);
 
   const handleEdgeClick = useCallback((_: MouseEvent, edge: Edge) => {
+    // 콘텍스트 메뉴 닫기
+    setContextMenu(prev => ({ ...prev, visible: false }));
+    
     const currentSelectedEdgeId = useStore.getState().selectedEdgeId;
     setSelectedEdgeId(currentSelectedEdgeId === edge.id ? null : edge.id);
     setSelectedNodeId(null); // Clear node selection when edge is selected
@@ -637,6 +643,8 @@ const Canvas = () => {
     // 팝업들 닫기
     setShowAlignPopup(false);
     setShowViewPopup(false);
+    // 콘텍스트 메뉴 닫기
+    setContextMenu(prev => ({ ...prev, visible: false }));
     setSelectedNodeId(node.id);
   }, [setSelectedNodeId, setShowAlignPopup, setShowViewPopup]);
 

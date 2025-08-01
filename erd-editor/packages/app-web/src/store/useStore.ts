@@ -999,7 +999,29 @@ const useStore = create<RFState>((set, get) => ({
     const currentEntityColumns: string[] = [];
     
     relatedEdges.forEach(edge => {
-      if (edge.source === entityId) {
+      if (edge.source === entityId && edge.target === entityId) {
+        // 자기참조인 경우 - 특별 처리
+        relatedEntityIds.add(entityId);
+        
+        // 자기참조 FK 컬럼들 찾기
+        const selfReferencingFkColumns = currentEntity.data.columns?.filter((col: any) => 
+          col.fk && col.parentEntityId === entityId
+        ).map((col: any) => col.name) || [];
+        
+        // 자기참조 PK 컬럼들 찾기 (FK와 매칭되는 것들)
+        const selfReferencingPkColumns = currentEntity.data.columns?.filter((col: any) => {
+          if (!col.pk) return false;
+          // 해당 PK에 대응하는 자기참조 FK가 존재하는지 확인
+          return currentEntity.data.columns?.some((targetCol: any) => 
+            targetCol.fk && targetCol.parentEntityId === entityId &&
+            (targetCol.parentColumnId === col.id || targetCol.parentColumnId === col.name)
+          );
+        }).map((col: any) => col.name) || [];
+        
+        // 자기참조 컬럼들을 현재 엔티티 컬럼에 추가
+        currentEntityColumns.push(...selfReferencingFkColumns, ...selfReferencingPkColumns);
+        
+      } else if (edge.source === entityId) {
         // 현재 엔티티가 부모인 경우 - 본인의 PK 컬럼들 하이라이트 (실제 FK가 있는 것만)
         relatedEntityIds.add(edge.target);
         

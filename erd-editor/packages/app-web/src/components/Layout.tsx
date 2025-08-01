@@ -475,6 +475,58 @@ const DropdownList = styled.div<{ $darkMode?: boolean; $show?: boolean }>`
   }
 `;
 
+// 자동완성 드롭다운 스타일
+const AutocompleteDropdown = styled.div<{ $darkMode?: boolean; $show?: boolean }>`
+  position: fixed;
+  width: 120px;
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: ${props => props.$darkMode ? '#374151' : 'white'};
+  border: 1px solid ${props => props.$darkMode ? '#4a5568' : '#ccc'};
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 2147483647;
+  display: ${props => props.$show ? 'block' : 'none'};
+  
+  /* 커스텀 스크롤바 */
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: ${props => props.$darkMode ? '#2d3748' : '#f1f1f1'};
+    border-radius: 2px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: ${props => props.$darkMode ? '#4a5568' : '#c1c1c1'};
+    border-radius: 2px;
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: ${props => props.$darkMode ? '#5a6578' : '#a1a1a1'};
+  }
+`;
+
+const AutocompleteItem = styled.div<{ $darkMode?: boolean; $selected?: boolean }>`
+  padding: 8px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  color: ${props => props.$darkMode ? '#e2e8f0' : '#333'};
+  border-bottom: 1px solid ${props => props.$darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'};
+  transition: all 0.2s ease;
+  background: ${props => props.$selected ? (props.$darkMode ? '#4a5568' : '#e6f3ff') : 'transparent'};
+  
+  &:hover {
+    background: ${props => props.$darkMode ? '#4a5568' : '#e6f3ff'};
+  }
+  
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
 // Portal로 렌더링되는 드롭다운 컴포넌트
 const PortalDropdown: React.FC<{
   isOpen: boolean;
@@ -835,6 +887,12 @@ const Layout = () => {
   const [selectedColumn, setSelectedColumn] = useState<any>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [isComposing, setIsComposing] = useState(false);
+  
+  // 자동완성 관련 상태
+  const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [autocompleteColumnId, setAutocompleteColumnId] = useState<string | null>(null);
+  const [selectedAutocompleteIndex, setSelectedAutocompleteIndex] = useState<number>(-1);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
   // 초기 렌더링 지연으로 깜빡임 방지
@@ -868,22 +926,75 @@ const Layout = () => {
       
       // 기존 데이터타입 드롭다운 처리
       if (dropdownOpen && dropdownOpen !== 'fk-options') {
-        if (!target.closest('[data-dropdown]') && !target.closest('[data-dropdown-button]') && !target.closest('[data-editing]')) {
+        if (!target.closest('[data-dropdown]') && !target.closest('[data-dropdown-button]') && !target.closest('[data-editing]') && !target.closest('[data-autocomplete-item]')) {
           setDropdownOpen(null);
           setDropdownPosition(null);
           // editing 상태도 해제하여 border 제거
           setEditingCell(null);
         }
       }
+      
+      // 자동완성 드롭다운 처리 - 더 강력한 감지
+      if (showAutocomplete) {
+        const isAutocompleteItem = target.closest('[data-autocomplete-item]');
+        const isEditingInput = target.closest('[data-editing]');
+        const isDataTypeInput = target.tagName === 'INPUT' && target.getAttribute('data-editing')?.includes('-dataType');
+        
+        if (!isAutocompleteItem && !isEditingInput && !isDataTypeInput) {
+          console.log('자동완성 드롭다운 닫기 - 외부 클릭 감지');
+          setShowAutocomplete(false);
+          setAutocompleteColumnId(null);
+          setSelectedAutocompleteIndex(-1);
+        }
+      }
     };
 
-    if (dropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+    const handleDragStart = (event: DragEvent) => {
+      // 드래그 시작 시 자동완성 드롭다운 닫기
+      if (showAutocomplete) {
+        console.log('자동완성 드롭다운 닫기 - 드래그 시작');
+        setShowAutocomplete(false);
+        setAutocompleteColumnId(null);
+        setSelectedAutocompleteIndex(-1);
+      }
+    };
+
+    const handleScroll = () => {
+      // 스크롤 시 자동완성 드롭다운 닫기
+      if (showAutocomplete) {
+        console.log('자동완성 드롭다운 닫기 - 스크롤');
+        setShowAutocomplete(false);
+        setAutocompleteColumnId(null);
+        setSelectedAutocompleteIndex(-1);
+      }
+    };
+
+    const handleResize = () => {
+      // 윈도우 리사이즈 시 자동완성 드롭다운 닫기
+      if (showAutocomplete) {
+        console.log('자동완성 드롭다운 닫기 - 윈도우 리사이즈');
+        setShowAutocomplete(false);
+        setAutocompleteColumnId(null);
+        setSelectedAutocompleteIndex(-1);
+      }
+    };
+
+    if (dropdownOpen || showAutocomplete) {
+      // mousedown과 click 둘 다 등록하여 확실하게 감지
+      document.addEventListener('mousedown', handleClickOutside, true); // capture phase
+      document.addEventListener('click', handleClickOutside, true); // capture phase
+      document.addEventListener('dragstart', handleDragStart);
+      document.addEventListener('scroll', handleScroll, true); // capture phase로 모든 스크롤 이벤트 감지
+      window.addEventListener('resize', handleResize);
       return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('mousedown', handleClickOutside, true);
+        document.removeEventListener('click', handleClickOutside, true);
+        document.removeEventListener('dragstart', handleDragStart);
+        document.removeEventListener('scroll', handleScroll, true);
+        window.removeEventListener('resize', handleResize);
       };
     }
-  }, [dropdownOpen]);
+  }, [dropdownOpen, showAutocomplete]);
 
   // 선택된 엔티티의 데이터를 가져오기
   React.useEffect(() => {
@@ -938,10 +1049,33 @@ const Layout = () => {
       startHeight: bottomPanelHeight
     };
     
+    // 리사이저 드래그 시작 시 자동완성 드롭다운 닫기
+    setShowAutocomplete(false);
+    setAutocompleteColumnId(null);
+    setSelectedAutocompleteIndex(-1);
+    
     // 전역 스타일 적용
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'ns-resize';
   }, [bottomPanelHeight]);
+
+  // 자동완성 필터링 함수
+  const filterDataTypes = useCallback((input: string) => {
+    if (!input || input.length === 0) {
+      setAutocompleteSuggestions([]);
+      setShowAutocomplete(false);
+      setSelectedAutocompleteIndex(-1);
+      return;
+    }
+
+    const filtered = MYSQL_DATATYPES.filter(dataType =>
+      dataType.toUpperCase().startsWith(input.toUpperCase())
+    ).slice(0, 8); // 최대 8개만 표시
+
+    setAutocompleteSuggestions(filtered);
+    setShowAutocomplete(filtered.length > 0);
+    setSelectedAutocompleteIndex(-1); // 새로운 필터링 시 선택 초기화
+  }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging || !dragRef.current) return;
@@ -951,7 +1085,19 @@ const Layout = () => {
     const deltaY = dragRef.current.startY - e.clientY;
     const newHeight = Math.max(150, Math.min(600, dragRef.current.startHeight + deltaY));
     setBottomPanelHeight(newHeight);
-  }, [isDragging]);
+    
+    // 자동완성 드롭다운이 열려있으면 위치 업데이트
+    if (showAutocomplete && autocompleteColumnId) {
+      const input = document.querySelector(`[data-editing="${autocompleteColumnId}-dataType"]`) as HTMLElement;
+      if (input) {
+        const rect = input.getBoundingClientRect();
+        setDropdownPosition({
+          top: rect.bottom + 2,
+          left: rect.left
+        });
+      }
+    }
+  }, [isDragging, showAutocomplete, autocompleteColumnId]);
 
   // 드롭다운 위치 계산 함수
   const calculateDropdownPosition = (element: HTMLElement) => {
@@ -1612,15 +1758,64 @@ const Layout = () => {
   };
 
   const handleCellKeyDown = (e: React.KeyboardEvent) => {
+    // 자동완성이 열려있고 현재 편집 중인 셀이 데이터타입 필드인 경우
+    if (showAutocomplete && editingCell?.endsWith('-dataType') && autocompleteSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedAutocompleteIndex(prev => 
+          prev < autocompleteSuggestions.length - 1 ? prev + 1 : 0
+        );
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedAutocompleteIndex(prev => 
+          prev > 0 ? prev - 1 : autocompleteSuggestions.length - 1
+        );
+        return;
+      }
+      if (e.key === 'Enter' && selectedAutocompleteIndex >= 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        const selectedDataType = autocompleteSuggestions[selectedAutocompleteIndex];
+        const columnId = editingCell.replace('-dataType', '');
+        updateColumnField(columnId, 'dataType', selectedDataType);
+        setShowAutocomplete(false);
+        setAutocompleteColumnId(null);
+        setSelectedAutocompleteIndex(-1);
+        setEditingCell(null);
+        (e.target as HTMLInputElement).blur();
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowAutocomplete(false);
+        setAutocompleteColumnId(null);
+        setSelectedAutocompleteIndex(-1);
+        setEditingCell(null);
+        (e.target as HTMLInputElement).blur();
+        return;
+      }
+    }
+    
     if (e.key === 'Enter' && !isComposing) {
       e.preventDefault();
       e.stopPropagation();
+      // 자동완성 닫기
+      setShowAutocomplete(false);
+      setAutocompleteColumnId(null);
+      setSelectedAutocompleteIndex(-1);
       setEditingCell(null);
       (e.target as HTMLInputElement).blur();
     }
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
+      // 자동완성 닫기
+      setShowAutocomplete(false);
+      setAutocompleteColumnId(null);
+      setSelectedAutocompleteIndex(-1);
       setEditingCell(null);
       (e.target as HTMLInputElement).blur();
     }
@@ -1717,6 +1912,13 @@ const Layout = () => {
               setDropdownType(null);
               setDropdownColumnId(null);
             }
+            
+            // 자동완성 드롭다운 닫기
+            if (showAutocomplete) {
+              setShowAutocomplete(false);
+              setAutocompleteColumnId(null);
+              setSelectedAutocompleteIndex(-1);
+            }
           }}
         >
           {!isLoading && <Canvas />}
@@ -1724,7 +1926,18 @@ const Layout = () => {
         </TopContainer>
       {isBottomPanelOpen && (
         <BottomPanelContainer $height={bottomPanelHeight} $darkMode={isDarkMode}>
-          <ResizeHandle onMouseDown={handleMouseDown} $darkMode={isDarkMode} />
+          <ResizeHandle 
+            onMouseDown={handleMouseDown} 
+            $darkMode={isDarkMode}
+            onClick={(e) => {
+              // 리사이즈 핸들 클릭 시에도 자동완성 닫기
+              if (showAutocomplete) {
+                setShowAutocomplete(false);
+                setAutocompleteColumnId(null);
+                setSelectedAutocompleteIndex(-1);
+              }
+            }}
+          />
           <BottomPanelHeader $darkMode={isDarkMode}>
             <TableTitle>
               <TableIcon />
@@ -2062,11 +2275,31 @@ const Layout = () => {
                           className={editingCell === `${column.id}-dataType` ? 'editing' : ''}
                           data-editing={editingCell === `${column.id}-dataType` ? `${column.id}-dataType` : ''}
                           value={column.dataType || ''}
-                          onChange={(e) => updateColumnField(column.id, 'dataType', e.target.value.toUpperCase())}
+                          onChange={(e) => {
+                            const newValue = e.target.value.toUpperCase();
+                            updateColumnField(column.id, 'dataType', newValue);
+                            
+                            // 자동완성 트리거
+                            if (editingCell === `${column.id}-dataType` && !column.fk) {
+                              setAutocompleteColumnId(column.id);
+                              filterDataTypes(newValue);
+                              
+                              // 자동완성 위치 계산
+                              if (newValue.length > 0) {
+                                const rect = e.target.getBoundingClientRect();
+                                setDropdownPosition({
+                                  top: rect.bottom + 2,
+                                  left: rect.left
+                                });
+                              }
+                            }
+                          }}
                           onBlur={(e) => {
-                            // 드롭다운 아이템 클릭이나 버튼 클릭이 아닌 경우에만 blur 처리
+                            // 자동완성 관련 처리
                             const relatedTarget = e.relatedTarget as HTMLElement;
-                            if (!relatedTarget || (!relatedTarget.closest('[data-dropdown]') && !relatedTarget.closest('[data-dropdown-button]'))) {
+                            if (!relatedTarget || (!relatedTarget.closest('[data-autocomplete-item]') && !relatedTarget.closest('[data-dropdown]') && !relatedTarget.closest('[data-dropdown-button]'))) {
+                              setShowAutocomplete(false);
+                              setAutocompleteColumnId(null);
                               handleCellBlur();
                               setDropdownOpen(null);
                             }
@@ -2115,6 +2348,42 @@ const Layout = () => {
                             darkMode={isDarkMode}
                             setTooltip={setTooltip}
                           />
+                        )}
+                        {/* 자동완성 드롭다운 */}
+                        {showAutocomplete && autocompleteColumnId === column.id && editingCell === `${column.id}-dataType` && !column.fk && dropdownPosition && createPortal(
+                          <AutocompleteDropdown
+                            $darkMode={isDarkMode}
+                            $show={true}
+                            style={{
+                              top: dropdownPosition.top,
+                              left: dropdownPosition.left,
+                            }}
+                          >
+                            {autocompleteSuggestions.map((dataType, index) => (
+                              <AutocompleteItem
+                                key={dataType}
+                                $darkMode={isDarkMode}
+                                $selected={index === selectedAutocompleteIndex}
+                                data-autocomplete-item="true"
+                                onMouseDown={(e) => {
+                                  e.preventDefault(); // blur 방지
+                                }}
+                                onMouseEnter={() => {
+                                  setSelectedAutocompleteIndex(index);
+                                }}
+                                onClick={() => {
+                                  updateColumnField(column.id, 'dataType', dataType);
+                                  setShowAutocomplete(false);
+                                  setAutocompleteColumnId(null);
+                                  setSelectedAutocompleteIndex(-1);
+                                  setEditingCell(null);
+                                }}
+                              >
+                                {dataType}
+                              </AutocompleteItem>
+                            ))}
+                          </AutocompleteDropdown>,
+                          document.body
                         )}
                       </DataTypeInputContainer>
                     </TableCell>

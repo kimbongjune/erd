@@ -2035,6 +2035,33 @@ const useStore = create<RFState>((set, get) => ({
       // 데이터타입 유효성 검사
       for (const column of columns) {
         const dataType = column.dataType || column.type;
+        
+        // 빈 데이터타입 검사
+        if (!dataType || dataType.trim() === '') {
+          get().setSelectedNodeId(node.id);
+          get().setBottomPanelOpen(true);
+          
+          // 엔티티를 화면 중앙으로 이동
+          const nodeElement = document.querySelector(`[data-id="${node.id}"]`) as HTMLElement;
+          if (nodeElement) {
+            // ReactFlow의 fitView를 사용하여 특정 노드에 zoom to fit 적용
+            const reactFlowInstance = (window as any).reactFlowInstance;
+            if (reactFlowInstance) {
+              reactFlowInstance.fitView({
+                nodes: [node],
+                padding: 0.2,
+                duration: 500
+              });
+            }
+          }
+          
+          setTimeout(() => {
+            toast.error(`테이블 '${node.data.label}'의 컬럼 '${column.name}': 데이터타입이 비어있습니다. 데이터타입을 입력해주세요.`);
+          }, 200);
+          return;
+        }
+        
+        // 데이터타입 형식 검사
         if (dataType) {
           const validation = validateDataTypeForSQL(dataType);
           if (!validation.isValid) {

@@ -152,11 +152,24 @@ const EntityItem = styled.div<{
   }
 `;
 
-const EntityName = styled.span<{ $darkMode: boolean }>`
+const EntityName = styled.div<{ $darkMode: boolean }>`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const PhysicalName = styled.span<{ $darkMode: boolean }>`
   font-size: 14px;
   font-weight: 500;
   color: ${props => props.$darkMode ? '#ffffff' : '#2d3748'};
-  flex: 1;
+`;
+
+const LogicalName = styled.span<{ $darkMode: boolean }>`
+  font-size: 12px;
+  font-weight: 400;
+  color: ${props => props.$darkMode ? '#a0aec0' : '#718096'};
+  font-style: italic;
 `;
 
 const HighlightedText = styled.span<{ $darkMode: boolean }>`
@@ -226,9 +239,13 @@ const SearchPanel: React.FC = () => {
   const filteredEntities = useMemo(() => {
     if (!searchQuery) return entityNodes;
     
-    return entityNodes.filter(entity => 
-      entity.data.label?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    return entityNodes.filter(entity => {
+      const physicalName = entity.data.label?.toLowerCase() || '';
+      const logicalName = entity.data.logicalName?.toLowerCase() || '';
+      const query = searchQuery.toLowerCase();
+      
+      return physicalName.includes(query) || logicalName.includes(query);
+    });
   }, [entityNodes, searchQuery]);
 
   const handleEntityClick = (entityId: string) => {
@@ -307,7 +324,14 @@ const SearchPanel: React.FC = () => {
               onClick={() => handleEntityClick(entity.id)}
             >
               <EntityName $darkMode={darkMode}>
-                {highlightSearchTerm(entity.data.label, searchQuery)}
+                <PhysicalName $darkMode={darkMode}>
+                  {highlightSearchTerm(entity.data.label, searchQuery)}
+                </PhysicalName>
+                {entity.data.logicalName && (
+                  <LogicalName $darkMode={darkMode}>
+                    {highlightSearchTerm(entity.data.logicalName, searchQuery)}
+                  </LogicalName>
+                )}
               </EntityName>
               <EyeButton
                 $darkMode={darkMode}

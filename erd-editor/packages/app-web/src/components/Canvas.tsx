@@ -925,27 +925,52 @@ const Canvas = () => {
       >
         <MiniMap 
           nodeColor={(node) => {
-            if (node.type === 'comment' || node.type === 'image') return 'transparent';
-            // 실제 노드 색상 가져오기
-            const getNodeColor = useStore.getState().getNodeColor;
-            return getNodeColor(node.id);
+            // 노드 타입별로 캔버스와 완전히 분리된 고유 색상 적용
+            if (node.type === 'comment') {
+              // 커멘트 노드: 형광 노란색 - 캔버스에서 절대 안쓰는 색
+              return isDarkMode ? '#ffff00' : '#ffd700';
+            } else if (node.type === 'image') {
+              // 이미지 노드: 형광 시안색 - 캔버스에서 절대 안쓰는 색
+              return isDarkMode ? '#00ffff' : '#00bfff';
+            } else if (node.type === 'text') {
+              // 텍스트 노드: 형광 마젠타색 - 캔버스에서 절대 안쓰는 색
+              return isDarkMode ? '#ff00ff' : '#ff1493';
+            } else if (node.type === 'entity') {
+              // 엔티티 노드: 기존대로 실제 노드 색상 사용
+              const getNodeColor = useStore.getState().getNodeColor;
+              return getNodeColor(node.id);
+            }
+            // 기타 노드: 기본 색상
+            return isDarkMode ? '#4a5568' : '#a0aec0';
           }}
           nodeStrokeColor={(node) => {
-            if (node.type === 'comment' || node.type === 'image') return 'transparent';
-            // 실제 노드 색상의 어두운 버전을 stroke 색상으로 사용
-            const getNodeColor = useStore.getState().getNodeColor;
-            const nodeColor = getNodeColor(node.id);
-            // 색상을 어둡게 만드는 함수
-            const darkenColor = (color: string) => {
-              // 간단한 어둡게 만들기 (더 정교한 방법이 필요하면 colorUtils 사용)
-              return color.replace(/^#/, '').match(/.{2}/g)?.map(hex => {
-                const num = Math.max(0, parseInt(hex, 16) - 40);
-                return num.toString(16).padStart(2, '0');
-              }).join('') || color;
-            };
-            return `#${darkenColor(nodeColor)}`;
+            // 노드 타입별로 진한 형광 색상 테두리
+            if (node.type === 'comment') {
+              // 커멘트 노드: 진한 금색 테두리
+              return isDarkMode ? '#ffcc00' : '#b8860b';
+            } else if (node.type === 'image') {
+              // 이미지 노드: 진한 청색 테두리
+              return isDarkMode ? '#0099cc' : '#006699';
+            } else if (node.type === 'text') {
+              // 텍스트 노드: 진한 자주색 테두리
+              return isDarkMode ? '#cc0099' : '#990066';
+            } else if (node.type === 'entity') {
+              // 엔티티 노드: 실제 노드 색상의 어두운 버전을 stroke 색상으로 사용
+              const getNodeColor = useStore.getState().getNodeColor;
+              const nodeColor = getNodeColor(node.id);
+              // 색상을 어둡게 만드는 함수
+              const darkenColor = (color: string) => {
+                return color.replace(/^#/, '').match(/.{2}/g)?.map(hex => {
+                  const num = Math.max(0, parseInt(hex, 16) - 40);
+                  return num.toString(16).padStart(2, '0');
+                }).join('') || color;
+              };
+              return `#${darkenColor(nodeColor)}`;
+            }
+            // 기타 노드: 기본 테두리 색상
+            return isDarkMode ? '#6b7280' : '#9ca3af';
           }}
-          nodeStrokeWidth={2}
+          nodeStrokeWidth={1.5}
           maskColor={isDarkMode ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.2)"}
           pannable={true}
           zoomable={true}

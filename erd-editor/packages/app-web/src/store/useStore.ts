@@ -2355,6 +2355,11 @@ const useStore = create<RFState>((set, get) => ({
                 if (isCompositeKeyRelation) {
                   // 복합키 관계: FK 하나라도 PK 해제되면 모든 관련 FK의 PK 해제 + 비식별자 관계로 변경
                   if (!newCol.pk) {
+                    // 제거될 PK+FK 컬럼들을 미리 찾기 (연쇄 처리용)
+                    const removedPkColumns = newColumns.filter((col: any) => 
+                      col.fk && col.parentEntityId === parentEntityId && col.pk
+                    );
+                    
                     const updatedChildColumns = newColumns.map((col: any) => {
                       if (col.fk && col.parentEntityId === parentEntityId) {
                         return { ...col, pk: false, nn: false };
@@ -2381,7 +2386,19 @@ const useStore = create<RFState>((set, get) => ({
                         edge.id === relatedEdge.id ? { ...edge, type: newEdgeType } : edge
                       );
                       
-    
+                      // 연쇄적으로 하위 관계들도 해제 (118번 문제 해결)
+                      if (removedPkColumns.length > 0) {
+                        console.log('🌊 PK→UQ 변경으로 인한 연쇄적 관계 해제 시작...', removedPkColumns.map((col: any) => col.name));
+                        const cascadeResult = propagateRelationshipTypeChange(
+                          nodeId,
+                          removedPkColumns,
+                          finalNodes,
+                          finalEdges
+                        );
+                        finalNodes = cascadeResult.updatedNodes;
+                        finalEdges = cascadeResult.updatedEdges;
+                        console.log('✅ PK→UQ 변경으로 인한 연쇄적 관계 해제 완료');
+                      }
                     }
                   }
                   // 복합키에서 FK 하나라도 PK 설정되면 모든 관련 FK의 PK 설정 + 식별자 관계로 변경

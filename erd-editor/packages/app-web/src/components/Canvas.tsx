@@ -90,6 +90,9 @@ const Canvas = () => {
   const setShowAlignPopup = useStore((state) => state.setShowAlignPopup);
   const setShowViewPopup = useStore((state) => state.setShowViewPopup);
   
+  // 편집 상태 관련
+  const editingCommentId = useStore((state) => state.editingCommentId);
+  
   // viewport 관련
   const updateViewport = useStore((state) => state.updateViewport);
   const savedViewport = useStore((state) => state.viewport);
@@ -868,17 +871,17 @@ const Canvas = () => {
         onPaneClick={handlePaneClick}
         onPaneContextMenu={handleContextMenuClose}
         defaultEdgeOptions={{}}
-        panOnDrag={!connectionMode && !createMode}
-        selectionOnDrag={!connectionMode && !createMode}
-        nodesDraggable={!connectionMode}
+        panOnDrag={!connectionMode && !createMode && !editingCommentId}
+        selectionOnDrag={!connectionMode && !createMode && !editingCommentId}
+        nodesDraggable={!connectionMode && !editingCommentId}
         connectionLineComponent={connectionMode ? CustomConnectionLine : undefined}
         elevateNodesOnSelect={false}
         elevateEdgesOnSelect={false}
         selectNodesOnDrag={false}
         panOnScroll={false}
-        zoomOnScroll={true}
+        zoomOnScroll={!editingCommentId}
         preventScrolling={true}
-        zoomOnPinch={true}
+        zoomOnPinch={!editingCommentId}
         disableKeyboardA11y={false}
         nodeOrigin={[0.5, 0.5]}
         maxZoom={2}
@@ -886,8 +889,8 @@ const Canvas = () => {
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         attributionPosition="bottom-left"
         proOptions={{ hideAttribution: true }}
-        deleteKeyCode={null}
-        multiSelectionKeyCode={null}
+        deleteKeyCode={editingCommentId ? null : undefined}
+        multiSelectionKeyCode={editingCommentId ? null : undefined}
         onlyRenderVisibleElements={false}
         elementsSelectable={true}
         fitView={false}

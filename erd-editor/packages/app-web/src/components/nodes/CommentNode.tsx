@@ -6,7 +6,7 @@ import useStore from '../../store/useStore';
 import ColorPalette from '../ColorPalette';
 import { getHoverColor, getActiveColor, getShadowColor } from '../../utils/colorUtils';
 
-const NodeContainer = styled.div<{ selected?: boolean; $color?: string }>`
+const NodeContainer = styled.div<{ selected?: boolean; $color?: string; $isEditing?: boolean }>`
   position: relative;
   background: ${props => props.$color ? props.$color : '#fff9c4'};
   border: 2px solid ${props => {
@@ -36,16 +36,20 @@ const NodeContainer = styled.div<{ selected?: boolean; $color?: string }>`
       : '0 2px 8px rgba(0, 0, 0, 0.1)';
   }};
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
-  cursor: pointer;
+  cursor: ${props => props.$isEditing ? 'text' : 'pointer'};
+  pointer-events: ${props => props.$isEditing ? 'none !important' : 'auto'};
+  user-select: ${props => props.$isEditing ? 'none' : 'auto'};
   
   &:hover {
     box-shadow: ${props => {
+      if (props.$isEditing) return; // 편집 모드에서는 hover 효과 제거
       if (props.$color) {
         return `0 3px 10px ${getShadowColor(props.$color)}`;
       }
       return '0 3px 10px rgba(251, 191, 36, 0.15)';
     }};
     border-color: ${props => {
+      if (props.$isEditing) return; // 편집 모드에서는 hover 효과 제거
       if (props.$color) {
         return props.selected ? getActiveColor(props.$color) : getHoverColor(props.$color);
       }
@@ -102,40 +106,53 @@ const PaletteIcon = styled.div<{ $isVisible: boolean; $headerColor?: string }>`
   }
 `;
 
-const EditInput = styled.textarea`
+const CommentTextContainer = styled.div<{ $isEditing: boolean; $color?: string }>`
   width: 100%;
-  border: none;
-  background: rgba(255, 255, 255, 0.8);
-  border-radius: 4px;
-  padding: 8px;
   font-size: 14px;
   font-family: inherit;
-  outline: none;
-  color: #374151;
-  resize: none;
-  min-height: 20px;
-  height: auto;
-  overflow: hidden;
-  
-  &:focus {
-    background: rgba(255, 255, 255, 1);
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
-  }
-`;
-
-const CommentText = styled.div`
-  font-size: 14px;
-  color: #374151;
+  color: ${props => {
+    if (props.$color) {
+      const hex = props.$color.replace('#', '');
+      const r = parseInt(hex.substr(0, 2), 16);
+      const g = parseInt(hex.substr(2, 2), 16);
+      const b = parseInt(hex.substr(4, 2), 16);
+      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      return brightness > 128 ? '#000000' : '#ffffff';
+    }
+    return '#374151';
+  }};
   white-space: pre-wrap;
   word-wrap: break-word;
   line-height: 1.4;
+  min-height: 20px;
+  padding: ${props => props.$isEditing ? '8px' : '0'};
+  border: none;
+  outline: none;
+  background: ${props => props.$isEditing ? 'rgba(255, 255, 255, 0.8)' : 'transparent'};
+  border-radius: ${props => props.$isEditing ? '4px' : '0'};
+  cursor: ${props => props.$isEditing ? 'text' : 'pointer'};
+  pointer-events: ${props => props.$isEditing ? 'auto !important' : 'none'};
+  user-select: ${props => props.$isEditing ? 'text' : 'none'};
+  z-index: ${props => props.$isEditing ? '9999' : 'auto'};
+  position: relative;
+  transition: background-color 0.2s ease, padding 0.2s ease;
+  
+  &:focus {
+    background: ${props => props.$isEditing ? 'rgba(255, 255, 255, 1)' : 'transparent'};
+    box-shadow: ${props => props.$isEditing ? '0 0 0 2px rgba(59, 130, 246, 0.5)' : 'none'};
+  }
+  
+  &:empty:before {
+    content: ${props => props.$isEditing ? '"텍스트를 입력하세요..."' : '""'};
+    color: #9ca3af;
+    font-style: italic;
+  }
 `;
 
 const CommentNode = ({ data, selected, id }: any) => {
-  const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(data.label);
   const [previewColor, setPreviewColor] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   
   const nodes = useStore((state) => state.nodes);
   const setNodes = useStore((state) => state.setNodes);
@@ -148,82 +165,207 @@ const CommentNode = ({ data, selected, id }: any) => {
   const showPalette = useStore((state) => state.showPalette);
   const hidePalette = useStore((state) => state.hidePalette);
   const theme = useStore((state) => state.theme);
+  const editingCommentId = useStore((state) => state.editingCommentId);
+  const setEditingCommentId = useStore((state) => state.setEditingCommentId);
+  
+  // 편집 상태는 useStore에서 관리
+  const isEditing = editingCommentId === id;
   
   // ReactFlow의 selected 상태와 useStore의 selectedNodeId 모두 확인
   const isSelected = selected || selectedNodeId === id;
   const isDarkMode = theme === 'dark';
   
+  // 편집 모드 진입시 초기 설정만 수행
+  useEffect(() => {
+    if (isEditing && contentRef.current) {
+      // 편집 모드로 진입할 때만 초기 설정
+      const htmlContent = data.label.replace(/\n/g, '<br>');
+      contentRef.current.innerHTML = htmlContent;
+      
+      // 포커스 설정
+      setTimeout(() => {
+        if (contentRef.current) {
+          contentRef.current.focus();
+          
+          // "New Comment"가 아닌 경우에만 텍스트 전체 선택
+          if (data.label !== 'New Comment') {
+            const range = document.createRange();
+            range.selectNodeContents(contentRef.current);
+            const selection = window.getSelection();
+            if (selection) {
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+          }
+        }
+      }, 0);
+    }
+  }, [isEditing]); // editValue 의존성 제거
+
   // 색상 관련
   const commentColor = getCommentColor(id);
   const actualColor = previewColor || commentColor;
 
-  // 텍스트 영역 높이 자동 조정
-  const adjustTextareaHeight = useCallback(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isEditing) {
-      adjustTextareaHeight();
-    }
-  }, [isEditing, editValue, adjustTextareaHeight]);
-
   const handleClick = useCallback((e: any) => {
+    // 편집 중일 때는 이벤트 처리하지 않음 (CSS pointer-events로 차단됨)
+    if (isEditing) {
+      return;
+    }
+    
     e.stopPropagation();
     e.preventDefault();
     
-    // 편집 중이 아닐 때만 선택 상태 변경 (하단 패널은 열지 않음)
-    if (!isEditing) {
-      setSelectedNodeId(id);
-      // setBottomPanelOpen(true); // 코멘트는 하단 패널 열지 않음
-    }
+    setSelectedNodeId(id);
   }, [id, setSelectedNodeId, isEditing]);
+
+  const handleMouseDown = useCallback((e: any) => {
+    // 편집 중일 때는 노드 드래그 방지
+    if (isEditing) {
+      e.stopPropagation();
+      e.preventDefault();
+      return;
+    }
+  }, [isEditing]);
+
+  // 이벤트 캡처링 단계에서 완전 차단
+  const handleCaptureClick = useCallback((e: any) => {
+    if (isEditing) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }
+  }, [isEditing]);
+
+  const handleCaptureMouseDown = useCallback((e: any) => {
+    if (isEditing) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }
+  }, [isEditing]);
+
+  const handleCaptureContextMenu = useCallback((e: any) => {
+    if (isEditing) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }
+  }, [isEditing]);
+
+  const handleCaptureDragStart = useCallback((e: any) => {
+    if (isEditing) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }
+  }, [isEditing]);
+
+  // contentEditable 내부 이벤트 핸들러들
+  const handleContentClick = useCallback((e: any) => {
+    if (isEditing) {
+      e.stopPropagation(); // 상위로 전파 방지
+    }
+  }, [isEditing]);
+
+  const handleContentMouseDown = useCallback((e: any) => {
+    if (isEditing) {
+      e.stopPropagation(); // 상위로 전파 방지
+    }
+  }, [isEditing]);
 
   const handleDoubleClick = useCallback((e: any) => {
     e.stopPropagation();
     e.preventDefault();
     
-    // "New Comment"인 경우 빈 문자열로 시작
-    if (data.label === 'New Comment') {
-      setEditValue('');
-    } else {
-      setEditValue(data.label);
-    }
-    
-    setIsEditing(true);
-  }, [data.label]);
+    setEditingCommentId(id);
+    setEditValue(data.label);
+  }, [data.label, id, setEditingCommentId]);
 
   const handleInputChange = useCallback((e: any) => {
-    setEditValue(e.target.value);
-    adjustTextareaHeight();
-  }, [adjustTextareaHeight]);
+    // 최소한의 처리만 수행 - 커서 위치 방해하지 않음
+    const target = e.target;
+    if (target) {
+      const textContent = target.textContent || '';
+      setEditValue(textContent);
+    }
+  }, []);
 
-  const handleInputKeyPress = useCallback((e: any) => {
+  const handleKeyDown = useCallback((e: any) => {
+    // 백스페이스 키 이벤트가 상위로 전파되어 노드 삭제되는 것 방지
+    if (e.key === 'Backspace') {
+      e.stopPropagation();
+    }
+    
+    // Enter 키 처리 - 두 줄 바뀜 방지
+    if (e.key === 'Enter' && !e.ctrlKey) {
+      e.preventDefault();
+      
+      // 현재 커서 위치에 <br> 삽입
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        
+        const br = document.createElement('br');
+        range.insertNode(br);
+        
+        // 커서를 <br> 다음으로 이동
+        range.setStartAfter(br);
+        range.setEndAfter(br);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      
+      // editValue 업데이트
+      if (contentRef.current) {
+        const textContent = contentRef.current.textContent || '';
+        setEditValue(textContent);
+      }
+      return;
+    }
+    
     if (e.key === 'Enter' && e.ctrlKey) {
+      e.preventDefault();
       handleInputBlur();
     }
+    
     if (e.key === 'Escape') {
+      e.preventDefault();
+      if (contentRef.current) {
+        // 원래 텍스트로 복원
+        const htmlContent = data.label.replace(/\n/g, '<br>');
+        contentRef.current.innerHTML = htmlContent;
+      }
       setEditValue(data.label);
-      setIsEditing(false);
+      setEditingCommentId(null);
     }
-  }, [data.label]);
+  }, [data.label, setEditingCommentId]);
 
   const handleInputBlur = useCallback(() => {
-    // 빈 값이면 원래 라벨 유지, 아니면 새 값으로 업데이트
-    const finalValue = editValue.trim() === '' ? data.label : editValue;
+    // onBlur에서 최종 처리
+    let finalContent = '';
+    
+    if (contentRef.current) {
+      // innerHTML에서 <br> 태그를 \n으로 변환
+      const htmlContent = contentRef.current.innerHTML;
+      finalContent = htmlContent
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<div>/gi, '\n')
+        .replace(/<\/div>/gi, '')
+        .replace(/<[^>]*>/g, '') // 나머지 HTML 태그 제거
+        .trim();
+    }
+    
+    // 빈 값인 경우 원래 라벨 유지
+    if (finalContent === '') {
+      finalContent = data.label;
+    }
     
     const updatedNodes = nodes.map((node) =>
-      node.id === id ? { ...node, data: { ...node.data, label: finalValue } } : node
+      node.id === id ? { ...node, data: { ...node.data, label: finalContent } } : node
     );
     setNodes(updatedNodes);
-    setIsEditing(false);
-  }, [editValue, data.label, nodes, id, setNodes]);
+    setEditingCommentId(null);
+  }, [data.label, nodes, id, setNodes, setEditingCommentId]);
 
   const handleTextAreaWheel = useCallback((e: any) => {
-    // textarea 내부에서 휠 이벤트가 위로 전파되지 않도록 차단
+    // 컨텐츠 내부에서 휠 이벤트가 위로 전파되지 않도록 차단
     e.stopPropagation();
   }, []);
 
@@ -258,64 +400,106 @@ const CommentNode = ({ data, selected, id }: any) => {
 
   return (
     <div style={{ position: 'relative' }}>
-      <NodeContainer 
-        selected={isSelected} 
-        $color={actualColor}
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
-        onWheel={handleNodeWheel}
-      >
-        {/* 색상 팔레트 - 커멘트 내부에 상대 위치로 배치 */}
-        {showColorPalette && paletteTarget?.type === 'comment' && paletteTarget.id === id && (
-          <div style={{ 
-            position: 'absolute', 
-            top: 0, 
-            right: -248, 
-            zIndex: 10000 
-          }}>
-            <ColorPalette
-              onColorSelect={handleColorSelect}
-              onClose={hidePalette}
-              position={{ x: 0, y: 0 }}
-              darkMode={isDarkMode}
-              onPreview={handlePreviewColor}
-              onClearPreview={handleClearPreview}
+      {isEditing ? (
+        // 편집 모드일 때는 완전히 분리된 구조
+        <div style={{ position: 'relative', zIndex: 10000 }}>
+          <NodeContainer 
+            selected={isSelected} 
+            $color={actualColor}
+            $isEditing={isEditing}
+            style={{ pointerEvents: 'none', userSelect: 'none' }}
+          >
+            {/* 색상 팔레트 - 편집 모드에서는 비활성화 */}
+            
+            {/* 헤더도 편집 모드에서는 비활성화 */}
+            
+            {/* 편집용 contentEditable - 완전히 독립적 */}
+            <CommentTextContainer
+              ref={contentRef}
+              $isEditing={isEditing}
+              $color={actualColor}
+              contentEditable={true}
+              suppressContentEditableWarning={true}
+              onInput={handleInputChange}
+              onKeyDown={handleKeyDown}
+              onBlur={handleInputBlur}
+              onWheel={handleTextAreaWheel}
+              onWheelCapture={handleTextAreaWheel}
+              onContextMenu={(e) => {
+                // 편집 모드에서는 기본 브라우저 콘텍스트 메뉴 허용
+                e.stopPropagation();
+              }}
+              style={{ 
+                pointerEvents: 'auto',
+                userSelect: 'text',
+                position: 'relative',
+                zIndex: 10001
+              }}
+              onFocus={(e) => {
+                if (data.label === 'New Comment') {
+                  e.target.innerHTML = '';
+                  setEditValue('');
+                }
+              }}
             />
-          </div>
-        )}
+          </NodeContainer>
+        </div>
+      ) : (
+        // 비편집 모드일 때는 기존 구조
+        <NodeContainer 
+          selected={isSelected} 
+          $color={actualColor}
+          $isEditing={isEditing}
+          onClick={handleClick}
+          onDoubleClick={handleDoubleClick}
+          onMouseDown={handleMouseDown}
+          onWheel={handleNodeWheel}
+          onClickCapture={handleCaptureClick}
+          onMouseDownCapture={handleCaptureMouseDown}
+          onContextMenuCapture={handleCaptureContextMenu}
+          onDragStartCapture={handleCaptureDragStart}
+        >
+          {/* 색상 팔레트 - 커멘트 내부에 상대 위치로 배치 */}
+          {showColorPalette && paletteTarget?.type === 'comment' && paletteTarget.id === id && (
+            <div style={{ 
+              position: 'absolute', 
+              top: 0, 
+              right: -248, 
+              zIndex: 10000 
+            }}>
+              <ColorPalette
+                onColorSelect={handleColorSelect}
+                onClose={hidePalette}
+                position={{ x: 0, y: 0 }}
+                darkMode={isDarkMode}
+                onPreview={handlePreviewColor}
+                onClearPreview={handleClearPreview}
+              />
+            </div>
+          )}
 
-        {/* 헤더 (선택된 상태일 때만 표시) */}
-        {isSelected && (
-          <Header $color={actualColor}>
-            <PaletteIcon 
-              $isVisible={isSelected}
-              $headerColor={actualColor}
-              onClick={handlePaletteClick}
-            >
-              <FaPalette />
-            </PaletteIcon>
-          </Header>
-        )}
+          {/* 헤더 (선택된 상태일 때만 표시) */}
+          {isSelected && (
+            <Header $color={actualColor}>
+              <PaletteIcon 
+                $isVisible={isSelected}
+                $headerColor={actualColor}
+                onClick={handlePaletteClick}
+              >
+                <FaPalette />
+              </PaletteIcon>
+            </Header>
+          )}
 
-        {/* 커멘트는 관계에 참여하지 않으므로 Handle 제거 */}
-        
-        {isEditing ? (
-          <EditInput
-            ref={textareaRef}
-            value={editValue}
-            onChange={handleInputChange}
-            onKeyDown={handleInputKeyPress}
-            onBlur={handleInputBlur}
-            onWheel={handleTextAreaWheel}
-            onWheelCapture={handleTextAreaWheel}
-            autoFocus
+          {/* 커멘트는 관계에 참여하지 않으므로 Handle 제거 */}
+          
+          <CommentTextContainer
+            $isEditing={isEditing}
+            $color={actualColor}
+            dangerouslySetInnerHTML={{ __html: data.label.replace(/\n/g, '<br>') }}
           />
-        ) : (
-          <CommentText>
-            {data.label}
-          </CommentText>
-        )}
-      </NodeContainer>
+        </NodeContainer>
+      )}
     </div>
   );
 };

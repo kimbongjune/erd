@@ -708,6 +708,9 @@ type RFState = {
   createMode: string | null;
   selectMode: boolean;
   
+  // 편집 상태
+  editingCommentId: string | null; // 현재 편집 중인 커멘트 노드 ID
+  
   // 로딩 관련
   isLoading: boolean;
   loadingMessage: string;
@@ -775,6 +778,9 @@ type RFState = {
   setConnectionMode: (mode: string | null) => void;
   setConnectingNodeId: (id: string | null) => void;
   finishConnection: (targetNodeId: string | null) => void;
+  
+  // 편집 상태 관리
+  setEditingCommentId: (id: string | null) => void;
   cancelConnection: () => void;
   updateSelectedEdgeType: (newType: string) => void;
   updateNodeData: (nodeId: string, newData: any) => void;
@@ -868,6 +874,9 @@ const useStore = create<RFState>((set, get) => ({
   connectingNodeId: null,
   createMode: null,
   selectMode: true,
+  
+  // 편집 상태
+  editingCommentId: null,
   
   // 로딩 관련 초기값
   isLoading: false,
@@ -966,6 +975,9 @@ const useStore = create<RFState>((set, get) => ({
     set({ selectedNodeId: id });
     get().updateAllHighlights();
   },
+  
+  // 편집 상태 관리
+  setEditingCommentId: (id) => set({ editingCommentId: id }),
   setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
   setHoveredEdgeId: (id: string | null) => set({ hoveredEdgeId: id }),
   setHoveredEntityId: (id: string | null) => {

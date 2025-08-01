@@ -327,10 +327,10 @@ const Canvas = () => {
           // ReactFlow 컨테이너의 bounds 가져오기
           const reactFlowBounds = reactFlowWrapper.current.querySelector('.react-flow')?.getBoundingClientRect();
           if (reactFlowBounds) {
-            // nodeOrigin=[0.5, 0.5]이므로 position이 이미 노드 중심점
+            // nodeOrigin=[0, 0]이므로 position이 노드 왼쪽 상단, 중심점 계산 필요
             const nodeCenterFlow = {
-              x: sourceNode.position.x,
-              y: sourceNode.position.y
+              x: sourceNode.position.x + (sourceNode.width || 280) / 2,
+              y: sourceNode.position.y + (sourceNode.height || 120) / 2
             };
             const projected = flowToScreenPosition(nodeCenterFlow);
             const sourceX = projected.x - reactFlowBounds.left;
@@ -377,10 +377,10 @@ const Canvas = () => {
       // ReactFlow 컨테이너의 bounds 가져오기
       const reactFlowBounds = reactFlowWrapper.current?.querySelector('.react-flow')?.getBoundingClientRect();
       if (reactFlowBounds) {
-        // nodeOrigin=[0.5, 0.5]이므로 position이 이미 노드 중심점
+        // nodeOrigin=[0, 0]이므로 position이 노드 왼쪽 상단, 중심점 계산 필요
         const nodeCenterFlow = {
-          x: node.position.x,
-          y: node.position.y
+          x: node.position.x + (node.width || 280) / 2,
+          y: node.position.y + (node.height || 120) / 2
         };
         const sourceScreenPos = flowToScreenPosition(nodeCenterFlow);
         
@@ -471,8 +471,8 @@ const Canvas = () => {
           data: { 
             label: 'Image',
             imageUrl: '',
-            width: 200,
-            height: 150
+            width: 300,
+            height: 200
           },
         };
         useStore.getState().setNodes([...nodes, newNode]);
@@ -579,37 +579,37 @@ const Canvas = () => {
       
       guides.forEach(guide => {
         if (guide.type === 'vertical') {
-          // X축 스냅 - nodeOrigin=[0.5, 0.5] 고려
+          // X축 스냅 - nodeOrigin=[0, 0] 고려
           const nodeWidth = node.width || 280;
-          const left = node.position.x - nodeWidth / 2;
-          const right = node.position.x + nodeWidth / 2;
-          const centerX = node.position.x;
+          const left = node.position.x;
+          const right = node.position.x + nodeWidth;
+          const centerX = node.position.x + nodeWidth / 2;
           
           if (Math.abs(guide.position - left) <= threshold) {
-            snappedPosition.x = guide.position + nodeWidth / 2;
+            snappedPosition.x = guide.position;
             hasSnapped = true;
           } else if (Math.abs(guide.position - right) <= threshold) {
-            snappedPosition.x = guide.position - nodeWidth / 2;
+            snappedPosition.x = guide.position - nodeWidth;
             hasSnapped = true;
           } else if (Math.abs(guide.position - centerX) <= threshold) {
-            snappedPosition.x = guide.position;
+            snappedPosition.x = guide.position - nodeWidth / 2;
             hasSnapped = true;
           }
         } else if (guide.type === 'horizontal') {
-          // Y축 스냅 - nodeOrigin=[0.5, 0.5] 고려
+          // Y축 스냅 - nodeOrigin=[0, 0] 고려
           const nodeHeight = node.height || 120;
-          const top = node.position.y - nodeHeight / 2;
-          const bottom = node.position.y + nodeHeight / 2;
-          const centerY = node.position.y;
+          const top = node.position.y;
+          const bottom = node.position.y + nodeHeight;
+          const centerY = node.position.y + nodeHeight / 2;
           
           if (Math.abs(guide.position - top) <= threshold) {
-            snappedPosition.y = guide.position + nodeHeight / 2;
+            snappedPosition.y = guide.position;
             hasSnapped = true;
           } else if (Math.abs(guide.position - bottom) <= threshold) {
-            snappedPosition.y = guide.position - nodeHeight / 2;
+            snappedPosition.y = guide.position - nodeHeight;
             hasSnapped = true;
           } else if (Math.abs(guide.position - centerY) <= threshold) {
-            snappedPosition.y = guide.position;
+            snappedPosition.y = guide.position - nodeHeight / 2;
             hasSnapped = true;
           }
         }
@@ -674,10 +674,10 @@ const Canvas = () => {
         // ReactFlow 컨테이너의 bounds 가져오기
         const reactFlowBounds = reactFlowWrapper.current.querySelector('.react-flow')?.getBoundingClientRect();
         if (reactFlowBounds) {
-          // nodeOrigin=[0.5, 0.5]이므로 position이 이미 노드 중심점
+          // nodeOrigin=[0, 0]이므로 position이 노드 왼쪽 상단, 중심점 계산 필요
           const nodeCenterFlow = {
-            x: sourceNode.position.x,
-            y: sourceNode.position.y
+            x: sourceNode.position.x + (sourceNode.width || 280) / 2,
+            y: sourceNode.position.y + (sourceNode.height || 120) / 2
           };
           const sourceScreenPos = flowToScreenPosition(nodeCenterFlow);
           
@@ -909,7 +909,7 @@ const Canvas = () => {
         preventScrolling={true}
         zoomOnPinch={!editingCommentId}
         disableKeyboardA11y={false}
-        nodeOrigin={[0.5, 0.5]}
+        nodeOrigin={[0, 0]}
         maxZoom={2}
         minZoom={0.1}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}

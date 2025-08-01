@@ -1714,14 +1714,14 @@ const useStore = create<RFState>((set, get) => ({
     const draggedWidth = draggedNode.width || 280;
     const draggedHeight = draggedNode.height || 120;
     
-    // nodeOrigin=[0.5, 0.5]이므로 position이 노드 중심점
+    // nodeOrigin=[0, 0]이므로 position이 노드 왼쪽 상단 모서리
     const draggedBounds = {
-      left: position.x - draggedWidth / 2,
-      right: position.x + draggedWidth / 2,
-      top: position.y - draggedHeight / 2,
-      bottom: position.y + draggedHeight / 2,
-      centerX: position.x,
-      centerY: position.y
+      left: position.x,
+      right: position.x + draggedWidth,
+      top: position.y,
+      bottom: position.y + draggedHeight,
+      centerX: position.x + draggedWidth / 2,
+      centerY: position.y + draggedHeight / 2
     };
     
     let bestVerticalGuide: { guide: SnapGuide; distance: number } | null = null;
@@ -1734,14 +1734,14 @@ const useStore = create<RFState>((set, get) => ({
       const nodeWidth = node.width || 280;
       const nodeHeight = node.height || 120;
       
-      // nodeOrigin=[0.5, 0.5]이므로 position이 노드 중심점
+      // nodeOrigin=[0, 0]이므로 position이 노드 왼쪽 상단 모서리
       const nodeBounds = {
-        left: node.position.x - nodeWidth / 2,
-        right: node.position.x + nodeWidth / 2,
-        top: node.position.y - nodeHeight / 2,
-        bottom: node.position.y + nodeHeight / 2,
-        centerX: node.position.x,
-        centerY: node.position.y
+        left: node.position.x,
+        right: node.position.x + nodeWidth,
+        top: node.position.y,
+        bottom: node.position.y + nodeHeight,
+        centerX: node.position.x + nodeWidth / 2,
+        centerY: node.position.y + nodeHeight / 2
       };
       
       // 수직 가이드라인 (X축 정렬) - 우선순위: center > left/right

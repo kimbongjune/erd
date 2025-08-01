@@ -1,6 +1,8 @@
 import { Handle, Position } from 'reactflow';
+import { NodeResizer } from '@reactflow/node-resizer';
+import '@reactflow/node-resizer/dist/style.css';
 import styled from 'styled-components';
-import { useState, useCallback, useRef, memo } from 'react';
+import { useState, useCallback, useRef, memo, useEffect } from 'react';
 import { FaImage, FaUpload, FaLink, FaTimes } from 'react-icons/fa';
 import { Resizable } from 'react-resizable';
 import useStore from '../../store/useStore';
@@ -18,8 +20,8 @@ const NodeContainer = styled.div<{
       : (props.$darkMode ? '#4a5568' : '#e2e8f0')
   };
   border-radius: 8px;
-  width: 200px;
-  height: 150px;
+  width: 100%;
+  height: 100%;
   box-shadow: ${props => 
     props.selected 
       ? (props.$darkMode 
@@ -30,6 +32,7 @@ const NodeContainer = styled.div<{
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
   cursor: pointer;
   overflow: hidden;
+  z-index: 1;
   
   &:hover {
     box-shadow: ${props => 
@@ -44,9 +47,12 @@ const NodeContainer = styled.div<{
 const ImageDisplay = styled.img<{ $darkMode?: boolean }>`
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: fill;
   object-position: center;
   display: block;
+  position: relative;
+  z-index: 1;
+  pointer-events: auto; /* 이미지 클릭 가능하도록 */
 `;
 
 const PlaceholderContent = styled.div<{ $darkMode?: boolean }>`
@@ -79,13 +85,15 @@ const Modal = styled.div<{ $darkMode?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 9999;
+  pointer-events: auto;
 `;
 
 const ModalContent = styled.div<{ $darkMode?: boolean }>`
   background: ${props => props.$darkMode ? '#2d3748' : '#ffffff'};
   border-radius: 12px;
   width: 480px;
+  min-width: 400px;
   max-width: 90vw;
   max-height: 80vh;
   overflow: hidden;
@@ -335,6 +343,39 @@ const ImageNode = memo(({ data, selected, id }: ImageNodeProps) => {
     });
   }, []);
 
+  // ESC 키와 외부 클릭으로 모달 닫기
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsModalOpen(false);
+      }
+    };
+
+    const handleClickOutside = (event: MouseEvent) => {
+      console.log('Click detected, target:', event.target);
+      // 모달이 열려있고, 클릭된 요소가 모달 외부라면 닫기
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-modal-content]') && !target.closest('button')) {
+        console.log('Closing modal');
+        setIsModalOpen(false);
+      }
+    };
+
+    // 짧은 지연 후 이벤트 리스너 추가 (모달이 완전히 렌더링된 후)
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('click', handleClickOutside, true);
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('click', handleClickOutside, true);
+    };
+  }, [isModalOpen]);
+
   // 파일 처리 (업로드 또는 드래그앤드롭)
   const handleFile = useCallback(async (file: File) => {
     // 파일 타입 검증
@@ -406,10 +447,31 @@ const ImageNode = memo(({ data, selected, id }: ImageNodeProps) => {
     }
   }, [urlInputValue, id, data, updateNodeData, validateImageUrl]);
 
-  // 더블클릭 처리
+  // 더블클릭 처리 (이미지 설정 모달 열기)
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    console.log('=== DOUBLE CLICK DETECTED ===');
     e.stopPropagation();
-    setUrlInputValue(imageUrl);
+    e.preventDefault();
+    
+    // 이미지가 있는 경우 URL 입력값 설정
+    if (imageUrl && !imageUrl.startsWith('data:') && !imageUrl.startsWith('blob:')) {
+      setUrlInputValue(imageUrl);
+    } else {
+      setUrlInputValue('');
+    }
+    
+    console.log('Opening modal...');
+    setIsModalOpen(true);
+  }, [imageUrl, setUrlInputValue, setIsModalOpen]);
+
+  // 이미지 영역 클릭 처리 (모달 열기)
+  const handleImageAreaClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (imageUrl && !imageUrl.startsWith('data:') && !imageUrl.startsWith('blob:')) {
+      setUrlInputValue(imageUrl);
+    } else {
+      setUrlInputValue('');
+    }
     setIsModalOpen(true);
   }, [imageUrl]);
 
@@ -436,39 +498,52 @@ const ImageNode = memo(({ data, selected, id }: ImageNodeProps) => {
 
   return (
     <>
-      <Resizable
-        width={data.width || 200}
-        height={data.height || 150}
-        minConstraints={[100, 80]}
-        onResize={(e, { size }) => {
-          updateNodeData(id, { ...data, width: size.width, height: size.height });
+      <NodeResizer
+        color="#3182ce"
+        minWidth={200}
+        minHeight={150}
+        isVisible={selected}
+        onResize={(event, params) => {
+          // 단순 리사이즈만
+          updateNodeData(id, { 
+            ...data, 
+            width: params.width, 
+            height: params.height 
+          });
         }}
-        resizeHandles={['se']}
+        handleStyle={{
+          width: '8px',
+          height: '8px',
+          border: '1px solid #3182ce',
+          backgroundColor: '#ffffff',
+          borderRadius: '1px',
+          zIndex: 1000
+        }}
+      />
+      <NodeContainer
+        ref={nodeRef}
+        selected={selected}
+        $darkMode={isDarkMode}
+        $hasImage={!!imageUrl}
+        onDoubleClick={handleDoubleClick}
       >
-        <NodeContainer
-          ref={nodeRef}
-          selected={selected}
-          $darkMode={isDarkMode}
-          $hasImage={!!imageUrl}
-          onDoubleClick={handleDoubleClick}
-          style={{
-            width: data.width || 200,
-            height: data.height || 150,
-          }}
-        >
 
         {imageUrl ? (
-          <ImageDisplay 
-            src={imageUrl} 
-            alt="User uploaded image"
-            $darkMode={isDarkMode}
-            onError={() => {
-              setError('이미지를 로드할 수 없습니다.');
-              setTimeout(() => setError(''), 3000);
-            }}
-          />
+          <>
+            <ImageDisplay 
+              src={imageUrl} 
+              alt="User uploaded image"
+              $darkMode={isDarkMode}
+              onError={() => {
+                setError('이미지를 로드할 수 없습니다.');
+                setTimeout(() => setError(''), 3000);
+              }}
+            />
+          </>
         ) : (
-          <PlaceholderContent $darkMode={isDarkMode}>
+          <PlaceholderContent 
+            $darkMode={isDarkMode}
+          >
             <FaImage />
             <div>
               이미지를 추가하려면<br />
@@ -490,11 +565,23 @@ const ImageNode = memo(({ data, selected, id }: ImageNodeProps) => {
           onChange={handleFileSelect}
         />
         </NodeContainer>
-      </Resizable>
 
       {isModalOpen && (
-        <Modal $darkMode={isDarkMode} onClick={() => setIsModalOpen(false)}>
-          <ModalContent $darkMode={isDarkMode} onClick={(e) => e.stopPropagation()}>
+        <Modal 
+          $darkMode={isDarkMode}
+          onClick={() => {
+            console.log('Modal background clicked - closing modal');
+            setIsModalOpen(false);
+          }}
+        >
+          <ModalContent 
+            $darkMode={isDarkMode} 
+            data-modal-content
+            onClick={(e) => {
+              console.log('Modal content clicked - preventing close');
+              e.stopPropagation();
+            }}
+          >
             <ModalHeader $darkMode={isDarkMode}>
               <ModalTitle $darkMode={isDarkMode}>이미지 추가</ModalTitle>
               <CloseButton $darkMode={isDarkMode} onClick={() => setIsModalOpen(false)}>
@@ -552,9 +639,6 @@ const ImageNode = memo(({ data, selected, id }: ImageNodeProps) => {
                     }}
                   />
                   <ButtonContainer>
-                    <Button $variant="secondary" $darkMode={isDarkMode} onClick={() => setIsModalOpen(false)}>
-                      취소
-                    </Button>
                     <Button $variant="primary" $darkMode={isDarkMode} onClick={handleUrlSubmit}>
                       적용
                     </Button>

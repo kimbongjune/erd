@@ -837,6 +837,8 @@ type RFState = {
   clearPreviewNodeColor: () => void;
   
   // 자동 배치 함수들
+  measureEntitySize: (nodeId: string) => { width: number; height: number };
+  getAllEntitySizes: () => Map<string, { width: number; height: number }>;
   arrangeLeftRight: () => void;
   arrangeSnowflake: () => void;
   arrangeCompact: () => void;
@@ -2718,10 +2720,95 @@ const useStore = create<RFState>((set, get) => ({
   },
   
   // 자동 배치 함수들
+  // 실제 렌더링된 엔티티 크기를 측정하는 헬퍼 함수
+  measureEntitySize: (nodeId: string) => {
+    const state = get();
+    const node = state.nodes.find(n => n.id === nodeId);
+    if (!node || node.type !== 'entity') {
+      return { width: 280, height: 120 };
+    }
+    
+    // 정확한 계산으로 엔티티 크기 추정
+    const viewSettings = state.viewSettings;
+    const columnCount = (node.data.columns || []).length;
+    
+    // 엔티티 이름 길이 계산 (뷰 설정에 따라)
+    let maxNameLength = 0;
+    if (viewSettings.entityView === 'physical' || viewSettings.entityView === 'both') {
+      maxNameLength = Math.max(maxNameLength, (node.data.physicalName || node.data.label || '').length);
+    }
+    if (viewSettings.entityView === 'logical' || viewSettings.entityView === 'both') {
+      maxNameLength = Math.max(maxNameLength, (node.data.logicalName || '').length);
+    }
+    
+    // 컬럼들의 최대 텍스트 길이 계산
+    let maxColumnTextLength = 0;
+    if (node.data.columns) {
+      node.data.columns.forEach((col: any) => {
+        let columnTextLength = (col.name || '').length;
+        
+        // 데이터 타입 길이 (표시 설정에 따라)
+        if (viewSettings.showDataType) {
+          columnTextLength += (col.dataType || col.type || '').length + 2; // 공백 포함
+        }
+        
+        // 제약조건 표시
+        if (viewSettings.showConstraints) {
+          const constraints = [];
+          if (col.pk) constraints.push('PK');
+          if (col.fk) constraints.push('FK');
+          if (col.uq) constraints.push('UQ');
+          if (col.nn) constraints.push('NN');
+          if (col.ai) constraints.push('AI');
+          columnTextLength += constraints.join(' ').length + 5; // 여백 포함
+        }
+        
+        maxColumnTextLength = Math.max(maxColumnTextLength, columnTextLength);
+      });
+    }
+    
+    // 실제 필요한 너비 계산 (더 정확하게)
+    const nameBasedWidth = maxNameLength * 12; // 글자당 12px
+    const columnBasedWidth = maxColumnTextLength * 9; // 컬럼 텍스트당 9px
+    const minWidth = 280;
+    const maxWidthLimit = 600;
+    
+    const calculatedWidth = Math.max(minWidth, nameBasedWidth, columnBasedWidth);
+    const finalWidth = Math.min(calculatedWidth, maxWidthLimit);
+    
+    // 높이 계산 (헤더 + 컬럼들)
+    const headerHeight = viewSettings.entityView === 'both' ? 65 : 45; // 물리/논리 둘다 표시시 높이 증가
+    const columnHeight = 35; // 컬럼당 35px
+    const finalHeight = headerHeight + (columnCount * columnHeight) + 15; // 여백 15px
+    
+    return {
+      width: finalWidth,
+      height: Math.max(120, finalHeight)
+    };
+  },
+
+  // 모든 엔티티의 실제 크기를 측정하여 정렬에 활용
+  getAllEntitySizes: () => {
+    const state = get();
+    const entityNodes = state.nodes.filter(node => node.type === 'entity');
+    const sizes = new Map<string, { width: number; height: number }>();
+    
+    entityNodes.forEach(node => {
+      const measureFunc = get().measureEntitySize;
+      const size = measureFunc(node.id);
+      sizes.set(node.id, size);
+    });
+    
+    return sizes;
+  },
+
   arrangeLeftRight: () => {
     set((state) => {
       const entityNodes = state.nodes.filter(node => node.type === 'entity');
       if (entityNodes.length === 0) return state;
+      
+      // 실제 엔티티 크기 측정
+      const entitySizes = get().getAllEntitySizes();
       
       // 위상 정렬을 위한 그래프 구조 생성
       const inDegree = new Map<string, number>();
@@ -2774,77 +2861,64 @@ const useStore = create<RFState>((set, get) => ({
         sortedLevels.push(unconnectedNodes.map(node => node.id));
       }
       
-      // 레벨별로 좌우 배치 - 동적 크기 계산
+      // 레벨별로 좌우 배치 - 실제 측정된 크기 사용
       const START_X = 100;
       const START_Y = 100;
       
-      // 각 레벨별 최대 너비 계산
+      // 각 레벨별 최대 너비 계산 (실제 측정된 크기 사용)
       const levelMaxWidths: number[] = [];
       sortedLevels.forEach((level, levelIndex) => {
         let levelMaxWidth = 280; // 기본 최소 너비
         
         level.forEach(nodeId => {
-          const node = entityNodes.find(n => n.id === nodeId);
-          if (node) {
-            // 엔티티 이름 길이에 따른 동적 너비 계산
-            const physicalNameLength = (node.data.physicalName || node.data.label || '').length;
-            const logicalNameLength = (node.data.logicalName || '').length;
-            const maxNameLength = Math.max(physicalNameLength, logicalNameLength);
-            const columnCount = (node.data.columns || []).length;
-            
-            // 컬럼들의 최대 텍스트 길이 계산
-            let maxColumnTextLength = 0;
-            if (node.data.columns) {
-              node.data.columns.forEach((col: any) => {
-                const nameLength = (col.name || '').length;
-                const typeLength = (col.dataType || col.type || '').length;
-                const combinedLength = nameLength + typeLength + 10; // 여백 고려
-                maxColumnTextLength = Math.max(maxColumnTextLength, combinedLength);
-              });
-            }
-            
-            // 실제 필요한 너비 계산: 엔티티명, 컬럼명, 최소값 고려 + 여유분 추가
-            const nameBasedWidth = maxNameLength * 12; // 글자당 12px로 증가
-            const columnBasedWidth = maxColumnTextLength * 10; // 컬럼 텍스트당 10px로 증가  
-            const minWidth = 320; // 최소 너비 증가 (280 -> 320)
-            const maxWidthLimit = 700; // 최대 너비 증가 (600 -> 700)
-            
-            const dynamicWidth = Math.max(minWidth, nameBasedWidth, columnBasedWidth);
-            const finalWidth = Math.min(dynamicWidth, maxWidthLimit) + 50; // 추가 여유분 50px
-            
-            // 이 레벨의 최대 너비 업데이트
-            levelMaxWidth = Math.max(levelMaxWidth, finalWidth);
+          const size = entitySizes.get(nodeId);
+          if (size) {
+            levelMaxWidth = Math.max(levelMaxWidth, size.width);
           }
         });
         
-        levelMaxWidths[levelIndex] = Math.max(levelMaxWidth, 320); // 최소 320px 보장
+        levelMaxWidths[levelIndex] = levelMaxWidth;
       });
       
-      // 각 레벨별 높이 계산
+      // 각 레벨별 높이 계산 (실제 측정된 크기 사용)
       const levelHeights: number[] = [];
       sortedLevels.forEach((level, levelIndex) => {
-        let maxHeight = 0;
+        let maxHeight = 120; // 기본 최소 높이
         level.forEach(nodeId => {
-          const node = entityNodes.find(n => n.id === nodeId);
-          if (node) {
-            const columnCount = (node.data.columns || []).length;
-            // 기본 60px + 컬럼당 35px
-            const dynamicHeight = 60 + columnCount * 35;
-            maxHeight = Math.max(maxHeight, dynamicHeight);
+          const size = entitySizes.get(nodeId);
+          if (size) {
+            maxHeight = Math.max(maxHeight, size.height);
           }
         });
-        levelHeights[levelIndex] = maxHeight || 120;
+        levelHeights[levelIndex] = maxHeight;
       });
       
-      // 동적 간격 계산 - 엔티티 크기에 비례
-      const avgEntityWidth = levelMaxWidths.reduce((a, b) => a + b, 0) / levelMaxWidths.length || 320;
-      const avgEntityHeight = levelHeights.reduce((a, b) => a + b, 0) / levelHeights.length || 120;
-      const MIN_HORIZONTAL_SPACING = Math.max(150, avgEntityWidth * 0.3); // 엔티티 평균 너비의 30%
-      const MIN_VERTICAL_SPACING = Math.max(100, avgEntityHeight * 0.4); // 엔티티 평균 높이의 40%
+      // 정밀한 간격 계산 - 겹침 방지와 적절한 거리 유지
+      const MIN_HORIZONTAL_SPACING = 80; // 최소 가로 간격 80px
+      const MIN_VERTICAL_SPACING = 50; // 최소 세로 간격 50px
+      
+      // 코멘트와 이미지 노드들을 왼쪽 위에 배치하기 위한 설정
+      let commentX = 20;  // 더 왼쪽으로
+      let commentY = 20;  // 더 위쪽으로
+      const COMMENT_SPACING = 80;  // 간격도 줄여서 더 컴팩트하게
       
       const updatedNodes = state.nodes.map(node => {
-        if (node.type !== 'entity') return node;
+        // 코멘트, 이미지, 텍스트 노드들은 왼쪽 위에 안전하게 배치
+        if (node.type !== 'entity') {
+          const position = { x: commentX, y: commentY };
+          
+          // 다음 노드를 위해 위치 조정 (세로로 쌓기)
+          commentY += COMMENT_SPACING;
+          // 너무 아래로 내려가면 오른쪽으로 이동
+          if (commentY > 500) {  // 500px 이상이면 다음 열로
+            commentX += 150;     // 150px씩 오른쪽으로
+            commentY = 20;       // 다시 맨 위부터
+          }
+          
+          return { ...node, position };
+        }
         
+        // 엔티티 노드들만 좌우 정렬 적용
         let levelIndex = -1;
         let nodeIndex = -1;
         
@@ -2884,13 +2958,20 @@ const useStore = create<RFState>((set, get) => ({
       const entityNodes = state.nodes.filter(node => node.type === 'entity');
       if (entityNodes.length === 0) return state;
       
+      // 실제 엔티티 크기 측정
+      const entitySizes = get().getAllEntitySizes();
+      
       // 각 노드의 연결 수 계산
       const connectionCount = new Map<string, number>();
       entityNodes.forEach(node => connectionCount.set(node.id, 0));
       
       state.edges.forEach(edge => {
-        connectionCount.set(edge.source, (connectionCount.get(edge.source) || 0) + 1);
-        connectionCount.set(edge.target, (connectionCount.get(edge.target) || 0) + 1);
+        if (connectionCount.has(edge.source)) {
+          connectionCount.set(edge.source, (connectionCount.get(edge.source) || 0) + 1);
+        }
+        if (connectionCount.has(edge.target)) {
+          connectionCount.set(edge.target, (connectionCount.get(edge.target) || 0) + 1);
+        }
       });
       
       // 연결 수에 따라 정렬
@@ -2901,28 +2982,53 @@ const useStore = create<RFState>((set, get) => ({
       const CENTER_X = 500;
       const CENTER_Y = 400;
       
+      // 코멘트와 이미지 노드들을 왼쪽 위에 배치하기 위한 설정
+      const nonEntityNodes = state.nodes.filter(node => node.type !== 'entity');
+      let commentX = 20;  // 더 왼쪽으로
+      let commentY = 20;  // 더 위쪽으로
+      const COMMENT_SPACING = 80;  // 간격도 줄여서 더 컴팩트하게
+      
       const updatedNodes = state.nodes.map(node => {
-        if (node.type !== 'entity') return node;
+        // 코멘트, 이미지, 텍스트 노드들은 왼쪽 위에 안전하게 배치
+        if (node.type !== 'entity') {
+          const position = { x: commentX, y: commentY };
+          
+          // 다음 노드를 위해 위치 조정 (세로로 쌓기)
+          commentY += COMMENT_SPACING;
+          // 너무 아래로 내려가면 오른쪽으로 이동
+          if (commentY > 500) {  // 500px 이상이면 다음 열로
+            commentX += 150;     // 150px씩 오른쪽으로
+            commentY = 20;       // 다시 맨 위부터
+          }
+          
+          return { ...node, position };
+        }
         
+        // 엔티티 노드들만 스노우플레이크 배치
         const nodeIndex = sortedByConnections.findIndex(n => n.id === node.id);
         if (nodeIndex === -1) return node;
         
+        const size = entitySizes.get(node.id) || { width: 280, height: 120 };
+        
         if (nodeIndex === 0) {
-          // 가장 연결이 많은 노드를 중심에 배치
-          return { ...node, position: { x: CENTER_X, y: CENTER_Y } };
+          // 중심 노드
+          const x = CENTER_X - size.width / 2;
+          const y = CENTER_Y - size.height / 2;
+          return { ...node, position: { x, y } };
         } else {
-          // 나머지는 원형으로 배치 - 동적 반지름 계산
-          const angle = (2 * Math.PI * (nodeIndex - 1)) / (sortedByConnections.length - 1);
+          // 원형 배치 - 매우 간단한 로직으로 큰 반지름 사용
+          const angle = (2 * Math.PI * (nodeIndex - 1)) / Math.max(1, sortedByConnections.length - 1);
           
-          // 엔티티 크기에 따른 동적 반지름 대폭 증가
-          const baseRadius = 400; // 기본 반지름 증가 (300 -> 400)
-          const entitySize = node.data.columns?.length || 0;
-          const radiusIncrement = Math.floor((nodeIndex - 1) / 6) * 300; // 증가량도 증가 (200 -> 300)
-          const sizeMultiplier = Math.max(1.5, entitySize / 4); // 최소 배수 증가 (1 -> 1.5, 5 -> 4)
+          // 엔티티 크기에 따른 동적 반지름 - 훨씬 크게
+          const entityMaxDimension = Math.max(size.width, size.height);
+          const baseRadius = 300 + entityMaxDimension; // 기본 300 + 엔티티 크기
           
-          const radius = baseRadius * sizeMultiplier + radiusIncrement;
-          const x = CENTER_X + radius * Math.cos(angle);
-          const y = CENTER_Y + radius * Math.sin(angle);
+          // 레이어별로 더 멀리 배치 (8개씩)
+          const layer = Math.floor((nodeIndex - 1) / 8);
+          const finalRadius = baseRadius + (layer * 200); // 레이어마다 200px 추가
+          
+          const x = CENTER_X + finalRadius * Math.cos(angle) - size.width / 2;
+          const y = CENTER_Y + finalRadius * Math.sin(angle) - size.height / 2;
           
           return { ...node, position: { x, y } };
         }
@@ -2942,108 +3048,77 @@ const useStore = create<RFState>((set, get) => ({
       const entityNodes = state.nodes.filter(node => node.type === 'entity');
       if (entityNodes.length === 0) return state;
       
-      // 격자 형태로 배치 - 동적 크기 계산
+      // 실제 엔티티 크기 측정
+      const entitySizes = get().getAllEntitySizes();
+      
+      // 격자 형태로 배치 - 실제 크기 기반 계산
       const COLS = Math.ceil(Math.sqrt(entityNodes.length));
       const START_X = 100;
       const START_Y = 100;
       
-      // 모든 엔티티의 최대 크기 계산
-      let maxEntityWidth = 280;
-      let maxEntityHeight = 120;
-      
-      entityNodes.forEach(node => {
-        // 너비 계산
-        const physicalNameLength = (node.data.physicalName || node.data.label || '').length;
-        const logicalNameLength = (node.data.logicalName || '').length;
-        const maxNameLength = Math.max(physicalNameLength, logicalNameLength);
-        const columnCount = (node.data.columns || []).length;
-        
-        let maxColumnTextLength = 0;
-        if (node.data.columns) {
-          node.data.columns.forEach((col: any) => {
-            const nameLength = (col.name || '').length;
-            const typeLength = (col.dataType || col.type || '').length;
-            const combinedLength = nameLength + typeLength + 10;
-            maxColumnTextLength = Math.max(maxColumnTextLength, combinedLength);
-          });
-        }
-        
-        const nameBasedWidth = maxNameLength * 12; // 증가
-        const columnBasedWidth = maxColumnTextLength * 10; // 증가
-        const entityWidth = Math.max(320, nameBasedWidth, columnBasedWidth); // 최소값 증가
-        
-        // 높이 계산
-        const entityHeight = 80 + columnCount * 40; // 기본 높이와 컬럼당 높이 증가
-        
-        maxEntityWidth = Math.max(maxEntityWidth, Math.min(entityWidth + 50, 750)); // 여유분과 최대값 증가
-        maxEntityHeight = Math.max(maxEntityHeight, entityHeight);
-      });
-      
-      // 동적 간격 계산 - 엔티티 크기에 비례
-      const MIN_SPACING = Math.max(120, maxEntityWidth * 0.25, maxEntityHeight * 0.3); // 엔티티 크기의 25%/30%
-      
-      const CELL_WIDTH = maxEntityWidth + MIN_SPACING;
-      const CELL_HEIGHT = maxEntityHeight + MIN_SPACING;
-      
-      // 각 엔티티의 실제 크기 계산
-      const entitySizes = entityNodes.map(node => {
-        const physicalNameLength = (node.data.physicalName || node.data.label || '').length;
-        const logicalNameLength = (node.data.logicalName || '').length;
-        const maxNameLength = Math.max(physicalNameLength, logicalNameLength);
-        const columnCount = (node.data.columns || []).length;
-        
-        // 컬럼들의 최대 텍스트 길이 계산
-        let maxColumnTextLength = 0;
-        if (node.data.columns) {
-          node.data.columns.forEach((col: any) => {
-            const nameLength = (col.name || '').length;
-            const typeLength = (col.dataType || col.type || '').length;
-            const combinedLength = nameLength + typeLength + 10;
-            maxColumnTextLength = Math.max(maxColumnTextLength, combinedLength);
-          });
-        }
-        
-        const nameBasedWidth = maxNameLength * 12;
-        const columnBasedWidth = maxColumnTextLength * 10;
-        const width = Math.max(320, nameBasedWidth, columnBasedWidth);
-        const height = 80 + columnCount * 40;
-        
+      // 각 엔티티의 실제 크기를 배열로 변환
+      const entitySizeList = entityNodes.map(node => {
+        const size = entitySizes.get(node.id) || { width: 280, height: 120 };
         return { 
           nodeId: node.id, 
-          width: Math.min(width + 50, 750), // 여유분과 최대값 증가
-          height 
+          width: size.width,
+          height: size.height
         };
       });
       
-      // 행별 최대 높이 계산
+      // 행별 최대 높이 계산 (실제 크기 기반)
       const rowHeights: number[] = [];
       for (let row = 0; row < Math.ceil(entityNodes.length / COLS); row++) {
-        let maxHeight = 0;
+        let maxHeight = 120; // 최소 높이
         for (let col = 0; col < COLS; col++) {
           const nodeIndex = row * COLS + col;
-          if (nodeIndex < entitySizes.length) {
-            maxHeight = Math.max(maxHeight, entitySizes[nodeIndex].height);
+          if (nodeIndex < entitySizeList.length) {
+            maxHeight = Math.max(maxHeight, entitySizeList[nodeIndex].height);
           }
         }
         rowHeights[row] = maxHeight;
       }
       
-      // 열별 최대 너비 계산
+      // 열별 최대 너비 계산 (실제 크기 기반)
       const colWidths: number[] = [];
       for (let col = 0; col < COLS; col++) {
-        let maxWidth = 0;
+        let maxWidth = 280; // 최소 너비
         for (let row = 0; row < Math.ceil(entityNodes.length / COLS); row++) {
           const nodeIndex = row * COLS + col;
-          if (nodeIndex < entitySizes.length) {
-            maxWidth = Math.max(maxWidth, entitySizes[nodeIndex].width);
+          if (nodeIndex < entitySizeList.length) {
+            maxWidth = Math.max(maxWidth, entitySizeList[nodeIndex].width);
           }
         }
         colWidths[col] = maxWidth;
       }
       
+      // 동적 간격 계산 - 실제 크기 기반, 적절한 밸런스
+      const avgWidth = colWidths.reduce((a, b) => a + b, 0) / colWidths.length || 320;
+      const avgHeight = rowHeights.reduce((a, b) => a + b, 0) / rowHeights.length || 150;
+      const MIN_SPACING = Math.max(50, Math.min(avgWidth * 0.12, avgHeight * 0.15)); // 최소 50px, 적절한 간격
+      
+      // 코멘트와 이미지 노드들을 왼쪽 위에 배치하기 위한 설정
+      let commentX = 20;  // 더 왼쪽으로
+      let commentY = 20;  // 더 위쪽으로
+      const COMMENT_SPACING = 80;  // 간격도 줄여서 더 컴팩트하게
+      
       const updatedNodes = state.nodes.map(node => {
-        if (node.type !== 'entity') return node;
+        // 코멘트, 이미지, 텍스트 노드들은 왼쪽 위에 안전하게 배치
+        if (node.type !== 'entity') {
+          const position = { x: commentX, y: commentY };
+          
+          // 다음 노드를 위해 위치 조정 (세로로 쌓기)
+          commentY += COMMENT_SPACING;
+          // 너무 아래로 내려가면 오른쪽으로 이동
+          if (commentY > 500) {  // 500px 이상이면 다음 열로
+            commentX += 150;     // 150px씩 오른쪽으로
+            commentY = 20;       // 다시 맨 위부터
+          }
+          
+          return { ...node, position };
+        }
         
+        // 엔티티 노드들만 컴팩트 정렬 적용
         const nodeIndex = entityNodes.findIndex(n => n.id === node.id);
         if (nodeIndex === -1) return node;
         

@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import Header from './Header';
 import Toolbox from './Toolbox';
 import Canvas from './Canvas';
-import useStore, { propagateColumnAddition, propagateColumnDeletion, propagateDataTypeChange } from '../store/useStore';
+import useStore, { propagateColumnAddition, propagateColumnDeletion, propagateDataTypeChange, propagateRelationshipTypeChange } from '../store/useStore';
 import { toast } from 'react-toastify';
 import { MYSQL_DATATYPES, validateEnglishOnly, validateDataType, validatePhysicalName } from '../utils/mysqlTypes';
 import Tooltip from './Tooltip';
@@ -1434,6 +1434,29 @@ const Layout = () => {
                     newType = 'one-to-one-non-identifying';
                   } else if (edge.type === 'one-to-many-identifying') {
                     newType = 'one-to-many-non-identifying';
+                  }
+                  
+                  // 식별자 관계가 비식별자로 변경될 때 연쇄적 하위 관계 해제
+                  if (newType !== edge.type) {
+                    // 현재 자식 엔티티에서 제거될 PK 컬럼들 찾기
+                    const removedPkColumns = newColumns.filter((col: any) => 
+                      col.fk && col.name.startsWith(`${parentEntityNameLower}_`) && !col.pk
+                    );
+                    
+                    if (removedPkColumns.length > 0 && selectedNodeId) {
+                      const allNodes = useStore.getState().nodes;
+                      const allEdges = useStore.getState().edges;
+                      
+                      const cascadeResult = propagateRelationshipTypeChange(
+                        selectedNodeId,
+                        removedPkColumns,
+                        allNodes,
+                        allEdges
+                      );
+                      
+                      useStore.getState().setNodes(cascadeResult.updatedNodes);
+                      useStore.getState().setEdges(cascadeResult.updatedEdges);
+                    }
                   }
                 }
                 

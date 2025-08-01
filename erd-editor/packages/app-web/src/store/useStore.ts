@@ -387,6 +387,119 @@ export const propagateDataTypeChange = (
   return { updatedNodes: finalNodes };
 };
 
+// 식별자 관계가 비식별자로 변경될 때 연쇄적으로 하위 관계들을 해제하는 함수
+export const propagateRelationshipTypeChange = (
+  childNodeId: string,
+  removedPkColumns: any[],
+  allNodes: any[],
+  allEdges: any[]
+): { updatedNodes: any[], updatedEdges: any[] } => {
+  let finalNodes = [...allNodes];
+  let finalEdges = [...allEdges];
+  
+  console.log(`[CASCADE] propagateRelationshipTypeChange - childNodeId: ${childNodeId}, removedPkColumns:`, removedPkColumns.map(col => col.name));
+  
+  // 자식 노드가 부모인 관계선들 찾기
+  const grandChildEdges = finalEdges.filter(edge => edge.source === childNodeId);
+  console.log(`[CASCADE] Found ${grandChildEdges.length} grandchild edges from ${childNodeId}`);
+  
+  // 각 관계별로 처리 (관계 단위로 처리하여 복합키 문제 해결)
+  grandChildEdges.forEach(edge => {
+    const grandChildNode = finalNodes.find(n => n.id === edge.target);
+    if (grandChildNode && grandChildNode.type === 'entity') {
+      const grandChildColumns = grandChildNode.data.columns || [];
+      
+      // 이 관계에서 제거될 모든 FK 컬럼들을 한번에 수집
+      const allAffectedFkColumns: any[] = [];
+      
+      removedPkColumns.forEach(removedPkColumn => {
+        const matchingFkColumns = grandChildColumns.filter((col: any) => 
+          col.fk && 
+          col.parentEntityId === childNodeId && 
+          (col.parentColumnId === removedPkColumn.id || col.parentColumnId === removedPkColumn.name)
+        );
+        allAffectedFkColumns.push(...matchingFkColumns);
+      });
+      
+      console.log(`[CASCADE] Edge ${edge.id} (${childNodeId} -> ${edge.target}): found ${allAffectedFkColumns.length} affected FK columns`, allAffectedFkColumns.map(col => col.name));
+      
+      if (allAffectedFkColumns.length > 0) {
+        // 이 관계의 모든 FK 컬럼들 (제거 대상이 아닌 것들도 포함)
+        const allRelationshipFkColumns = grandChildColumns.filter((col: any) => 
+          col.fk && col.parentEntityId === childNodeId
+        );
+        
+        console.log(`[CASCADE] Total FK columns for this relationship: ${allRelationshipFkColumns.length}, affected: ${allAffectedFkColumns.length}`);
+        
+        // 관계의 모든 FK 컬럼이 제거 대상인 경우 -> 관계 완전 해제
+        if (allAffectedFkColumns.length === allRelationshipFkColumns.length) {
+          console.log(`[CASCADE] All FK columns affected - removing entire relationship ${edge.id}`);
+          
+          // 모든 FK 컬럼들 제거
+          const updatedGrandChildColumns = grandChildColumns.filter((col: any) => 
+            !allAffectedFkColumns.some((affectedCol: any) => affectedCol.id === col.id)
+          );
+          
+          // 손자 노드 업데이트
+          finalNodes = finalNodes.map(node => 
+            node.id === edge.target 
+              ? { ...node, data: { ...node.data, columns: updatedGrandChildColumns } }
+              : node
+          );
+          
+          // 관계선 제거
+          finalEdges = finalEdges.filter(e => e.id !== edge.id);
+          console.log(`[CASCADE] Removed edge ${edge.id} and ${allAffectedFkColumns.length} FK columns`);
+          
+          // 제거된 FK가 PK이기도 했다면 재귀적으로 더 하위로 전파
+          const removedPkFkColumns = allAffectedFkColumns.filter((col: any) => col.pk);
+          if (removedPkFkColumns.length > 0) {
+            console.log(`[CASCADE] Recursively propagating ${removedPkFkColumns.length} PK+FK columns from ${edge.target}`);
+            const recursiveResult = propagateRelationshipTypeChange(
+              edge.target,
+              removedPkFkColumns,
+              finalNodes,
+              finalEdges
+            );
+            finalNodes = recursiveResult.updatedNodes;
+            finalEdges = recursiveResult.updatedEdges;
+          }
+        } else {
+          // 일부 FK 컬럼만 제거 대상인 경우 -> 컬럼만 제거 (관계 유지)
+          console.log(`[CASCADE] Partial FK columns affected - removing only columns, keeping relationship ${edge.id}`);
+          
+          const updatedGrandChildColumns = grandChildColumns.filter((col: any) => 
+            !allAffectedFkColumns.some((affectedCol: any) => affectedCol.id === col.id)
+          );
+          
+          // 손자 노드 업데이트
+          finalNodes = finalNodes.map(node => 
+            node.id === edge.target 
+              ? { ...node, data: { ...node.data, columns: updatedGrandChildColumns } }
+              : node
+          );
+          
+          // 제거된 FK가 PK이기도 했다면 재귀적으로 더 하위로 전파
+          const removedPkFkColumns = allAffectedFkColumns.filter((col: any) => col.pk);
+          if (removedPkFkColumns.length > 0) {
+            console.log(`[CASCADE] Recursively propagating ${removedPkFkColumns.length} PK+FK columns from ${edge.target} (partial removal)`);
+            const recursiveResult = propagateRelationshipTypeChange(
+              edge.target,
+              removedPkFkColumns,
+              finalNodes,
+              finalEdges
+            );
+            finalNodes = recursiveResult.updatedNodes;
+            finalEdges = recursiveResult.updatedEdges;
+          }
+        }
+      }
+    }
+  });
+  
+  return { updatedNodes: finalNodes, updatedEdges: finalEdges };
+};
+
 // 개선된 FK 컬럼 탐색 함수 (export하여 다른 컴포넌트에서도 사용 가능)
 export const findExistingFkColumn = (
   targetColumns: any[], 
@@ -1040,26 +1153,48 @@ const useStore = create<RFState>((set, get) => ({
       const targetNode = state.nodes.find(node => node.id === edgeToDelete.target);
 
       if (sourceNode && targetNode && sourceNode.type === 'entity' && targetNode.type === 'entity') {
-        const updatedNodes = state.nodes.map(node => {
+        let updatedNodes = state.nodes;
+        let updatedEdges = state.edges.filter(edge => edge.id !== id);
+        
+        // 삭제될 FK 컬럼들 찾기 (PK이기도 한 컬럼들 파악)
+        const targetColumns = targetNode.data.columns || [];
+        const removedFkColumns = targetColumns.filter((col: any) => 
+          col.fk && col.parentEntityId === edgeToDelete.source
+        );
+        
+        // PK이기도 한 FK 컬럼들만 추출 (연쇄 처리가 필요한 컬럼들)
+        const removedPkFkColumns = removedFkColumns.filter((col: any) => col.pk);
+        
+        // 자식 엔티티에서 FK 컬럼들 제거
+        updatedNodes = updatedNodes.map(node => {
           if (node.id === edgeToDelete.target) {
             // parentEntityId를 사용해서 정확한 FK 컬럼 찾기
-            let filteredColumns = [...(node.data.columns || [])];
-            
-            // 해당 관계에서 생성된 FK 컬럼들만 제거 (parentEntityId 기준)
-            filteredColumns = filteredColumns.filter(col => 
+            const filteredColumns = node.data.columns?.filter((col: any) => 
               !(col.fk && col.parentEntityId === edgeToDelete.source)
-            );
+            ) || [];
 
             return { ...node, data: { ...node.data, columns: filteredColumns } };
           }
           return node;
         });
+        
+        // PK이기도 했던 FK 컬럼들이 제거된 경우 연쇄적으로 하위 관계들도 해제
+        if (removedPkFkColumns.length > 0) {
+          const cascadeResult = propagateRelationshipTypeChange(
+            edgeToDelete.target,
+            removedPkFkColumns,
+            updatedNodes,
+            updatedEdges
+          );
+          updatedNodes = cascadeResult.updatedNodes;
+          updatedEdges = cascadeResult.updatedEdges;
+        }
 
         toast.info(`${sourceNode.data.label}과 ${targetNode.data.label} 간의 관계가 제거되었습니다.`);
 
         return {
           nodes: updatedNodes,
-          edges: state.edges.filter(edge => edge.id !== id),
+          edges: updatedEdges,
           selectedEdgeId: state.selectedEdgeId === id ? null : state.selectedEdgeId,
         };
       }
@@ -1087,6 +1222,12 @@ const useStore = create<RFState>((set, get) => ({
       const sourceNode = state.nodes.find((node) => node.id === connection.source);
       const targetNode = state.nodes.find((node) => node.id === connection.target);
 
+      console.log('🔗 onConnect 호출됨:', {
+        source: connection.source,
+        target: connection.target,
+        connectionMode: state.connectionMode
+      });
+
       // 순환참조 체크: 이미 반대 방향으로 관계가 있는지 확인 (자기 자신과의 관계는 제외)
       const existingReverseEdge = state.edges.find(edge => 
         edge.source === connection.target && edge.target === connection.source
@@ -1102,6 +1243,15 @@ const useStore = create<RFState>((set, get) => ({
         (edge.source === connection.source && edge.target === connection.target) ||
         (edge.source === connection.target && edge.target === connection.source)
       );
+
+      console.log('🔍 기존 관계 확인:', {
+        existingEdge: existingEdge ? {
+          id: existingEdge.id,
+          type: existingEdge.type,
+          source: existingEdge.source,
+          target: existingEdge.target
+        } : null
+      });
 
       // 부모에는 세로선, 자식에는 관계 타입에 따른 마커 (1:1은 마커 없음, 1:N은 까마귀발)
       let sourceMarker = undefined; // markerStart용 - 자식 쪽
@@ -1328,11 +1478,25 @@ const useStore = create<RFState>((set, get) => ({
 
       if (existingEdge) {
         // Update existing edge
+        const newEdgeType = getEdgeType(state.connectionMode);
+        const wasIdentifying = existingEdge.type?.includes('identifying') || false;
+        const isNowNonIdentifying = newEdgeType.includes('non-identifying');
+        
+        console.log('🔄 관계 재연결 감지:', {
+          existingType: existingEdge.type,
+          newType: newEdgeType,
+          wasIdentifying,
+          isNowNonIdentifying,
+          willCascade: wasIdentifying && isNowNonIdentifying,
+          connectionMode: state.connectionMode
+        });
+        
+        // 먼저 현재 관계의 타입을 업데이트
         updatedEdges = state.edges.map(edge => {
           if (edge.id === existingEdge.id) {
             return {
               ...edge,
-              type: getEdgeType(state.connectionMode),
+              type: newEdgeType,
               markerStart: sourceMarker,
               markerEnd: targetMarker,
               sourceHandle: sourceHandleId,
@@ -1341,6 +1505,47 @@ const useStore = create<RFState>((set, get) => ({
           }
           return edge;
         });
+        
+        // 식별자 관계가 비식별자로 변경되는 경우 연쇄 처리
+        if (wasIdentifying && isNowNonIdentifying && connection.target) {
+          // 자식 엔티티에서 PK 해제될 FK 컬럼들 찾기 (변경 전 원본 노드에서 찾기)
+          const originalChildNode = state.nodes.find(n => n.id === connection.target);
+          const originalChildColumns = originalChildNode?.data.columns || [];
+          const removedPkColumns = originalChildColumns.filter((col: any) => 
+            col.fk && col.parentEntityId === connection.source && col.pk
+          );
+          
+          console.log('🔍 제거될 PK+FK 컬럼들:', removedPkColumns.map((col: any) => col.name));
+          
+          // 자식 엔티티의 FK 컬럼들을 PK에서 일반 컬럼으로 변경
+          updatedNodes = updatedNodes.map(node => {
+            if (node.id === connection.target) {
+              const updatedColumns = node.data.columns?.map((col: any) => {
+                if (col.fk && col.parentEntityId === connection.source) {
+                  console.log(`  📝 ${col.name}: PK(${col.pk}) -> false`);
+                  return { ...col, pk: false, nn: false };
+                }
+                return col;
+              }) || [];
+              return { ...node, data: { ...node.data, columns: updatedColumns } };
+            }
+            return node;
+          });
+          
+          // 연쇄적으로 하위 관계들도 해제 (업데이트된 edges 전달)
+          if (removedPkColumns.length > 0) {
+            console.log('🌊 연쇄적 관계 해제 시작...');
+            const cascadeResult = propagateRelationshipTypeChange(
+              connection.target,
+              removedPkColumns,
+              updatedNodes,
+              updatedEdges // 업데이트된 edges 전달
+            );
+            updatedNodes = cascadeResult.updatedNodes;
+            updatedEdges = cascadeResult.updatedEdges;
+            console.log('✅ 연쇄적 관계 해제 완료');
+          }
+        }
       } else {
         // Create new edge
         const newEdge = {
@@ -1991,6 +2196,16 @@ const useStore = create<RFState>((set, get) => ({
         return !stillExists;
       });
 
+      // PK 컬럼의 데이터타입 변경 감지 (자식, 손자로 전파 필요)
+      const dataTypeChangedPkColumns = oldColumns.filter((oldCol: any) => {
+        if (!oldCol.pk) return false;
+        const newCol = newColumns.find((newCol: any) => newCol.id === oldCol.id);
+        return newCol && newCol.pk && (oldCol.dataType !== newCol.dataType || oldCol.type !== newCol.type);
+      }).map((oldCol: any) => {
+        const newCol = newColumns.find((newCol: any) => newCol.id === oldCol.id);
+        return { oldColumn: oldCol, newColumn: newCol };
+      });
+
             let finalNodes = updatedNodes;
       let finalEdges = state.edges;
 
@@ -2094,10 +2309,25 @@ const useStore = create<RFState>((set, get) => ({
           );
           finalNodes = propagationResult.updatedNodes;
           finalEdges = propagationResult.updatedEdges;
-          
-
         });
-                  }
+      }
+
+      // PK 컬럼의 데이터타입 변경에 따른 하위 계층으로의 연쇄 전파
+      if (dataTypeChangedPkColumns.length > 0) {
+        dataTypeChangedPkColumns.forEach(({ oldColumn, newColumn }: any) => {
+          console.log(`🔄 PK 컬럼 데이터타입 변경 감지: ${oldColumn.name} (${oldColumn.dataType || oldColumn.type} -> ${newColumn.dataType || newColumn.type})`);
+          
+          // 재귀적으로 하위 계층까지 전파하여 데이터타입 변경
+          const propagationResult = propagateDataTypeChange(
+            nodeId,
+            newColumn,
+            newColumn.dataType || newColumn.type,
+            finalNodes,
+            finalEdges
+          );
+          finalNodes = propagationResult.updatedNodes;
+        });
+      }
 
 
 
@@ -2202,6 +2432,25 @@ const useStore = create<RFState>((set, get) => ({
                       newEdgeType = 'one-to-one-non-identifying';
                     } else if (relatedEdge.type === 'one-to-many-identifying') {
                       newEdgeType = 'one-to-many-non-identifying';
+                    }
+                    
+                    // 식별자 관계가 비식별자로 변경될 때 연쇄적 하위 관계 해제
+                    if (newEdgeType !== relatedEdge.type) {
+                      // 현재 자식 엔티티에서 제거될 PK 컬럼들 찾기
+                      const removedPkColumns = newColumns.filter((col: any) => 
+                        col.fk && col.parentEntityId === parentEntityId && !col.pk
+                      );
+                      
+                      if (removedPkColumns.length > 0) {
+                        const cascadeResult = propagateRelationshipTypeChange(
+                          nodeId,
+                          removedPkColumns,
+                          finalNodes,
+                          finalEdges
+                        );
+                        finalNodes = cascadeResult.updatedNodes;
+                        finalEdges = cascadeResult.updatedEdges;
+                      }
                     }
                   }
                   

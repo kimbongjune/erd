@@ -100,10 +100,12 @@ export const propagateColumnAddition = (
   nodeId: string,
   addedColumn: any,
   allNodes: any[],
-  allEdges: any[]
-): { updatedNodes: any[], updatedEdges: any[] } => {
+  allEdges: any[],
+  toastMessages: string[] = []
+): { updatedNodes: any[], updatedEdges: any[], toastMessages: string[] } => {
   let finalNodes = [...allNodes];
   let finalEdges = [...allEdges];
+  let messages = [...toastMessages];
   
   // 현재 노드가 부모인 관계선들 찾기
   const childEdges = finalEdges.filter(edge => edge.source === nodeId);
@@ -173,22 +175,27 @@ export const propagateColumnAddition = (
             : node
         );
         
+        // 토스트 메시지 추가
+        messages.push(`연쇄관계: ${childNode.data.label} 엔티티에 외래키 컬럼 ${fkColumnName}이 추가되었습니다.`);
+        
         // 추가된 FK가 PK이기도 한 경우 (식별자 관계), 재귀적으로 손자에게도 전파
         if (isIdentifyingRelationship) {
           const recursiveResult = propagateColumnAddition(
             edge.target,
             newFkColumn,
             finalNodes,
-            finalEdges
+            finalEdges,
+            messages
           );
           finalNodes = recursiveResult.updatedNodes;
           finalEdges = recursiveResult.updatedEdges;
+          messages = recursiveResult.toastMessages;
         }
       }
     }
   });
   
-  return { updatedNodes: finalNodes, updatedEdges: finalEdges };
+  return { updatedNodes: finalNodes, updatedEdges: finalEdges, toastMessages: messages };
 };
 
 // 하위 계층으로의 연쇄 삭제 전파 함수
@@ -196,10 +203,12 @@ export const propagateColumnDeletion = (
   nodeId: string, 
   deletedColumn: any, 
   allNodes: any[], 
-  allEdges: any[]
-): { updatedNodes: any[], updatedEdges: any[] } => {
+  allEdges: any[],
+  toastMessages: string[] = []
+): { updatedNodes: any[], updatedEdges: any[], toastMessages: string[] } => {
     let finalNodes = [...allNodes];
   let finalEdges = [...allEdges];
+  let messages = [...toastMessages];
   
   // 현재 노드가 부모인 관계선들 찾기
   const childEdges = finalEdges.filter(edge => edge.source === nodeId);
@@ -296,16 +305,21 @@ export const propagateColumnDeletion = (
             : node
         );
         
+        // 토스트 메시지 추가
+        messages.push(`연쇄관계: ${childNode.data.label} 엔티티에서 외래키 컬럼 ${targetFkColumn.name}이 삭제되었습니다.`);
+        
         // 삭제된 FK가 해당 자식 노드의 PK이기도 했다면, 재귀적으로 전파
         if (targetFkColumn.pk) {
           const recursiveResult = propagateColumnDeletion(
             edge.target, 
             targetFkColumn, 
             finalNodes, 
-            finalEdges
+            finalEdges,
+            messages
           );
           finalNodes = recursiveResult.updatedNodes;
           finalEdges = recursiveResult.updatedEdges;
+          messages = recursiveResult.toastMessages;
         }
         
         // 남은 FK가 있는지 확인하여 관계 유지 여부 결정
@@ -316,12 +330,13 @@ export const propagateColumnDeletion = (
         if (remainingFKsFromThisParent.length === 0) {
           // 남은 FK가 없으면 관계 제거
           finalEdges = finalEdges.filter(e => e.id !== edge.id);
+          messages.push(`연쇄관계: ${parentNode.data.label}과 ${childNode.data.label} 간의 관계가 해제되었습니다.`);
         }
       }
     }
   });
   
-  return { updatedNodes: finalNodes, updatedEdges: finalEdges };
+  return { updatedNodes: finalNodes, updatedEdges: finalEdges, toastMessages: messages };
 };
 
 // PK 컬럼의 데이터타입 변경 시 모든 FK에 전파하는 함수
@@ -330,9 +345,11 @@ export const propagateDataTypeChange = (
   changedColumn: any,
   newDataType: string,
   allNodes: any[],
-  allEdges: any[]
-): { updatedNodes: any[] } => {
+  allEdges: any[],
+  toastMessages: string[] = []
+): { updatedNodes: any[], toastMessages: string[] } => {
   let finalNodes = [...allNodes];
+  let messages = [...toastMessages];
   
   // 현재 노드가 부모인 관계선들 찾기
   const childEdges = allEdges.filter(edge => edge.source === nodeId);
@@ -368,6 +385,9 @@ export const propagateDataTypeChange = (
             : node
         );
         
+        // 토스트 메시지 추가
+        messages.push(`연쇄관계: ${childNode.data.label} 엔티티의 외래키 컬럼 ${targetFkColumn.name}의 데이터타입이 ${newDataType}로 변경되었습니다.`);
+        
         // 해당 FK가 PK이기도 하다면 재귀적으로 하위 계층에도 전파
         if (targetFkColumn.pk) {
           const updatedFkColumn = { ...targetFkColumn, dataType: newDataType, type: newDataType };
@@ -376,15 +396,17 @@ export const propagateDataTypeChange = (
             updatedFkColumn,
             newDataType,
             finalNodes,
-            allEdges
+            allEdges,
+            messages
           );
           finalNodes = recursiveResult.updatedNodes;
+          messages = recursiveResult.toastMessages;
         }
       }
     }
   });
   
-  return { updatedNodes: finalNodes };
+  return { updatedNodes: finalNodes, toastMessages: messages };
 };
 
 // 식별자 관계가 비식별자로 변경될 때 연쇄적으로 하위 관계들을 해제하는 함수
@@ -392,10 +414,12 @@ export const propagateRelationshipTypeChange = (
   childNodeId: string,
   removedPkColumns: any[],
   allNodes: any[],
-  allEdges: any[]
-): { updatedNodes: any[], updatedEdges: any[] } => {
+  allEdges: any[],
+  toastMessages: string[] = []
+): { updatedNodes: any[], updatedEdges: any[], toastMessages: string[] } => {
   let finalNodes = [...allNodes];
   let finalEdges = [...allEdges];
+  let messages = [...toastMessages];
   
   console.log(`[CASCADE] propagateRelationshipTypeChange - childNodeId: ${childNodeId}, removedPkColumns:`, removedPkColumns.map(col => col.name));
   
@@ -451,6 +475,10 @@ export const propagateRelationshipTypeChange = (
           finalEdges = finalEdges.filter(e => e.id !== edge.id);
           console.log(`[CASCADE] Removed edge ${edge.id} and ${allAffectedFkColumns.length} FK columns`);
           
+          // 토스트 메시지 추가
+          const childNode = finalNodes.find(n => n.id === childNodeId);
+          messages.push(`식별자관계 변경: ${childNode?.data?.label || ''}과 ${grandChildNode.data.label} 간의 관계가 해제되었습니다.`);
+          
           // 제거된 FK가 PK이기도 했다면 재귀적으로 더 하위로 전파
           const removedPkFkColumns = allAffectedFkColumns.filter((col: any) => col.pk);
           if (removedPkFkColumns.length > 0) {
@@ -459,10 +487,12 @@ export const propagateRelationshipTypeChange = (
               edge.target,
               removedPkFkColumns,
               finalNodes,
-              finalEdges
+              finalEdges,
+              messages
             );
             finalNodes = recursiveResult.updatedNodes;
             finalEdges = recursiveResult.updatedEdges;
+            messages = recursiveResult.toastMessages;
           }
         } else {
           // 일부 FK 컬럼만 제거 대상인 경우 -> 컬럼만 제거 (관계 유지)
@@ -487,17 +517,19 @@ export const propagateRelationshipTypeChange = (
               edge.target,
               removedPkFkColumns,
               finalNodes,
-              finalEdges
+              finalEdges,
+              messages
             );
             finalNodes = recursiveResult.updatedNodes;
             finalEdges = recursiveResult.updatedEdges;
+            messages = recursiveResult.toastMessages;
           }
         }
       }
     }
   });
   
-  return { updatedNodes: finalNodes, updatedEdges: finalEdges };
+  return { updatedNodes: finalNodes, updatedEdges: finalEdges, toastMessages: messages };
 };
 
 // 개선된 FK 컬럼 탐색 함수 (export하여 다른 컴포넌트에서도 사용 가능)
@@ -967,6 +999,11 @@ const useStore = create<RFState>((set, get) => ({
       } : { label: `New ${type}` },
     };
     set({ nodes: [...get().nodes, newNode] });
+    
+    // 노드 추가 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 1000);
   },
   setSelectedNodeId: (id) => {
     const state = get();
@@ -1189,6 +1226,11 @@ const useStore = create<RFState>((set, get) => ({
         };
       }
     });
+    
+    // 노드 삭제 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 1000);
   },
 
   deleteEdge: (id) => {
@@ -1232,10 +1274,18 @@ const useStore = create<RFState>((set, get) => ({
             edgeToDelete.target,
             removedPkFkColumns,
             updatedNodes,
-            updatedEdges
+            updatedEdges,
+            []
           );
           updatedNodes = cascadeResult.updatedNodes;
           updatedEdges = cascadeResult.updatedEdges;
+          
+          // 연쇄 관계 토스트 메시지 표시
+          if (cascadeResult.toastMessages.length > 0) {
+            cascadeResult.toastMessages.forEach(message => {
+              setTimeout(() => toast.info(message), 200);
+            });
+          }
         }
 
         toast.info(`${sourceNode.data.label}과 ${targetNode.data.label} 간의 관계가 제거되었습니다.`);
@@ -1252,18 +1302,45 @@ const useStore = create<RFState>((set, get) => ({
         selectedEdgeId: state.selectedEdgeId === id ? null : state.selectedEdgeId,
       };
     });
+    
+    // 관계 삭제 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 1000);
   },
 
   deleteSelected: () => {
     const state = get();
+    let hasChanges = false;
     if (state.selectedNodeId) {
       get().deleteNode(state.selectedNodeId);
+      hasChanges = true;
     } else if (state.selectedEdgeId) {
       get().deleteEdge(state.selectedEdgeId);
+      hasChanges = true;
+    }
+    
+    // 선택된 요소 삭제 시 자동 저장
+    if (hasChanges) {
+      debounceAutoSave(() => {
+        get().saveToLocalStorage(false);
+      }, 500);
     }
   },
-  setNodes: (nodes) => set({ nodes }),
-  setEdges: (edges) => set({ edges }),
+  setNodes: (nodes) => {
+    set({ nodes });
+    // 노드 배열 설정 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 500);
+  },
+  setEdges: (edges) => {
+    set({ edges });
+    // 엣지 배열 설정 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 500);
+  },
   onConnect: (connection) => {
     set((state) => {
       let updatedNodes = state.nodes;
@@ -1587,11 +1664,26 @@ const useStore = create<RFState>((set, get) => ({
               connection.target,
               removedPkColumns,
               updatedNodes,
-              updatedEdges // 업데이트된 edges 전달
+              updatedEdges, // 업데이트된 edges 전달
+              []
             );
             updatedNodes = cascadeResult.updatedNodes;
             updatedEdges = cascadeResult.updatedEdges;
             console.log('✅ 연쇄적 관계 해제 완료');
+            
+            // 연쇄 관계 해제 토스트 메시지 표시
+            if (cascadeResult.toastMessages.length > 0) {
+              cascadeResult.toastMessages.forEach((message, index) => {
+                setTimeout(() => toast.info(message), 300 + (index * 100));
+              });
+            }
+            
+            // 메인 관계 변경 토스트
+            const sourceNode = updatedNodes.find(n => n.id === connection.source);
+            const targetNode = updatedNodes.find(n => n.id === connection.target);
+            if (sourceNode && targetNode) {
+              setTimeout(() => toast.info(`관계변경: ${sourceNode.data.label}과 ${targetNode.data.label} 간의 관계가 비식별자 관계로 변경되었습니다.`), 200);
+            }
           }
         }
       } else {
@@ -1605,6 +1697,15 @@ const useStore = create<RFState>((set, get) => ({
           markerEnd: targetMarker,
         };
         updatedEdges = addEdge(newEdge, state.edges);
+        
+        // 관계 생성 토스트 메시지 (엔티티 간 관계만)
+        if (sourceNode && targetNode && sourceNode.type === 'entity' && targetNode.type === 'entity') {
+          const isIdentifying = getEdgeType(state.connectionMode).includes('identifying');
+          const relationType = isIdentifying ? '식별자' : '비식별자';
+          setTimeout(() => {
+            toast.success(`관계생성: ${sourceNode.data.label}과 ${targetNode.data.label} 간에 ${relationType} 관계가 생성되었습니다.`);
+          }, 100);
+        }
       }
 
       return { nodes: updatedNodes, edges: updatedEdges };
@@ -1614,6 +1715,11 @@ const useStore = create<RFState>((set, get) => ({
     setTimeout(() => {
       get().updateAllHighlights();
     }, 0);
+    
+    // 관계 생성/수정 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 1000);
   },
   setConnectionMode: (mode) => {
     set({ connectionMode: mode });
@@ -1844,19 +1950,43 @@ const useStore = create<RFState>((set, get) => ({
     searchActive: !state.isSearchPanelOpen 
   })),
   setSearchQuery: (query: string) => set({ searchQuery: query }),
-  hideEntity: (entityId: string) => set((state) => {
-    const newHidden = new Set([...state.hiddenEntities, entityId]);
-    return { hiddenEntities: newHidden };
-  }),
-  showEntity: (entityId: string) => set((state) => {
-    const newHidden = new Set(state.hiddenEntities);
-    newHidden.delete(entityId);
-    return { hiddenEntities: newHidden };
-  }),
-  hideAllEntities: () => set((state) => ({
-    hiddenEntities: new Set(state.nodes.filter(n => n.type === 'entity').map(n => n.id))
-  })),
-  showAllEntities: () => set({ hiddenEntities: new Set() }),
+  hideEntity: (entityId: string) => {
+    set((state) => {
+      const newHidden = new Set([...state.hiddenEntities, entityId]);
+      return { hiddenEntities: newHidden };
+    });
+    // 엔티티 숨기기 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 500);
+  },
+  showEntity: (entityId: string) => {
+    set((state) => {
+      const newHidden = new Set(state.hiddenEntities);
+      newHidden.delete(entityId);
+      return { hiddenEntities: newHidden };
+    });
+    // 엔티티 보이기 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 500);
+  },
+  hideAllEntities: () => {
+    set((state) => ({
+      hiddenEntities: new Set(state.nodes.filter(n => n.type === 'entity').map(n => n.id))
+    }));
+    // 모든 엔티티 숨기기 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 500);
+  },
+  showAllEntities: () => {
+    set({ hiddenEntities: new Set() });
+    // 모든 엔티티 보이기 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 500);
+  },
   setSelectedSearchEntity: (entityId: string | null) => set({ selectedSearchEntity: entityId }),
   focusOnEntity: (entityId: string) => {
     const { nodes, setSelectedNodeId } = get();
@@ -2380,10 +2510,18 @@ const useStore = create<RFState>((set, get) => ({
             nodeId, 
             currentParentColumn, 
             finalNodes, 
-            finalEdges
+            finalEdges,
+            []
           );
           finalNodes = propagationResult.updatedNodes;
           finalEdges = propagationResult.updatedEdges;
+          
+          // 연쇄 삭제 토스트 메시지 표시
+          if (propagationResult.toastMessages.length > 0) {
+            propagationResult.toastMessages.forEach((message, index) => {
+              setTimeout(() => toast.info(message), 200 + (index * 100));
+            });
+          }
         });
       }
 
@@ -2398,7 +2536,8 @@ const useStore = create<RFState>((set, get) => ({
             newColumn,
             newColumn.dataType || newColumn.type,
             finalNodes,
-            finalEdges
+            finalEdges,
+            []
           );
           finalNodes = propagationResult.updatedNodes;
         });
@@ -2468,11 +2607,26 @@ const useStore = create<RFState>((set, get) => ({
                           nodeId,
                           removedPkColumns,
                           finalNodes,
-                          finalEdges
+                          finalEdges,
+                          []
                         );
                         finalNodes = cascadeResult.updatedNodes;
                         finalEdges = cascadeResult.updatedEdges;
                         console.log('✅ PK→UQ 변경으로 인한 연쇄적 관계 해제 완료');
+                        
+                        // 식별자 관계 변경 토스트 메시지 표시
+                        if (cascadeResult.toastMessages.length > 0) {
+                          cascadeResult.toastMessages.forEach((message, index) => {
+                            setTimeout(() => toast.info(message), 200 + (index * 100));
+                          });
+                        }
+                        
+                        // 메인 관계 변경 토스트
+                        const relatedSourceNode = finalNodes.find(n => n.id === relatedEdge.source);
+                        const relatedTargetNode = finalNodes.find(n => n.id === relatedEdge.target);
+                        if (relatedSourceNode && relatedTargetNode) {
+                          setTimeout(() => toast.info(`식별자관계 변경: ${relatedSourceNode.data.label}과 ${relatedTargetNode.data.label} 간의 관계가 비식별자 관계로 변경되었습니다.`), 100);
+                        }
                       }
                     }
                   }
@@ -2538,10 +2692,18 @@ const useStore = create<RFState>((set, get) => ({
                           nodeId,
                           removedPkColumns,
                           finalNodes,
-                          finalEdges
+                          finalEdges,
+                          []
                         );
                         finalNodes = cascadeResult.updatedNodes;
                         finalEdges = cascadeResult.updatedEdges;
+                        
+                        // 연쇄 관계 변경 토스트 메시지 표시
+                        if (cascadeResult.toastMessages.length > 0) {
+                          cascadeResult.toastMessages.forEach((message, index) => {
+                            setTimeout(() => toast.info(message), 200 + (index * 100));
+                          });
+                        }
                       }
                     }
                   }
@@ -2951,6 +3113,11 @@ const useStore = create<RFState>((set, get) => ({
       
       return { nodes: updatedNodes };
     });
+    
+    // 좌우 배치 변경 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 1000);
   },
   
   arrangeSnowflake: () => {
@@ -3041,6 +3208,11 @@ const useStore = create<RFState>((set, get) => ({
       
       return { nodes: updatedNodes };
     });
+    
+    // 스노우플레이크 배치 변경 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 1000);
   },
   
   arrangeCompact: () => {
@@ -3147,6 +3319,11 @@ const useStore = create<RFState>((set, get) => ({
       
       return { nodes: updatedNodes };
     });
+    
+    // 컴팩트 배치 변경 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 1000);
   },
   
   // localStorage 관련 함수들
@@ -3419,6 +3596,11 @@ const useStore = create<RFState>((set, get) => ({
       
       // 노드 설정
       set({ nodes: newNodes, edges: [] });
+      
+      // SQL 임포트 시 자동 저장
+      debounceAutoSave(() => {
+        get().saveToLocalStorage(false);
+      }, 500);
       
       // compact 정렬 후 zoom to fit
       setTimeout(() => {

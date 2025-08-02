@@ -1304,6 +1304,9 @@ const Layout = () => {
               const fkColumnName = `${currentEntity.data.label.toLowerCase()}_${columnToDelete.name}`;
               const targetColumns = targetNode.data.columns || [];
               
+              // 해당 FK 컬럼이 있는지 확인
+              const fkColumn = targetColumns.find((col: any) => col.name === fkColumnName);
+              
               // 해당 FK 컬럼 제거
               const updatedTargetColumns = targetColumns.filter((col: any) => col.name !== fkColumnName);
               
@@ -1315,9 +1318,19 @@ const Layout = () => {
               );
               useStore.getState().setNodes(updatedNodes);
               
+              // FK 컬럼 삭제 토스트 메시지
+              if (fkColumn) {
+                setTimeout(() => {
+                  toast.info(`연쇄삭제: ${targetNode.data.label}에서 외래키 컬럼 ${fkColumnName}이 삭제되었습니다.`);
+                }, 100);
+              }
+              
               // 남은 PK가 없으면 관계 끊기
               if (remainingPkColumns.length === 0) {
                 useStore.getState().deleteEdge(edge.id);
+                setTimeout(() => {
+                  toast.info(`관계해제: ${currentEntity.data.label}과 ${targetNode.data.label} 간의 관계가 해제되었습니다.`);
+                }, 200);
               }
             }
           });
@@ -1429,7 +1442,12 @@ const Layout = () => {
               // 결과로 받은 노드들로 업데이트
               useStore.getState().setNodes(propagationResult.updatedNodes);
               
-
+              // FK 추가로 인한 연쇄 토스트 메시지 표시
+              if (propagationResult.toastMessages && propagationResult.toastMessages.length > 0) {
+                propagationResult.toastMessages.forEach((message, index) => {
+                  setTimeout(() => toast.info(message), 200 + (index * 100));
+                });
+              }
               
               // FK 추가 후 즉시 Handle 강제 업데이트
               setTimeout(() => {
@@ -1602,6 +1620,13 @@ const Layout = () => {
                       
                       useStore.getState().setNodes(cascadeResult.updatedNodes);
                       useStore.getState().setEdges(cascadeResult.updatedEdges);
+                      
+                      // 연쇄적 관계 해제 토스트 메시지 표시
+                      if (cascadeResult.toastMessages && cascadeResult.toastMessages.length > 0) {
+                        cascadeResult.toastMessages.forEach((message, index) => {
+                          setTimeout(() => toast.info(message), 200 + (index * 100));
+                        });
+                      }
                     }
                   }
                 }
@@ -1614,7 +1639,18 @@ const Layout = () => {
                   
                   const actionText = value ? '식별자' : '비식별자';
                   const relationshipDescription = isCompositeKeyRelation ? '복합키 ' : '';
-      
+                  
+                  // 관계 타입 변경 토스트 메시지 추가
+                  const parentEntity = useStore.getState().nodes.find(n => 
+                    n.type === 'entity' && n.data.label.toLowerCase() === parentEntityNameLower
+                  );
+                  const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
+                  
+                  if (parentEntity && currentEntity) {
+                    setTimeout(() => {
+                      toast.info(`${relationshipDescription}관계변경: ${parentEntity.data.label}과 ${currentEntity.data.label} 간의 관계가 ${actionText} 관계로 변경되었습니다.`);
+                    }, 100);
+                  }
                   
                   // 관계 타입 변경 후 즉시 Handle 강제 업데이트 - 더 긴 지연시간
                   setTimeout(() => {

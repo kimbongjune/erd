@@ -18,6 +18,13 @@ const ERDEditor: React.FC = () => {
 
   useEffect(() => {
     if (id) {
+      // ERD ID 유효성 검증 (영문, 숫자, _, - 만 허용)
+      const validIdPattern = /^[a-zA-Z0-9_-]+$/;
+      if (!validIdPattern.test(id)) {
+        navigate('/404');
+        return;
+      }
+
       // 특정 ERD ID의 데이터 로드
       const savedData = localStorage.getItem(`erd-${id}`);
       if (savedData) {
@@ -38,11 +45,38 @@ const ERDEditor: React.FC = () => {
           navigate('/home');
         }
       } else {
-        // 새로운 ERD인 경우 빈 상태로 시작
-        clearLocalStorage();
+        // 새로운 ERD인 경우 빈 상태로 시작 (토스트 없이)
+        useStore.setState({
+          nodes: [],
+          edges: [],
+          nodeColors: new Map(),
+          edgeColors: new Map(),
+          commentColors: new Map(),
+          viewSettings: {
+            entityView: 'logical',
+            showKeys: true,
+            showPhysicalName: true,
+            showLogicalName: false,
+            showDataType: true,
+            showConstraints: false,
+            showDefaults: false,
+          },
+          selectedNodeId: null,
+          selectedEdgeId: null,
+          hoveredEdgeId: null,
+          hoveredEntityId: null,
+          highlightedEntities: [],
+          highlightedEdges: [],
+          highlightedColumns: new Map(),
+          isBottomPanelOpen: false,
+          connectionMode: null,
+          connectingNodeId: null,
+          createMode: null,
+          selectMode: true,
+        });
       }
     }
-  }, [id, navigate, clearLocalStorage]);
+  }, [id, navigate]);
 
   // ERD 자동 저장
   useEffect(() => {

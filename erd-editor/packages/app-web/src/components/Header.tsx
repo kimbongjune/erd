@@ -2,7 +2,7 @@ import React, { useCallback, useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash, FaUpload, FaImage, FaPlus, FaHome, FaEdit, FaSearch, FaTimes, FaGlobe, FaEllipsisV } from 'react-icons/fa';
 import { GrMysql } from "react-icons/gr";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import useStore from '../store/useStore';
 import { toast } from 'react-toastify';
 import { customConfirm } from '../utils/confirmUtils';
@@ -589,6 +589,7 @@ const ExportOption = styled.button<{ $darkMode?: boolean }>`
 
 const Header = () => {
   const navigate = useNavigate();
+  const { id: currentErdId } = useParams<{ id: string }>();
   const [isNavDropdownOpen, setIsNavDropdownOpen] = useState(false);
   const [isDashboardModalOpen, setIsDashboardModalOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
@@ -601,10 +602,27 @@ const Header = () => {
     updatedAt: number;
   }>>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   
   const filteredDiagrams = diagrams.filter(diagram =>
     diagram.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // 검색어 하이라이트 함수
+  const highlightSearchTerm = (text: string, searchTerm: string) => {
+    if (!searchTerm) return text;
+    
+    const regex = new RegExp(`(${searchTerm})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <span key={index} style={{ backgroundColor: '#ffd700', color: '#000' }}>
+          {part}
+        </span>
+      ) : part
+    );
+  };
   const navDropdownRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -684,6 +702,22 @@ const Header = () => {
     closeDashboardModal();
   };
 
+  const deleteDiagram = (diagramId: string) => {
+    const savedData = localStorage.getItem('erd-diagrams');
+    const diagrams = savedData ? JSON.parse(savedData) : {};
+    delete diagrams[diagramId];
+    localStorage.setItem('erd-diagrams', JSON.stringify(diagrams));
+    
+    // 현재 다이어그램을 보고 있다면 홈으로 이동
+    if (window.location.pathname === `/erd/${diagramId}`) {
+      navigate('/home');
+      closeDashboardModal();
+    }
+    
+    // 강제로 리렌더링을 위해 상태 업데이트
+    window.dispatchEvent(new Event('storage'));
+  };
+
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString('ko-KR', {
       month: 'short',
@@ -754,19 +788,16 @@ const Header = () => {
 
   // 현재 ERD ID에 따라 다이어그램 이름 로드
   useEffect(() => {
-    const currentUrl = window.location.pathname;
-    const erdIdMatch = currentUrl.match(/\/erd\/(.+)/);
-    if (erdIdMatch) {
-      const erdId = erdIdMatch[1];
+    if (currentErdId) {
       const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-      const diagram = diagramsList.find((d: any) => d.id === erdId);
+      const diagram = diagramsList.find((d: any) => d.id === currentErdId);
       
       if (diagram) {
         setDiagramName(diagram.name);
       } else {
         // 새 다이어그램인 경우 목록에 추가
         const newDiagram = {
-          id: erdId,
+          id: currentErdId,
           name: '제목 없는 다이어그램',
           createdAt: Date.now(),
           updatedAt: Date.now()
@@ -776,7 +807,7 @@ const Header = () => {
         setDiagramName('제목 없는 다이어그램');
       }
     }
-  }, []);
+  }, [currentErdId]);
 
   // 엔티티 존재 여부 확인
   const hasEntities = nodes.some(node => node.type === 'entity');
@@ -1060,103 +1091,252 @@ const Header = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(0, 0, 0, 0.7)',
+          background: 'rgba(0, 0, 0, 0.8)',
           zIndex: 10000,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center'
         }} onClick={closeDashboardModal}>
           <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            width: '90vw',
-            maxWidth: '800px',
-            maxHeight: '80vh',
-            overflow: 'hidden',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            background: '#1a1a1a',
+            borderRadius: '8px',
+            width: '80%',
+            maxWidth: '1000px',
+            height: '80%',
+            maxHeight: '700px',
+            display: 'flex',
+            flexDirection: 'column',
+            border: '1px solid #333'
           }} onClick={(e) => e.stopPropagation()}>
-            <ModalHeader>
-              <h2>내 다이어그램</h2>
-              <CloseButton onClick={closeDashboardModal}>
-                <FaTimes />
-              </CloseButton>
-            </ModalHeader>
-            
-            <div style={{ padding: '1.5rem' }}>
-              <div style={{ position: 'relative', marginBottom: '1rem' }}>
-                <SearchInput
+            {/* 헤더 */}
+            <div style={{
+              padding: '20px',
+              borderBottom: '1px solid #333',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h2 style={{ 
+                margin: 0, 
+                color: '#ffffff',
+                fontSize: '18px',
+                fontWeight: '600'
+              }}>
+                내 다이어그램
+              </h2>
+              <button
+                onClick={closeDashboardModal}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#999',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  padding: '0',
+                  width: '30px',
+                  height: '30px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* 검색바 */}
+            <div style={{
+              padding: '20px',
+              borderBottom: '1px solid #333'
+            }}>
+              <div style={{
+                position: 'relative',
+                width: '100%'
+              }}>
+                <input
                   type="text"
                   placeholder="다이어그램 검색..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    backgroundColor: '#2a2a2a',
+                    border: '1px solid #444',
+                    borderRadius: '4px',
+                    color: '#ffffff',
+                    fontSize: '14px'
+                  }}
                 />
-                <FaSearch style={{
-                  position: 'absolute',
-                  right: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: '#666',
-                  pointerEvents: 'none'
-                }} />
               </div>
+            </div>
 
+            {/* 테이블 헤더 */}
+            <div style={{
+              padding: '0 20px',
+              backgroundColor: '#2a2a2a',
+              borderBottom: '1px solid #333'
+            }}>
               <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 12px',
-                background: '#f8f9fa',
-                borderRadius: '6px',
-                marginBottom: '1rem',
-                fontSize: '14px',
-                color: '#666'
+                display: 'grid',
+                gridTemplateColumns: '1fr 150px 150px 80px',
+                gap: '16px',
+                padding: '12px 0',
+                fontSize: '12px',
+                color: '#999',
+                fontWeight: '600',
+                textTransform: 'uppercase'
               }}>
-                <FaGlobe style={{ color: '#28a745' }} />
-                <span>공개 다이어그램 무제한</span>
+                <div>이름</div>
+                <div>생성일</div>
+                <div>수정일</div>
+                <div></div>
               </div>
+            </div>
 
-              <div style={{
-                maxHeight: '400px',
-                overflowY: 'auto',
-                border: '1px solid #e5e5e5',
-                borderRadius: '6px'
-              }}>
-                <Table>
-                  <thead>
-                    <tr>
-                      <th>이름</th>
-                      <th>마지막 수정</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredDiagrams.map((diagram) => (
-                      <tr key={diagram.id}>
-                        <td>
-                          <DiagramName onClick={() => openDiagram(diagram.id)}>
-                            {diagram.name}
-                          </DiagramName>
-                        </td>
-                        <td>{formatTime(diagram.updatedAt)}</td>
-                        <td>
-                          <ActionButton onClick={(e) => e.stopPropagation()}>
-                            <FaEllipsisV />
-                          </ActionButton>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Table>
-                {filteredDiagrams.length === 0 && (
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '2rem',
-                    color: '#666'
-                  }}>
-                    <p style={{ margin: 0 }}>다이어그램이 없습니다.</p>
+            {/* 다이어그램 목록 */}
+            <div style={{
+              flex: 1,
+              overflow: 'auto',
+              padding: '0 20px'
+            }}>
+              {filteredDiagrams.length === 0 ? (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '200px',
+                  color: '#666'
+                }}>
+                  <div style={{ fontSize: '18px', marginBottom: '8px' }}>
+                    {searchTerm ? '🔍' : '📊'}
                   </div>
-                )}
-              </div>
+                  <div>
+                    {searchTerm 
+                      ? `"${searchTerm}"에 대한 검색 결과가 없습니다`
+                      : '아직 다이어그램이 없습니다'
+                    }
+                  </div>
+                </div>
+              ) : (
+                filteredDiagrams.map((diagram) => (
+                  <div
+                    key={diagram.id}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 150px 150px 80px',
+                      gap: '16px',
+                      padding: '16px 0',
+                      borderBottom: '1px solid #333',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      color: '#ffffff'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#2a2a2a';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <div
+                      onClick={() => {
+                        openDiagram(diagram.id);
+                        closeDashboardModal();
+                      }}
+                      style={{
+                        fontWeight: '500',
+                        fontSize: '14px'
+                      }}
+                    >
+                      {highlightSearchTerm(diagram.name, searchTerm)}
+                    </div>
+                    <div style={{
+                      color: '#999',
+                      fontSize: '13px'
+                    }}>
+                      {new Date(diagram.createdAt).toLocaleDateString('ko-KR')}
+                    </div>
+                    <div style={{
+                      color: '#999',
+                      fontSize: '13px'
+                    }}>
+                      {new Date(diagram.updatedAt).toLocaleDateString('ko-KR')}
+                    </div>
+                    <div style={{
+                      position: 'relative'
+                    }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveDropdown(activeDropdown === diagram.id ? null : diagram.id);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#999',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          borderRadius: '4px',
+                          fontSize: '16px'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#444';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        ⋯
+                      </button>
+                      
+                      {activeDropdown === diagram.id && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '100%',
+                          right: '0',
+                          backgroundColor: '#333',
+                          border: '1px solid #444',
+                          borderRadius: '4px',
+                          minWidth: '120px',
+                          zIndex: 1000,
+                          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+                        }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`"${diagram.name}" 다이어그램을 삭제하시겠습니까?`)) {
+                                deleteDiagram(diagram.id);
+                                setActiveDropdown(null);
+                              }
+                            }}
+                            style={{
+                              display: 'block',
+                              width: '100%',
+                              padding: '8px 12px',
+                              background: 'none',
+                              border: 'none',
+                              color: '#ff6b6b',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              fontSize: '14px'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#444';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

@@ -1,9 +1,9 @@
 {
-  "buildCommand": "npm run build --prefix packages/app-web",
+  "buildCommand": "cd packages/app-web && npm run build",
   "outputDirectory": "packages/app-web/dist",
-  "installCommand": "npm install --prefix packages/app-web",
-  "devCommand": "npm run dev --prefix packages/app-web",
-   "routes": [
+  "installCommand": "cd packages/app-web && npm install",
+  "devCommand": "cd packages/app-web && npm run dev",
+  "routes": [
     { "handle": "filesystem" },
     { "src": "/.*", "dest": "/index.html" }
   ]

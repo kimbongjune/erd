@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { FaPlus, FaSearch, FaEllipsisV, FaGlobe, FaFolder, FaClock, FaEdit, FaDatabase, FaChartLine, FaUsers, FaCubes, FaProjectDiagram, FaSitemap } from 'react-icons/fa';
-
+import { FaPlus, FaSearch, FaEllipsisV, FaGlobe, FaFolder, FaClock, FaEdit, FaDatabase, FaChartLine, FaUsers, FaCubes, FaProjectDiagram, FaSitemap, FaTable  } from 'react-icons/fa';
+import { BsFillDiagram3Fill } from "react-icons/bs";
 const HomeContainer = styled.div`
   min-height: 100vh;
   background: #0f1419;
@@ -193,6 +193,13 @@ const SectionHeader = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 40px;
+  flex-wrap: wrap;
+  gap: 20px;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 `;
 
 const SectionTitle = styled.h3`
@@ -211,10 +218,12 @@ const SectionTitle = styled.h3`
 const SearchContainer = styled.div`
   position: relative;
   width: 320px;
+  flex-shrink: 0;
   
   input {
     width: 100%;
-    padding: 12px 16px 12px 44px;
+    padding: 12px 40px 12px 16px;
+    padding-left: 40px !important;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid #374151;
     border-radius: 12px;
@@ -237,12 +246,13 @@ const SearchContainer = styled.div`
   
   .search-icon {
     position: absolute;
-    left: 14px;
+    left: 12px;
     top: 50%;
     transform: translateY(-50%);
     color: #9ca3af;
     font-size: 14px;
     pointer-events: none;
+    z-index: 2;
   }
 `;
 
@@ -482,21 +492,21 @@ const HomePage: React.FC = () => {
           <StatsSection>
             <StatCard>
               <div className="icon">
-                <FaProjectDiagram />
+                <BsFillDiagram3Fill />
               </div>
               <div className="number">{diagrams.length}</div>
               <div className="label">다이어그램</div>
             </StatCard>
             <StatCard>
               <div className="icon">
-                <FaCubes />
+                <FaTable />
               </div>
               <div className="number">{totalEntities}</div>
               <div className="label">엔티티</div>
             </StatCard>
             <StatCard>
               <div className="icon">
-                <FaSitemap />
+                <FaProjectDiagram />
               </div>
               <div className="number">{totalRelations}</div>
               <div className="label">관계</div>

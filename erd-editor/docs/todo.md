@@ -146,7 +146,7 @@
     ✅ 위치 확인 가능하되 시각적 위계를 낮게 유지 (낮은 채도, 얇은 테두리)
 124. oauth(google, github, kakao)를 이용한 로그인
 125. 추후 결제 기능, price 종류 페이지(https://dbdiagram.io/pricing)
-126. 홈 랜딩페이지
+126. 홈 랜딩페이지 Why(왜), 
 127. erd 공유기능
 128. 템플릿? 한다면 public private 접근 제한?(https://www.erdcloud.com/library)
 ```

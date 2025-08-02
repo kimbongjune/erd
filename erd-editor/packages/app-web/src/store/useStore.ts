@@ -92,8 +92,13 @@ const parseSQLTables = (sqlContent: string): ParsedTable[] => {
 };
 
 // localStorage 키 상수
-const STORAGE_KEY = 'erd-editor-data';
+const STORAGE_KEY_PREFIX = 'erd-editor-data';
 const STORAGE_VERSION = '1.0';
+
+// 현재 URL을 기반으로 한 동적 저장소 키 생성
+const getCurrentStorageKey = () => {
+  return `${STORAGE_KEY_PREFIX}${window.location.pathname}`;
+};
 
 // 하위 계층으로의 연쇄 FK 추가 전파 함수 (PK 추가 시 사용)
 export const propagateColumnAddition = (
@@ -3361,7 +3366,7 @@ const useStore = create<RFState>((set, get) => ({
         viewportRestoreTrigger: state.viewportRestoreTrigger,
       };
       
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+      localStorage.setItem(getCurrentStorageKey(), JSON.stringify(dataToSave));
       
       // showToast가 true일 때만 토스트 메시지 표시
       if (showToast) {
@@ -3384,7 +3389,7 @@ const useStore = create<RFState>((set, get) => ({
       // 로딩 시작
       set({ isLoading: true, loadingMessage: '저장된 ERD 데이터 검색 중...', loadingProgress: 10 });
       
-      const savedData = localStorage.getItem(STORAGE_KEY);
+      const savedData = localStorage.getItem(getCurrentStorageKey());
       if (!savedData) {
         set({ isLoading: false, loadingMessage: '', loadingProgress: 0 });
         toast.info('저장된 데이터가 없습니다.');
@@ -3462,7 +3467,7 @@ const useStore = create<RFState>((set, get) => ({
   // 페이지 진입 시 자동 로딩 체크
   checkAndAutoLoad: () => {
     try {
-      const savedData = localStorage.getItem(STORAGE_KEY);
+      const savedData = localStorage.getItem(getCurrentStorageKey());
       if (savedData) {
         // 저장된 데이터가 있으면 자동으로 불러오기
         get().loadFromLocalStorage();
@@ -3476,7 +3481,7 @@ const useStore = create<RFState>((set, get) => ({
   
   clearLocalStorage: () => {
     try {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(getCurrentStorageKey());
       
       // 상태를 초기 상태로 리셋
       set({
@@ -3620,7 +3625,7 @@ const useStore = create<RFState>((set, get) => ({
 // 스토어 초기화 시 localStorage에서 데이터 로드
 const initializeStore = () => {
   try {
-    const savedData = localStorage.getItem(STORAGE_KEY);
+    const savedData = localStorage.getItem(getCurrentStorageKey());
     if (savedData) {
       const data: SavedData = JSON.parse(savedData);
       

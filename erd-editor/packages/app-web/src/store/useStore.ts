@@ -3,6 +3,14 @@ import { Node, Edge, OnNodesChange, OnEdgesChange, applyNodeChanges, applyEdgeCh
 import { toast } from 'react-toastify';
 import { createHandleId } from '../utils/handleUtils';
 import { validateDataTypeForSQL } from '../utils/mysqlTypes';
+import { 
+  HistoryManager, 
+  HISTORY_ACTIONS, 
+  HistoryActionType, 
+  serializeState, 
+  deserializeState, 
+  SerializableHistoryState 
+} from '../utils/historyManager';
 
 // SQL 파싱 관련 타입 정의
 interface ParsedColumn {
@@ -781,6 +789,11 @@ type RFState = {
   hiddenEntities: Set<string>;
   selectedSearchEntity: string | null;
   
+  // 히스토리 관련
+  historyManager: HistoryManager;
+  canUndo: boolean;
+  canRedo: boolean;
+  
   // 뷰 설정
   viewSettings: ViewSettings;
   
@@ -884,6 +897,13 @@ type RFState = {
   saveToLocalStorage: (showToast?: boolean) => void;
   loadFromLocalStorage: () => void;
   clearLocalStorage: () => void;
+  
+  // 히스토리 관련 함수들
+  saveHistoryState: (actionType: HistoryActionType, metadata?: any) => void;
+  undo: () => void;
+  redo: () => void;
+  clearHistory: () => void;
+  updateHistoryFlags: () => void;
   
   // SQL import 관련 함수들
   importFromSQL: (sqlContent: string) => void;
@@ -1003,7 +1023,19 @@ const useStore = create<RFState>((set, get) => ({
         columns: [] // 빈 배열로 시작
       } : { label: `New ${type}` },
     };
+    
+    // 노드 추가 실행
     set({ nodes: [...get().nodes, newNode] });
+    
+    // 히스토리 저장 (변경 후)
+    const state = get();
+    state.saveHistoryState(
+      type === 'entity' ? HISTORY_ACTIONS.CREATE_ENTITY :
+      type === 'comment' ? HISTORY_ACTIONS.CREATE_COMMENT :
+      type === 'image' ? HISTORY_ACTIONS.CREATE_IMAGE :
+      HISTORY_ACTIONS.CREATE_COMMENT, // 기본값
+      { name: newNode.data.label }
+    );
     
     // 노드 추가 시 자동 저장
     debounceAutoSave(() => {
@@ -1179,6 +1211,10 @@ const useStore = create<RFState>((set, get) => ({
   }),
   setBottomPanelOpen: (isOpen) => set({ isBottomPanelOpen: isOpen }),
   deleteNode: (id) => {
+    // 삭제할 노드 정보 미리 저장
+    const state = get();
+    const nodeToDelete = state.nodes.find(node => node.id === id);
+    
     set((state) => {
       const nodeToDelete = state.nodes.find(node => node.id === id);
       if (!nodeToDelete) return state;
@@ -1215,7 +1251,7 @@ const useStore = create<RFState>((set, get) => ({
           edge.source !== id && edge.target !== id
         );
 
-                  toast.info(`엔티티 ${nodeToDelete.data.label}이(가) 삭제되었습니다.`);
+        toast.info(`엔티티 ${nodeToDelete.data.label}이(가) 삭제되었습니다.`);
 
         return {
           nodes: updatedNodes,
@@ -1231,6 +1267,18 @@ const useStore = create<RFState>((set, get) => ({
         };
       }
     });
+    
+    // 히스토리 저장 (변경 후)
+    if (nodeToDelete) {
+      const currentState = get();
+      currentState.saveHistoryState(
+        nodeToDelete.type === 'entity' ? HISTORY_ACTIONS.DELETE_ENTITY :
+        nodeToDelete.type === 'comment' ? HISTORY_ACTIONS.DELETE_COMMENT :
+        nodeToDelete.type === 'image' ? HISTORY_ACTIONS.DELETE_IMAGE :
+        HISTORY_ACTIONS.DELETE_COMMENT, // 기본값
+        { name: nodeToDelete.data.label }
+      );
+    }
     
     // 노드 삭제 시 자동 저장
     debounceAutoSave(() => {
@@ -1308,6 +1356,10 @@ const useStore = create<RFState>((set, get) => ({
       };
     });
     
+    // 관계선 삭제 후 히스토리 저장
+    console.log('💾 관계선 삭제 히스토리 저장');
+    get().saveHistoryState(HISTORY_ACTIONS.DELETE_RELATIONSHIP);
+    
     // 관계 삭제 시 자동 저장
     debounceAutoSave(() => {
       get().saveToLocalStorage(false);
@@ -1349,6 +1401,7 @@ const useStore = create<RFState>((set, get) => ({
   onConnect: (connection) => {
     set((state) => {
       let updatedNodes = state.nodes;
+      
       const sourceNode = state.nodes.find((node) => node.id === connection.source);
       const targetNode = state.nodes.find((node) => node.id === connection.target);
 
@@ -1365,7 +1418,8 @@ const useStore = create<RFState>((set, get) => ({
       
       if (existingReverseEdge && connection.source !== connection.target) {
         toast.error('순환참조는 허용되지 않습니다. 이미 반대 방향으로 관계가 설정되어 있습니다.');
-        return state; // 상태 변경 없이 반환
+        console.log('❌ 관계 생성 실패: 순환참조 - 히스토리 저장하지 않음');
+        return state; // 상태 변경 없이 반환 (히스토리 저장 안됨)
       }
 
       // Check if there's already an edge between these nodes
@@ -1399,7 +1453,8 @@ const useStore = create<RFState>((set, get) => ({
         // PK가 없는 경우 토스트 메시지 표시하고 관계 생성 중단
         if (sourcePkColumns.length === 0) {
           toast.error('관계를 생성하려면 부모 엔티티에 기본키(PK)가 필요합니다.');
-          return state; // 상태 변경 없이 반환
+          console.log('❌ 관계 생성 실패: PK 없음 - 히스토리 저장하지 않음');
+          return state; // 상태 변경 없이 반환 (히스토리 저장 안됨)
         }
 
         // 셀프 관계에서 식별자 관계 체크
@@ -1409,7 +1464,8 @@ const useStore = create<RFState>((set, get) => ({
           
           if (isIdentifyingRelationship) {
             toast.error('자기 자신과의 관계에서는 식별자 관계를 설정할 수 없습니다. 비식별자 관계만 가능합니다.');
-            return state; // 상태 변경 없이 반환
+            console.log('❌ 관계 생성 실패: 셀프 식별자 관계 - 히스토리 저장하지 않음');
+            return state; // 상태 변경 없이 반환 (히스토리 저장 안됨)
           }
         }
 
@@ -1721,6 +1777,19 @@ const useStore = create<RFState>((set, get) => ({
       get().updateAllHighlights();
     }, 0);
     
+    // 관계선 생성 후 히스토리 저장
+    const finalState = get();
+    const sourceNode = finalState.nodes.find((node) => node.id === connection.source);
+    const targetNode = finalState.nodes.find((node) => node.id === connection.target);
+    
+    if (sourceNode && targetNode) {
+      console.log('💾 관계선 생성 히스토리 저장:', sourceNode.data.label, '→', targetNode.data.label);
+      finalState.saveHistoryState(HISTORY_ACTIONS.CREATE_RELATIONSHIP, {
+        sourceLabel: sourceNode.data.label,
+        targetLabel: targetNode.data.label
+      });
+    }
+    
     // 관계 생성/수정 시 자동 저장
     debounceAutoSave(() => {
       get().saveToLocalStorage(false);
@@ -1801,6 +1870,11 @@ const useStore = create<RFState>((set, get) => ({
   searchQuery: '',
   hiddenEntities: new Set(),
   selectedSearchEntity: null,
+  
+  // 히스토리 관련 상태 초기값
+  historyManager: new HistoryManager(),
+  canUndo: false,
+  canRedo: false,
   
   // 뷰 설정 초기값
   viewSettings: {
@@ -2830,6 +2904,19 @@ const useStore = create<RFState>((set, get) => ({
       newNodeColors.set(nodeId, color);
       return { nodeColors: newNodeColors };
     });
+    
+    // 색상 변경 히스토리 저장
+    const state = get();
+    const node = state.nodes.find(n => n.id === nodeId);
+    if (node) {
+      console.log('💾 노드 색상 변경 히스토리 저장:', node.data.label, color);
+      state.saveHistoryState(HISTORY_ACTIONS.CHANGE_NODE_COLOR, {
+        nodeName: node.data.label,
+        nodeId: nodeId,
+        color: color
+      });
+    }
+    
     // 색상 변경 시 localStorage에 자동 저장
     setTimeout(() => {
       get().saveToLocalStorage(false);
@@ -2842,6 +2929,22 @@ const useStore = create<RFState>((set, get) => ({
       newEdgeColors.set(edgeId, color);
       return { edgeColors: newEdgeColors };
     });
+    
+    // 색상 변경 히스토리 저장 (관계선은 노드명으로 식별)
+    const state = get();
+    const edge = state.edges.find(e => e.id === edgeId);
+    if (edge) {
+      const sourceNode = state.nodes.find(n => n.id === edge.source);
+      const targetNode = state.nodes.find(n => n.id === edge.target);
+      console.log('💾 관계선 색상 변경 히스토리 저장:', sourceNode?.data.label, '→', targetNode?.data.label, color);
+      state.saveHistoryState('CHANGE_EDGE_COLOR' as any, {
+        sourceName: sourceNode?.data.label,
+        targetName: targetNode?.data.label,
+        edgeId: edgeId,
+        color: color
+      });
+    }
+    
     // 색상 변경 시 localStorage에 자동 저장
     setTimeout(() => {
       get().saveToLocalStorage(false);
@@ -2854,6 +2957,19 @@ const useStore = create<RFState>((set, get) => ({
       newCommentColors.set(commentId, color);
       return { commentColors: newCommentColors };
     });
+    
+    // 색상 변경 히스토리 저장
+    const state = get();
+    const comment = state.nodes.find(n => n.id === commentId);
+    if (comment) {
+      console.log('💾 커멘트 색상 변경 히스토리 저장:', comment.data.label, color);
+      state.saveHistoryState('CHANGE_COMMENT_COLOR' as any, {
+        commentText: comment.data.label,
+        commentId: commentId,
+        color: color
+      });
+    }
+    
     // 색상 변경 시 localStorage에 자동 저장
     setTimeout(() => {
       get().saveToLocalStorage(false);
@@ -3444,7 +3560,22 @@ const useStore = create<RFState>((set, get) => ({
       
       // 로딩 완료 처리를 지연시켜서 viewport 복원이 완료되고 추가 안정화 시간 확보
       setTimeout(() => {
+        const state = get();
         set({ isLoading: false, loadingMessage: '', loadingProgress: 100 });
+        
+        // 히스토리 초기화 및 초기 상태 저장
+        state.historyManager.clearHistory();
+        const currentState = serializeState({
+          nodes: state.nodes,
+          edges: state.edges,
+          nodeColors: state.nodeColors,
+          edgeColors: state.edgeColors,
+          commentColors: state.commentColors,
+          hiddenEntities: state.hiddenEntities
+        });
+        state.historyManager.saveState('INITIAL_STATE' as HistoryActionType, currentState, { name: '초기 상태' });
+        state.updateHistoryFlags();
+        
         toast.success('ERD 데이터를 성공적으로 불러왔습니다!');
       }, 1800); // 1.8초 후 로딩 완료 (0.3초 추가)
     } catch (error) {
@@ -3535,6 +3666,24 @@ const useStore = create<RFState>((set, get) => ({
         selectedSearchEntity: null,
       });
       
+      // 히스토리 완전 초기화 및 빈 상태를 초기 히스토리로 설정
+      const state = get();
+      state.historyManager.clearHistory();
+      
+      // 빈 상태를 새로운 초기 상태로 히스토리에 저장
+      const emptyState = serializeState({
+        nodes: [],
+        edges: [],
+        nodeColors: new Map(),
+        edgeColors: new Map(),
+        commentColors: new Map(),
+        hiddenEntities: new Set()
+      });
+      state.historyManager.saveState('INITIAL_STATE' as HistoryActionType, emptyState, { name: '초기 상태 (데이터 삭제 후)' });
+      state.updateHistoryFlags();
+      
+      console.log('🗑️ 데이터 삭제 완료 - 히스토리 초기화됨');
+      
       toast.success('저장된 데이터가 삭제되고 초기 상태로 리셋되었습니다.');
     } catch (error) {
       toast.error('데이터 삭제에 실패했습니다.');
@@ -3619,6 +3768,152 @@ const useStore = create<RFState>((set, get) => ({
       toast.error('SQL 파일 파싱 중 오류가 발생했습니다.');
       console.error('SQL import error:', error);
     }
+  },
+
+  // 히스토리 관련 함수들
+  saveHistoryState: (actionType: HistoryActionType, metadata?: any) => {
+    const state = get();
+    const currentState = serializeState({
+      nodes: state.nodes,
+      edges: state.edges,
+      nodeColors: state.nodeColors,
+      edgeColors: state.edgeColors,
+      commentColors: state.commentColors,
+      hiddenEntities: state.hiddenEntities
+    });
+    
+    console.log('🔄 히스토리 저장:', actionType, metadata);
+    console.log('📊 저장되는 노드 수:', currentState.nodes.length);
+    
+    // 엔티티 노드의 상세 정보 로깅 (최대 2개만)
+    const entityNodes = currentState.nodes.filter(node => node.type === 'entity').slice(0, 2);
+    entityNodes.forEach((node, index) => {
+      console.log(`📦 엔티티 ${index + 1}:`, {
+        id: node.id,
+        label: node.data.label,
+        physicalName: node.data.physicalName,
+        logicalName: node.data.logicalName,
+        columns: node.data.columns?.length || 0,
+        columnsDetail: node.data.columns?.slice(0, 3).map((col: any) => ({
+          name: col.name,
+          logicalName: col.logicalName,
+          pk: col.pk,
+          uq: col.uq,
+          nn: col.nn,
+          ai: col.ai,
+          dataType: col.dataType,
+          defaultValue: col.defaultValue
+        })) || []
+      });
+    });
+    
+    state.historyManager.saveState(actionType, currentState, metadata);
+    state.updateHistoryFlags();
+    console.log('📚 히스토리 개수:', state.historyManager.getHistorySize());
+  },
+
+  undo: () => {
+    const state = get();
+    console.log('↩️ Undo 시도, canUndo:', state.historyManager.canUndo());
+    const historyEntry = state.historyManager.undo();
+    
+    if (historyEntry) {
+      console.log('↩️ Undo 실행:', historyEntry.description);
+      const restoredState = deserializeState(historyEntry.data);
+      
+      console.log('📊 복원되는 노드 수:', restoredState.nodes.length);
+      
+      // 복원되는 엔티티 노드의 상세 정보 로깅 (최대 2개만)
+      const entityNodes = restoredState.nodes.filter(node => node.type === 'entity').slice(0, 2);
+      entityNodes.forEach((node, index) => {
+        console.log(`📦 복원 엔티티 ${index + 1}:`, {
+          id: node.id,
+          label: node.data.label,
+          physicalName: node.data.physicalName,
+          logicalName: node.data.logicalName,
+          columns: node.data.columns?.length || 0,
+          columnsDetail: node.data.columns?.slice(0, 3).map((col: any) => ({
+            name: col.name,
+            logicalName: col.logicalName,
+            pk: col.pk,
+            uq: col.uq,
+            nn: col.nn,
+            ai: col.ai,
+            dataType: col.dataType,
+            defaultValue: col.defaultValue
+          })) || []
+        });
+      });
+      
+      set({
+        nodes: restoredState.nodes,
+        edges: restoredState.edges,
+        nodeColors: restoredState.nodeColors,
+        edgeColors: restoredState.edgeColors,
+        commentColors: restoredState.commentColors,
+        hiddenEntities: restoredState.hiddenEntities,
+        // 선택 상태 초기화
+        selectedNodeId: null,
+        selectedEdgeId: null,
+        hoveredEntityId: null,
+        hoveredEdgeId: null,
+        highlightedEntities: [],
+        highlightedEdges: [],
+        highlightedColumns: new Map()
+      });
+      
+      state.updateHistoryFlags();
+      toast.success(`${historyEntry.description} 취소됨`);
+    } else {
+      console.log('↩️ Undo 실패: 되돌릴 상태가 없음');
+    }
+  },
+
+  redo: () => {
+    const state = get();
+    console.log('↪️ Redo 시도, canRedo:', state.historyManager.canRedo());
+    const historyEntry = state.historyManager.redo();
+    
+    if (historyEntry) {
+      console.log('↪️ Redo 실행:', historyEntry.description);
+      const restoredState = deserializeState(historyEntry.data);
+      
+      set({
+        nodes: restoredState.nodes,
+        edges: restoredState.edges,
+        nodeColors: restoredState.nodeColors,
+        edgeColors: restoredState.edgeColors,
+        commentColors: restoredState.commentColors,
+        hiddenEntities: restoredState.hiddenEntities,
+        // 선택 상태 초기화
+        selectedNodeId: null,
+        selectedEdgeId: null,
+        hoveredEntityId: null,
+        hoveredEdgeId: null,
+        highlightedEntities: [],
+        highlightedEdges: [],
+        highlightedColumns: new Map()
+      });
+      
+      state.updateHistoryFlags();
+      toast.success(`${historyEntry.description} 다시 실행됨`);
+    } else {
+      console.log('↪️ Redo 실패: 다시 실행할 상태가 없음');
+    }
+  },
+
+  clearHistory: () => {
+    const state = get();
+    state.historyManager.clearHistory();
+    state.updateHistoryFlags();
+  },
+
+  updateHistoryFlags: () => {
+    const state = get();
+    set({
+      canUndo: state.historyManager.canUndo(),
+      canRedo: state.historyManager.canRedo()
+    });
   },
 }));
 

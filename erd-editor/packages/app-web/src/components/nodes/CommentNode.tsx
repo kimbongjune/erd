@@ -167,6 +167,7 @@ const CommentNode = ({ data, selected, id }: any) => {
   const theme = useStore((state) => state.theme);
   const editingCommentId = useStore((state) => state.editingCommentId);
   const setEditingCommentId = useStore((state) => state.setEditingCommentId);
+  const saveHistoryState = useStore((state) => state.saveHistoryState);
   
   // 편집 상태는 useStore에서 관리
   const isEditing = editingCommentId === id;
@@ -357,12 +358,22 @@ const CommentNode = ({ data, selected, id }: any) => {
       finalContent = data.label;
     }
     
+    // 텍스트가 실제로 변경된 경우에만 히스토리 저장
+    if (finalContent !== data.label) {
+      console.log('💬 커멘트 텍스트 변경 히스토리 저장:', finalContent);
+      saveHistoryState('CHANGE_COMMENT_TEXT', {
+        commentId: id,
+        oldText: data.label,
+        newText: finalContent
+      });
+    }
+    
     const updatedNodes = nodes.map((node) =>
       node.id === id ? { ...node, data: { ...node.data, label: finalContent } } : node
     );
     setNodes(updatedNodes);
     setEditingCommentId(null);
-  }, [data.label, nodes, id, setNodes, setEditingCommentId]);
+  }, [data.label, nodes, id, setNodes, setEditingCommentId, saveHistoryState]);
 
   const handleTextAreaWheel = useCallback((e: any) => {
     // 컨텐츠 내부에서 휠 이벤트가 위로 전파되지 않도록 차단
@@ -386,9 +397,19 @@ const CommentNode = ({ data, selected, id }: any) => {
   }, [id, showPalette]);
 
   const handleColorSelect = useCallback((color: string) => {
+    const oldColor = getCommentColor(id);
+    if (color !== oldColor) {
+      console.log('🎨 커멘트 색상 변경 히스토리 저장:', color);
+      saveHistoryState('CHANGE_NODE_COLOR', {
+        nodeId: id,
+        nodeType: 'comment',
+        oldColor,
+        newColor: color
+      });
+    }
     setCommentColor(id, color);
     setPreviewColor(null);
-  }, [id, setCommentColor]);
+  }, [id, setCommentColor, getCommentColor, saveHistoryState]);
 
   const handlePreviewColor = useCallback((color: string) => {
     setPreviewColor(color);

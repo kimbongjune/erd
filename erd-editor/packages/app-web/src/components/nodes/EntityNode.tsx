@@ -451,6 +451,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   const hidePalette = useStore((state) => state.hidePalette);
   const setNodeColor = useStore((state) => state.setNodeColor);
   const getNodeColor = useStore((state) => state.getNodeColor);
+  const saveHistoryState = useStore((state) => state.saveHistoryState);
   
   const nodeColor = getNodeColor(id);
   const isHidden = hiddenEntities.has(id);
@@ -586,9 +587,19 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   }, [id, showPalette]);
 
   const handleColorSelect = useCallback((color: string) => {
+    const oldColor = getNodeColor(id);
+    if (color !== oldColor) {
+      console.log('🎨 엔티티 색상 변경 히스토리 저장:', color);
+      saveHistoryState('CHANGE_NODE_COLOR', {
+        nodeId: id,
+        nodeType: 'entity',
+        oldColor,
+        newColor: color
+      });
+    }
     setNodeColor(id, color);
     setPreviewColor(null); // 미리보기 초기화
-  }, [id, setNodeColor]);
+  }, [id, setNodeColor, getNodeColor, saveHistoryState]);
 
   const handlePreviewColor = useCallback((color: string) => {
     setPreviewColor(color);

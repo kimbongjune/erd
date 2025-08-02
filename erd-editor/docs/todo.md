@@ -93,7 +93,8 @@
 86. ✅ 엔티티 색 바꾸면 맞게 텍스트 색도? 밝을 경우?
 87. seo
 88. ✅ 컬럼 없는 엔티티 있을때 내보내기 못하게 캡쳐는 가능
-89. ✅ On delete on update 기본값은 no action 으로
+89. On delete on update 기본값은 no action 으로
+    -> 이부분은 하단 레이아웃의 별도 탭으로 분리하고 해당 부분에 컬럼의 comment로 변경하고, comment는 히스토리도
 90. ✅ Uq 체크했을 때 nn 자동체크 ㄴㄴ
 91. ✅ Fk할 때 부모엔티티 논리명, 주석이 있으면 그대로 같이
 92. ✅ 기본값 표현식에 place holder null로

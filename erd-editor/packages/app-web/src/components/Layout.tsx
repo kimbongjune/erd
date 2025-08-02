@@ -7,6 +7,7 @@ import Canvas from './Canvas';
 import useStore, { propagateColumnAddition, propagateColumnDeletion, propagateDataTypeChange, propagateRelationshipTypeChange } from '../store/useStore';
 import { toast } from 'react-toastify';
 import { MYSQL_DATATYPES, validateEnglishOnly, validateDataType, validatePhysicalName } from '../utils/mysqlTypes';
+import { HISTORY_ACTIONS } from '../utils/historyManager';
 import Tooltip from './Tooltip';
 
 const Container = styled.div<{ $darkMode?: boolean }>`
@@ -1169,6 +1170,10 @@ const Layout = () => {
     const newColumns = [...columns, newColumn];
     setColumns(newColumns);
     updateNodeColumns(newColumns);
+    
+    // 컬럼 추가 후 히스토리 저장
+    console.log('💾 컬럼 추가 히스토리 저장:', newColumn.name);
+    useStore.getState().saveHistoryState('ADD_COLUMN');
   };
 
   const deleteColumn = (columnId: string) => {
@@ -1361,6 +1366,10 @@ const Layout = () => {
         if (selectedColumn?.id === columnId) {
           setSelectedColumn(newColumns[0] || null);
         }
+        
+        // 컬럼 삭제 후 히스토리 저장
+        console.log('💾 컬럼 삭제 히스토리 저장:', columnToDelete.name);
+        useStore.getState().saveHistoryState('DELETE_COLUMN');
         
         // Handle 업데이트
         setTimeout(() => {
@@ -1699,33 +1708,76 @@ const Layout = () => {
         }
       }
     }
+    
+    // 컬럼 체크박스 상태 변경 시 히스토리 저장
+    if (['pk', 'nn', 'uq', 'ai'].includes(field)) {
+      const columnToUpdate = columns.find(col => col.id === columnId);
+      if (columnToUpdate) {
+        let historyAction: string = '';
+        switch (field) {
+          case 'pk':
+            historyAction = HISTORY_ACTIONS.CHANGE_COLUMN_PK;
+            break;
+          case 'nn':
+            historyAction = HISTORY_ACTIONS.CHANGE_COLUMN_NN;
+            break;
+          case 'uq':
+            historyAction = HISTORY_ACTIONS.CHANGE_COLUMN_UQ;
+            break;
+          case 'ai':
+            historyAction = HISTORY_ACTIONS.CHANGE_COLUMN_AI;
+            break;
+        }
+        
+        if (historyAction) {
+          console.log(`💾 컬럼 ${field.toUpperCase()} 변경 히스토리 저장:`, columnToUpdate.name, value ? '설정' : '해제');
+          useStore.getState().saveHistoryState(historyAction as any, {
+            columnName: columnToUpdate.name,
+            value: value
+          });
+        }
+      }
+    }
   };
 
   const updateTableName = (newName: string) => {
-    // 허용되지 않는 문자만 필터링하여 제거
-    const filteredValue = newName.replace(/[^a-zA-Z0-9_]/g, '');
-    
-    // MySQL 식별자 규칙: 숫자로 시작할 수 없음
-    const finalValue = filteredValue.replace(/^[0-9]/, '');
-    
-    // 필터링된 값과 원본 값이 다르면 토스트 알림 표시
-    if (newName !== finalValue) {
-      if (newName.match(/^[0-9]/)) {
-        toast.error('물리명은 숫자로 시작할 수 없습니다. 영문자나 밑줄(_)로 시작해야 합니다.');
-      } else {
-        toast.error('물리명에는 영문 대소문자, 숫자, 밑줄(_)만 사용할 수 있습니다.');
-      }
-    }
-    
-    setTableName(finalValue);
+    // 실시간 필터링 제거 - 입력 값 그대로 저장
+    setTableName(newName);
     if (selectedNodeId) {
       const selectedNode = nodes.find(node => node.id === selectedNodeId);
       if (selectedNode) {
         updateNodeData(selectedNodeId, {
           ...selectedNode.data,
-          label: finalValue,
-          physicalName: finalValue
+          label: newName,
+          physicalName: newName
         });
+      }
+    }
+  };
+
+  const validateAndFixTableName = (inputValue: string) => {
+    // 포커스 아웃 시에만 검증 및 수정
+    const filteredValue = inputValue.replace(/[^a-zA-Z0-9_]/g, '');
+    const finalValue = filteredValue.replace(/^[0-9]/, '');
+    
+    // 수정이 필요한 경우에만 알림 및 업데이트
+    if (inputValue !== finalValue) {
+      if (inputValue.match(/^[0-9]/)) {
+        toast.error('물리명은 숫자로 시작할 수 없습니다. 영문자나 밑줄(_)로 시작해야 합니다.');
+      } else {
+        toast.error('물리명에는 영문 대소문자, 숫자, 밑줄(_)만 사용할 수 있습니다.');
+      }
+      
+      setTableName(finalValue);
+      if (selectedNodeId) {
+        const selectedNode = nodes.find(node => node.id === selectedNodeId);
+        if (selectedNode) {
+          updateNodeData(selectedNodeId, {
+            ...selectedNode.data,
+            label: finalValue,
+            physicalName: finalValue
+          });
+        }
       }
     }
   };
@@ -1753,10 +1805,18 @@ const Layout = () => {
 
   const handleTableNameBlur = () => {
     setIsEditingTableName(false);
+    
+    // 엔티티명 변경 후 히스토리 저장
+    console.log('💾 엔티티명 변경 히스토리 저장');
+    useStore.getState().saveHistoryState('CHANGE_ENTITY_NAME');
   };
 
   const handleLogicalNameBlur = () => {
     setIsEditingLogicalName(false);
+    
+    // 엔티티 논리명 변경 후 히스토리 저장
+    console.log('💾 엔티티명 변경 히스토리 저장');
+    useStore.getState().saveHistoryState('CHANGE_ENTITY_NAME');
   };
 
   const handleTableNameKeyPress = (e: React.KeyboardEvent) => {
@@ -1982,8 +2042,28 @@ const Layout = () => {
                 <TableNameInput 
                   $darkMode={isDarkMode}
                   value={tableName} 
-                  onChange={(e) => updateTableName(e.target.value)}
-                  onBlur={handleTableNameBlur}
+                  onChange={(e) => {
+                    const newValue = e.target.value;
+                    const lastChar = newValue.slice(-1);
+                    
+                    // 새로 입력된 문자가 허용되지 않는 문자인 경우 제거
+                    if (lastChar && /[^a-zA-Z0-9_]/.test(lastChar)) {
+                      // 허용되지 않는 문자는 입력을 차단 (이전 값 유지)
+                      return;
+                    }
+                    
+                    // 숫자로 시작하는 경우 방지
+                    if (newValue.length > 0 && /^[0-9]/.test(newValue)) {
+                      toast.error('물리명은 숫자로 시작할 수 없습니다. 영문자나 밑줄(_)로 시작해야 합니다.');
+                      return;
+                    }
+                    
+                    updateTableName(newValue);
+                  }}
+                  onBlur={(e) => {
+                    validateAndFixTableName(e.target.value);
+                    handleTableNameBlur();
+                  }}
                   onKeyDown={handleTableNameKeyPress}
                   autoFocus
                   placeholder="물리명"
@@ -2263,26 +2343,36 @@ const Layout = () => {
                         value={column.name === undefined ? '' : column.name}
                         onChange={(e) => {
                           const newValue = e.target.value;
-                          // 허용되지 않는 문자만 필터링하여 제거
-                          const filteredValue = newValue.replace(/[^a-zA-Z0-9_]/g, '');
+                          const lastChar = newValue.slice(-1);
                           
-                          // MySQL 식별자 규칙: 숫자로 시작할 수 없음
-                          const finalValue = filteredValue.replace(/^[0-9]/, '');
-                          
-                          // 필터링된 값과 원본 값이 다르면 토스트 알림 표시
-                          if (newValue !== finalValue) {
-                            if (newValue.match(/^[0-9]/)) {
-                              toast.error('물리명은 숫자로 시작할 수 없습니다. 영문자나 밑줄(_)로 시작해야 합니다.');
-                            } else {
-                              toast.error('물리명에는 영문 대소문자, 숫자, 밑줄(_)만 사용할 수 있습니다.');
-                            }
+                          // 새로 입력된 문자가 허용되지 않는 문자인 경우 제거
+                          if (lastChar && /[^a-zA-Z0-9_]/.test(lastChar)) {
+                            // 허용되지 않는 문자는 입력을 차단 (이전 값 유지)
+                            return;
                           }
                           
-                          updateColumnField(column.id, 'name', finalValue, true);
+                          // 숫자로 시작하는 경우 방지
+                          if (newValue.length > 0 && /^[0-9]/.test(newValue)) {
+                            toast.error('물리명은 숫자로 시작할 수 없습니다. 영문자나 밑줄(_)로 시작해야 합니다.');
+                            return;
+                          }
+                          
+                          updateColumnField(column.id, 'name', newValue, true);
                         }}
                         onBlur={(e) => {
+                          const inputValue = e.target.value;
+                          
+                          // 포커스 아웃 시 최종 검증
+                          const filteredValue = inputValue.replace(/[^a-zA-Z0-9_]/g, '');
+                          const finalValue = filteredValue.replace(/^[0-9]/, '');
+                          
+                          // 수정이 필요한 경우에만 업데이트
+                          if (inputValue !== finalValue) {
+                            updateColumnField(column.id, 'name', finalValue, true);
+                          }
+                          
                           handleCellBlur();
-                          validateColumnName(column.id, e.target.value); // 포커스 아웃 시 검증
+                          validateColumnName(column.id, finalValue); // 최종값으로 중복 검증
                         }}
                         onKeyDown={handleCellKeyDown}
                         onCompositionStart={handleCompositionStart}

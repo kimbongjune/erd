@@ -98,6 +98,9 @@ const Canvas = () => {
   // viewport 관련
   const updateViewport = useStore((state) => state.updateViewport);
   const savedViewport = useStore((state) => state.viewport);
+  
+  // 드래그 시작 위치 저장
+  const [dragStartPosition, setDragStartPosition] = useState<{x: number, y: number} | null>(null);
   const viewportRestoreTrigger = useStore((state) => state.viewportRestoreTrigger);
 
   const { screenToFlowPosition, flowToScreenPosition, fitView, getViewport, setViewport } = useReactFlow();
@@ -170,6 +173,27 @@ const Canvas = () => {
     const target = event.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
       return;
+    }
+
+    // Undo/Redo 단축키 처리
+    if (event.ctrlKey || event.metaKey) {
+      if (event.key === 'z' || event.key === 'Z') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          // Ctrl+Shift+Z = Redo
+          useStore.getState().redo();
+        } else {
+          // Ctrl+Z = Undo
+          useStore.getState().undo();
+        }
+        return;
+      }
+      if (event.key === 'y' || event.key === 'Y') {
+        // Ctrl+Y = Redo
+        event.preventDefault();
+        useStore.getState().redo();
+        return;
+      }
     }
 
     if (event.key === 'Escape') {
@@ -445,10 +469,16 @@ const Canvas = () => {
           position,
           data: {
             label: 'NewEntity',
+            physicalName: 'NewEntity',
+            logicalName: 'NewEntity',
             columns: [], // 기본 컬럼 제거
           },
         };
+        // 노드 추가 및 히스토리 저장
         useStore.getState().setNodes([...nodes, newNode]);
+        console.log('💾 엔티티 생성 히스토리 저장:', newNode.data.label);
+        useStore.getState().saveHistoryState('CREATE_ENTITY', { name: newNode.data.label });
+        
         // 생성 후 선택 모드로 돌아가기
         useStore.getState().setCreateMode(null);
         useStore.getState().setSelectMode(true);
@@ -459,7 +489,11 @@ const Canvas = () => {
           position,
           data: { label: 'New Comment' },
         };
+        // 노드 추가 및 히스토리 저장
         useStore.getState().setNodes([...nodes, newNode]);
+        console.log('💾 커멘트 생성 히스토리 저장:', newNode.data.label);
+        useStore.getState().saveHistoryState('CREATE_COMMENT', { name: newNode.data.label });
+        
         // 생성 후 선택 모드로 돌아가기
         useStore.getState().setCreateMode(null);
         useStore.getState().setSelectMode(true);
@@ -475,7 +509,11 @@ const Canvas = () => {
             height: 200
           },
         };
+        // 노드 추가 및 히스토리 저장
         useStore.getState().setNodes([...nodes, newNode]);
+        console.log('💾 이미지 생성 히스토리 저장:', newNode.data.label);
+        useStore.getState().saveHistoryState('CREATE_IMAGE', { name: newNode.data.label });
+        
         // 생성 후 선택 모드로 돌아가기
         useStore.getState().setCreateMode(null);
         useStore.getState().setSelectMode(true);
@@ -559,6 +597,9 @@ const Canvas = () => {
     // 모든 EntityNode에 드래그 시작 이벤트 전파
     window.dispatchEvent(new CustomEvent('nodeDragStart'));
     
+    // 드래그 시작 위치 저장
+    setDragStartPosition({ x: node.position.x, y: node.position.y });
+    
     // 스냅 기능 활성화
     setIsDragging(true);
     setDraggingNodeId(node.id);
@@ -637,6 +678,21 @@ const Canvas = () => {
     setDraggingNodeId(null);
     setSnapGuides([]);
     
+    // 실제 이동이 있었는지 확인 (5픽셀 이상 이동 시에만 히스토리 저장)
+    if (dragStartPosition) {
+      const deltaX = Math.abs(node.position.x - dragStartPosition.x);
+      const deltaY = Math.abs(node.position.y - dragStartPosition.y);
+      const threshold = 5; // 5픽셀 이상 이동 시에만 히스토리 저장
+      
+      if (deltaX > threshold || deltaY > threshold) {
+        console.log('💾 노드 이동 히스토리 저장:', node.data?.label || node.id, `(${deltaX.toFixed(1)}, ${deltaY.toFixed(1)})`);
+        useStore.getState().saveHistoryState('MOVE_NODE');
+      }
+      
+      // 드래그 시작 위치 초기화
+      setDragStartPosition(null);
+    }
+    
     // 드래그 완료 후 Handle 재계산 (한 번만 호출)
     setTimeout(() => {
       updateEdgeHandles();
@@ -654,7 +710,7 @@ const Canvas = () => {
       });
     }, 50); // 빠른 응답을 위해 지연 시간 단축
     
-  }, [setIsDragging, setDraggingNodeId, setSnapGuides, updateEdgeHandles, updateNodeInternals]);
+  }, [setIsDragging, setDraggingNodeId, setSnapGuides, updateEdgeHandles, updateNodeInternals, dragStartPosition]);
 
   const handleNodeClick = useCallback((event: any, node: any) => {
     event.stopPropagation();

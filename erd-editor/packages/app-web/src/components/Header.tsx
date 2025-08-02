@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash, FaUpload, FaImage, FaPlus, FaHome, FaEdit, FaSearch, FaTimes, FaGlobe, FaEllipsisV, FaTachometerAlt } from 'react-icons/fa';
+import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash, FaUpload, FaImage, FaPlus, FaHome, FaEdit, FaSearch, FaTimes, FaGlobe, FaEllipsisV, FaTachometerAlt, FaUndo, FaRedo } from 'react-icons/fa';
 import { GrMysql } from "react-icons/gr";
 import { useNavigate, useParams } from 'react-router-dom';
 import useStore from '../store/useStore';
@@ -639,7 +639,11 @@ const Header = () => {
     loadFromLocalStorage,
     clearLocalStorage,
     importFromSQL,
-    nodes
+    nodes,
+    undo,
+    redo,
+    canUndo,
+    canRedo
   } = useStore();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -949,6 +953,39 @@ const Header = () => {
         >
           <FaSave />
           저장
+        </ThemeToggleButton>
+
+        {/* Undo/Redo 버튼들 */}
+        <ThemeToggleButton 
+          $darkMode={theme === 'dark'} 
+          onClick={(e) => {
+            e.stopPropagation();
+            undo();
+          }}
+          disabled={!canUndo}
+          title="실행 취소 (Ctrl+Z)"
+          style={{ 
+            opacity: canUndo ? 1 : 0.5, 
+            cursor: canUndo ? 'pointer' : 'not-allowed' 
+          }}
+        >
+          <FaUndo />
+        </ThemeToggleButton>
+
+        <ThemeToggleButton 
+          $darkMode={theme === 'dark'} 
+          onClick={(e) => {
+            e.stopPropagation();
+            redo();
+          }}
+          disabled={!canRedo}
+          title="다시 실행 (Ctrl+Y)"
+          style={{ 
+            opacity: canRedo ? 1 : 0.5, 
+            cursor: canRedo ? 'pointer' : 'not-allowed' 
+          }}
+        >
+          <FaRedo />
         </ThemeToggleButton>
       
       <ThemeToggleButton 

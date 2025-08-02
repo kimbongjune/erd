@@ -68,6 +68,7 @@ const OneToManyNonIdentifyingEdge: React.FC<OneToManyNonIdentifyingEdgeProps> = 
   const paletteTarget = useStore((state) => state.paletteTarget);
   const showPalette = useStore((state) => state.showPalette);
   const hidePalette = useStore((state) => state.hidePalette);
+  const saveHistoryState = useStore((state) => state.saveHistoryState);
   const clearRelationsHighlight = useStore((state) => state.clearRelationsHighlight);
   
   const isDarkMode = theme === 'dark';
@@ -100,11 +101,21 @@ const OneToManyNonIdentifyingEdge: React.FC<OneToManyNonIdentifyingEdgeProps> = 
   }, [id, showPalette]);
 
   const handleColorSelect = useCallback((color: string) => {
+    const oldColor = getEdgeColor(id);
+    if (color !== oldColor) {
+      console.log('🎨 관계선 색상 변경 히스토리 저장:', color);
+      saveHistoryState('CHANGE_NODE_COLOR', {
+        edgeId: id,
+        nodeType: 'edge',
+        oldColor,
+        newColor: color
+      });
+    }
     setEdgeColor(id, color);
     setPreviewColor(null);
     setSelectedEdgeId(null); // 색상 선택 후 선택 해제
     setHoveredEdgeId(null); // 호버 상태도 해제
-  }, [id, setEdgeColor, setSelectedEdgeId, setHoveredEdgeId]);
+  }, [id, setEdgeColor, setSelectedEdgeId, setHoveredEdgeId, getEdgeColor, saveHistoryState]);
 
   const handlePreviewColor = useCallback((color: string) => {
     setPreviewColor(color);

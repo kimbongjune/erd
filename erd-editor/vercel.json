@@ -4,6 +4,6 @@
   "installCommand": "npm install --prefix packages/app-web",
   "devCommand": "npm run dev --prefix packages/app-web",
   "rewrites":  [
-    {"source": "/(.*)", "destination": "/"}
+    {"source": "/(.*)", "destination": "/index.html"}
   ]
 }

@@ -1,0 +1,10 @@
+{
+  "buildCommand": "cd packages/app-web && npm run build",
+  "outputDirectory": "packages/app-web/dist",
+  "installCommand": "cd packages/app-web && npm install",
+  "devCommand": "cd packages/app-web && npm run dev",
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/.*", "dest": "/index.html" }
+  ]
+}

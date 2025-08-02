@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm install --prefix packages/app-web && npm run build --prefix packages/app-web",
+  "buildCommand": "cd packages/app-web && npm install && npm run build",
   "outputDirectory": "packages/app-web/dist",
   "routes": [
     { "handle": "filesystem" },

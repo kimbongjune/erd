@@ -3,7 +3,7 @@
   "outputDirectory": "packages/app-web/dist",
   "installCommand": "npm install --prefix packages/app-web",
   "devCommand": "npm run dev --prefix packages/app-web",
-  "routes": [
-    { "src": "/[^.]+", "dest": "/", "status": 200 }
+  "rewrites":  [
+    {"source": "/(.*)", "destination": "/"}
   ]
 }

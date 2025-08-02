@@ -638,6 +638,14 @@ const Header = () => {
 
   // 다이어그램 목록 로드
   useEffect(() => {
+    if (isDashboardModalOpen) {
+      const storedDiagrams = localStorage.getItem('diagramsList');
+      if (storedDiagrams) {
+        const diagramsList = JSON.parse(storedDiagrams);
+        setDiagrams(diagramsList);
+      }
+    }
+  }, [isDashboardModalOpen]);
     const loadDiagrams = () => {
       const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
       setDiagrams(diagramsList.sort((a: any, b: any) => b.updatedAt - a.updatedAt));
@@ -1054,27 +1062,8 @@ const Header = () => {
       </RightSection>
       {/* 대시보드 모달 */}
       {isDashboardModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.7)',
-          zIndex: 10000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }} onClick={closeDashboardModal}>
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            width: '90vw',
-            maxWidth: '800px',
-            maxHeight: '80vh',
-            overflow: 'hidden',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
-          }} onClick={(e) => e.stopPropagation()}>
+        <ModalOverlay onClick={closeDashboardModal}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
             <ModalHeader>
               <h2>내 다이어그램</h2>
               <CloseButton onClick={closeDashboardModal}>
@@ -1082,84 +1071,56 @@ const Header = () => {
               </CloseButton>
             </ModalHeader>
             
-            <div style={{ padding: '1.5rem' }}>
-              <div style={{ position: 'relative', marginBottom: '1rem' }}>
-                <SearchInput
-                  type="text"
-                  placeholder="다이어그램 검색..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                <FaSearch style={{
-                  position: 'absolute',
-                  right: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: '#666',
-                  pointerEvents: 'none'
-                }} />
-              </div>
+            <SearchSection>
+              <SearchInput
+                type="text"
+                placeholder="다이어그램 검색..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <FaSearch />
+            </SearchSection>
 
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 12px',
-                background: '#f8f9fa',
-                borderRadius: '6px',
-                marginBottom: '1rem',
-                fontSize: '14px',
-                color: '#666'
-              }}>
-                <FaGlobe style={{ color: '#28a745' }} />
-                <span>공개 다이어그램 무제한</span>
-              </div>
+            <PlanInfo>
+              <FaGlobe />
+              <span>공개 다이어그램 무제한</span>
+            </PlanInfo>
 
-              <div style={{
-                maxHeight: '400px',
-                overflowY: 'auto',
-                border: '1px solid #e5e5e5',
-                borderRadius: '6px'
-              }}>
-                <Table>
-                  <thead>
-                    <tr>
-                      <th>이름</th>
-                      <th>마지막 수정</th>
-                      <th></th>
+            <TableContainer>
+              <Table>
+                <thead>
+                  <tr>
+                    <th>이름</th>
+                    <th>마지막 수정</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDiagrams.map((diagram) => (
+                    <tr key={diagram.id}>
+                      <td>
+                        <DiagramName onClick={() => openDiagram(diagram.id)}>
+                          {diagram.name}
+                        </DiagramName>
+                      </td>
+                      <td>{formatTime(diagram.lastModified)}</td>
+                      <td>
+                        <ActionButton onClick={(e) => e.stopPropagation()}>
+                          <FaEllipsisV />
+                        </ActionButton>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {filteredDiagrams.map((diagram) => (
-                      <tr key={diagram.id}>
-                        <td>
-                          <DiagramName onClick={() => openDiagram(diagram.id)}>
-                            {diagram.name}
-                          </DiagramName>
-                        </td>
-                        <td>{formatTime(diagram.updatedAt)}</td>
-                        <td>
-                          <ActionButton onClick={(e) => e.stopPropagation()}>
-                            <FaEllipsisV />
-                          </ActionButton>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Table>
-                {filteredDiagrams.length === 0 && (
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '2rem',
-                    color: '#666'
-                  }}>
-                    <p style={{ margin: 0 }}>다이어그램이 없습니다.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+                  ))}
+                </tbody>
+              </Table>
+              {filteredDiagrams.length === 0 && (
+                <EmptyState>
+                  <p>다이어그램이 없습니다.</p>
+                </EmptyState>
+              )}
+            </TableContainer>
+          </ModalContent>
+        </ModalOverlay>
       )}
     </HeaderContainer>
   );

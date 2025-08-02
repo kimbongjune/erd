@@ -92,11 +92,6 @@ const NotFound: React.FC = () => {
     navigate('/home');
   };
 
-  const createNew = () => {
-    const id = `erd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    navigate(`/erd/${id}`);
-  };
-
   const goBack = () => {
     window.history.back();
   };
@@ -109,14 +104,11 @@ const NotFound: React.FC = () => {
       <ErrorDescription>
         요청하신 다이어그램이 존재하지 않거나 삭제되었을 수 있습니다.
         <br />
-        다른 다이어그램을 선택하거나 새로운 다이어그램을 만들어보세요.
+        다른 다이어그램을 선택하거나 홈페이지로 돌아가세요.
       </ErrorDescription>
       <ButtonGroup>
         <ActionButton className="primary" onClick={goHome}>
           홈으로 가기
-        </ActionButton>
-        <ActionButton className="primary" onClick={createNew}>
-          새 다이어그램 만들기
         </ActionButton>
         <ActionButton className="secondary" onClick={goBack}>
           이전 페이지로

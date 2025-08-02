@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash, FaUpload, FaImage, FaPlus, FaHome, FaEdit, FaSearch, FaTimes, FaGlobe, FaEllipsisV } from 'react-icons/fa';
+import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash, FaUpload, FaImage, FaPlus, FaHome, FaEdit, FaSearch, FaTimes, FaGlobe, FaEllipsisV, FaTachometerAlt } from 'react-icons/fa';
 import { GrMysql } from "react-icons/gr";
 import { useNavigate, useParams } from 'react-router-dom';
 import useStore from '../store/useStore';
@@ -615,12 +615,16 @@ const Header = () => {
     const regex = new RegExp(`(${searchTerm})`, 'gi');
     const parts = text.split(regex);
     
-    return parts.map((part, index) => 
-      regex.test(part) ? (
-        <span key={index} style={{ backgroundColor: '#ffd700', color: '#000' }}>
-          {part}
-        </span>
-      ) : part
+    return (
+      <>
+        {parts.map((part, index) => 
+          regex.test(part) ? (
+            <span key={index} style={{ backgroundColor: '#ffd700', color: '#000', padding: '0' }}>
+              {part}
+            </span>
+          ) : part
+        )}
+      </>
     );
   };
   const navDropdownRef = useRef<HTMLDivElement>(null);
@@ -684,6 +688,18 @@ const Header = () => {
 
   const createNewDiagram = () => {
     const id = `erd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // 새 다이어그램을 다이어그램 목록에 즉시 추가
+    const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
+    const newDiagram = {
+      id: id,
+      name: '제목 없는 다이어그램',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    diagramsList.push(newDiagram);
+    localStorage.setItem('erd-diagrams-list', JSON.stringify(diagramsList));
+    
     navigate(`/erd/${id}`);
     setIsNavDropdownOpen(false);
     closeDashboardModal();
@@ -697,25 +713,35 @@ const Header = () => {
   };
 
   const openDiagram = (id: string) => {
+    // 다이어그램 이름 즉시 업데이트 (navigate 전에)
+    const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
+    const diagram = diagramsList.find((d: any) => d.id === id);
+    if (diagram) {
+      setDiagramName(diagram.name);
+    }
+    
     navigate(`/erd/${id}`);
     setIsNavDropdownOpen(false);
     closeDashboardModal();
   };
 
   const deleteDiagram = (diagramId: string) => {
-    const savedData = localStorage.getItem('erd-diagrams');
-    const diagrams = savedData ? JSON.parse(savedData) : {};
-    delete diagrams[diagramId];
-    localStorage.setItem('erd-diagrams', JSON.stringify(diagrams));
+    // 다이어그램 목록에서 삭제
+    const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
+    const updatedDiagrams = diagramsList.filter((d: any) => d.id !== diagramId);
+    localStorage.setItem('erd-diagrams-list', JSON.stringify(updatedDiagrams));
+    
+    // 개별 다이어그램 데이터 삭제
+    localStorage.removeItem(`erd-${diagramId}`);
     
     // 현재 다이어그램을 보고 있다면 홈으로 이동
     if (window.location.pathname === `/erd/${diagramId}`) {
       navigate('/home');
       closeDashboardModal();
+    } else {
+      // 목록 새로고침
+      setDiagrams(updatedDiagrams.sort((a: any, b: any) => b.updatedAt - a.updatedAt));
     }
-    
-    // 강제로 리렌더링을 위해 상태 업데이트
-    window.dispatchEvent(new Event('storage'));
   };
 
   const formatDate = (timestamp: number) => {
@@ -724,6 +750,18 @@ const Header = () => {
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
+    });
+  };
+
+  // 대시보드용 시분초 포함 날짜 포맷
+  const formatDateTime = (timestamp: number) => {
+    return new Date(timestamp).toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
     });
   };
 
@@ -1037,9 +1075,16 @@ const Header = () => {
           </DiagramNameContainer>
 
           <NavDropdownMenu $darkMode={theme === 'dark'} $isOpen={isNavDropdownOpen}>
-            <NavDropdownItem $darkMode={theme === 'dark'} onClick={openDashboardModal}>
+            <NavDropdownItem $darkMode={theme === 'dark'} onClick={() => navigate('/home')}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FaHome />
+                홈으로 가기
+              </div>
+            </NavDropdownItem>
+            
+            <NavDropdownItem $darkMode={theme === 'dark'} onClick={openDashboardModal}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FaTachometerAlt />
                 대시보드
               </div>
             </NavDropdownItem>
@@ -1098,7 +1143,7 @@ const Header = () => {
           justifyContent: 'center'
         }} onClick={closeDashboardModal}>
           <div style={{
-            background: '#1a1a1a',
+            background: theme === 'dark' ? '#1a1a1a' : '#ffffff',
             borderRadius: '8px',
             width: '80%',
             maxWidth: '1000px',
@@ -1106,19 +1151,19 @@ const Header = () => {
             maxHeight: '700px',
             display: 'flex',
             flexDirection: 'column',
-            border: '1px solid #333'
+            border: `1px solid ${theme === 'dark' ? '#333' : '#e2e8f0'}`
           }} onClick={(e) => e.stopPropagation()}>
             {/* 헤더 */}
             <div style={{
               padding: '20px',
-              borderBottom: '1px solid #333',
+              borderBottom: `1px solid ${theme === 'dark' ? '#333' : '#e2e8f0'}`,
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center'
             }}>
               <h2 style={{ 
                 margin: 0, 
-                color: '#ffffff',
+                color: theme === 'dark' ? '#ffffff' : '#2d3748',
                 fontSize: '18px',
                 fontWeight: '600'
               }}>
@@ -1129,7 +1174,7 @@ const Header = () => {
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#999',
+                  color: theme === 'dark' ? '#999' : '#718096',
                   fontSize: '24px',
                   cursor: 'pointer',
                   padding: '0',
@@ -1147,7 +1192,7 @@ const Header = () => {
             {/* 검색바 */}
             <div style={{
               padding: '20px',
-              borderBottom: '1px solid #333'
+              borderBottom: `1px solid ${theme === 'dark' ? '#333' : '#e2e8f0'}`
             }}>
               <div style={{
                 position: 'relative',
@@ -1161,10 +1206,10 @@ const Header = () => {
                   style={{
                     width: '100%',
                     padding: '8px 12px',
-                    backgroundColor: '#2a2a2a',
-                    border: '1px solid #444',
+                    backgroundColor: theme === 'dark' ? '#2a2a2a' : '#ffffff',
+                    border: `1px solid ${theme === 'dark' ? '#444' : '#e2e8f0'}`,
                     borderRadius: '4px',
-                    color: '#ffffff',
+                    color: theme === 'dark' ? '#ffffff' : '#2d3748',
                     fontSize: '14px'
                   }}
                 />
@@ -1174,8 +1219,8 @@ const Header = () => {
             {/* 테이블 헤더 */}
             <div style={{
               padding: '0 20px',
-              backgroundColor: '#2a2a2a',
-              borderBottom: '1px solid #333'
+              backgroundColor: theme === 'dark' ? '#2a2a2a' : '#f7fafc',
+              borderBottom: `1px solid ${theme === 'dark' ? '#333' : '#e2e8f0'}`
             }}>
               <div style={{
                 display: 'grid',
@@ -1183,7 +1228,7 @@ const Header = () => {
                 gap: '16px',
                 padding: '12px 0',
                 fontSize: '12px',
-                color: '#999',
+                color: theme === 'dark' ? '#999' : '#718096',
                 fontWeight: '600',
                 textTransform: 'uppercase'
               }}>
@@ -1197,8 +1242,7 @@ const Header = () => {
             {/* 다이어그램 목록 */}
             <div style={{
               flex: 1,
-              overflow: 'auto',
-              padding: '0 20px'
+              overflow: 'auto'
             }}>
               {filteredDiagrams.length === 0 ? (
                 <div style={{
@@ -1207,7 +1251,7 @@ const Header = () => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   height: '200px',
-                  color: '#666'
+                  color: theme === 'dark' ? '#666' : '#a0aec0'
                 }}>
                   <div style={{ fontSize: '18px', marginBottom: '8px' }}>
                     {searchTerm ? '🔍' : '📊'}
@@ -1227,17 +1271,22 @@ const Header = () => {
                       display: 'grid',
                       gridTemplateColumns: '1fr 150px 150px 80px',
                       gap: '16px',
-                      padding: '16px 0',
-                      borderBottom: '1px solid #333',
+                      padding: '16px 20px',
+                      borderBottom: `1px solid ${theme === 'dark' ? '#333' : '#e2e8f0'}`,
                       alignItems: 'center',
                       cursor: 'pointer',
-                      color: '#ffffff'
+                      color: theme === 'dark' ? '#ffffff' : '#2d3748',
+                      backgroundColor: currentErdId === diagram.id ? (theme === 'dark' ? '#2a2a2a' : '#f7fafc') : 'transparent'
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#2a2a2a';
+                      if (currentErdId !== diagram.id) {
+                        e.currentTarget.style.backgroundColor = theme === 'dark' ? '#2a2a2a' : '#f7fafc';
+                      }
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
+                      if (currentErdId !== diagram.id) {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }
                     }}
                   >
                     <div
@@ -1247,22 +1296,37 @@ const Header = () => {
                       }}
                       style={{
                         fontWeight: '500',
-                        fontSize: '14px'
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
                       }}
                     >
                       {highlightSearchTerm(diagram.name, searchTerm)}
+                      {currentErdId === diagram.id && (
+                        <span style={{
+                          background: '#4ade80',
+                          color: '#000',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: '600'
+                        }}>
+                          현재 보고 있음
+                        </span>
+                      )}
                     </div>
                     <div style={{
-                      color: '#999',
+                      color: theme === 'dark' ? '#999' : '#a0aec0',
                       fontSize: '13px'
                     }}>
-                      {new Date(diagram.createdAt).toLocaleDateString('ko-KR')}
+                      {formatDateTime(diagram.createdAt)}
                     </div>
                     <div style={{
-                      color: '#999',
+                      color: theme === 'dark' ? '#999' : '#a0aec0',
                       fontSize: '13px'
                     }}>
-                      {new Date(diagram.updatedAt).toLocaleDateString('ko-KR')}
+                      {formatDateTime(diagram.updatedAt)}
                     </div>
                     <div style={{
                       position: 'relative'
@@ -1275,14 +1339,14 @@ const Header = () => {
                         style={{
                           background: 'none',
                           border: 'none',
-                          color: '#999',
+                          color: theme === 'dark' ? '#999' : '#718096',
                           cursor: 'pointer',
                           padding: '4px',
                           borderRadius: '4px',
                           fontSize: '16px'
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#444';
+                          e.currentTarget.style.backgroundColor = theme === 'dark' ? '#444' : '#e2e8f0';
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.backgroundColor = 'transparent';
@@ -1296,8 +1360,8 @@ const Header = () => {
                           position: 'absolute',
                           top: '100%',
                           right: '0',
-                          backgroundColor: '#333',
-                          border: '1px solid #444',
+                          backgroundColor: theme === 'dark' ? '#333' : '#ffffff',
+                          border: `1px solid ${theme === 'dark' ? '#444' : '#e2e8f0'}`,
                           borderRadius: '4px',
                           minWidth: '120px',
                           zIndex: 1000,
@@ -1323,7 +1387,7 @@ const Header = () => {
                               fontSize: '14px'
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#444';
+                              e.currentTarget.style.backgroundColor = theme === 'dark' ? '#444' : '#f7fafc';
                             }}
                             onMouseLeave={(e) => {
                               e.currentTarget.style.backgroundColor = 'transparent';

@@ -110,7 +110,7 @@ const ERDEditor: React.FC = () => {
     
     const diagramInfo = {
       id: erdId,
-      name: `ERD ${erdId.substring(0, 8)}`,
+      name: existingIndex === -1 ? '제목 없는 다이어그램' : diagramsList[existingIndex].name,
       createdAt: existingIndex === -1 ? Date.now() : diagramsList[existingIndex].createdAt,
       updatedAt: Date.now()
     };

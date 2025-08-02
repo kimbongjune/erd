@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { FaPlus, FaSearch, FaEllipsisV, FaGlobe, FaFolder, FaClock, FaEdit, FaDatabase, FaChartLine, FaUsers } from 'react-icons/fa';
+import { FaPlus, FaSearch, FaEllipsisV, FaGlobe, FaFolder, FaClock, FaEdit, FaDatabase, FaChartLine, FaUsers, FaCubes, FaProjectDiagram, FaSitemap } from 'react-icons/fa';
 
 const HomeContainer = styled.div`
   min-height: 100vh;
@@ -47,6 +47,21 @@ const UserInfo = styled.div`
   gap: 12px;
   color: #9ca3af;
   font-size: 14px;
+  
+  .login-link {
+    color: #60a5fa;
+    text-decoration: none;
+    padding: 8px 16px;
+    border: 1px solid #374151;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    
+    &:hover {
+      color: #ffffff;
+      border-color: #60a5fa;
+      background: rgba(96, 165, 250, 0.1);
+    }
+  }
 `;
 
 const MainContent = styled.main`
@@ -199,13 +214,14 @@ const SearchContainer = styled.div`
   
   input {
     width: 100%;
-    padding: 12px 16px 12px 48px;
+    padding: 12px 16px 12px 44px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid #374151;
     border-radius: 12px;
     color: white;
     font-size: 14px;
     transition: all 0.3s ease;
+    box-sizing: border-box;
     
     &::placeholder {
       color: #9ca3af;
@@ -221,11 +237,12 @@ const SearchContainer = styled.div`
   
   .search-icon {
     position: absolute;
-    left: 16px;
+    left: 14px;
     top: 50%;
     transform: translateY(-50%);
     color: #9ca3af;
     font-size: 14px;
+    pointer-events: none;
   }
 `;
 
@@ -354,6 +371,18 @@ const HomePage: React.FC = () => {
 
   const createNewDiagram = () => {
     const id = `erd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // 새 다이어그램을 다이어그램 목록에 즉시 추가
+    const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
+    const newDiagram = {
+      id: id,
+      name: '제목 없는 다이어그램',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    diagramsList.push(newDiagram);
+    localStorage.setItem('erd-diagrams-list', JSON.stringify(diagramsList));
+    
     navigate(`/erd/${id}`);
   };
 
@@ -364,8 +393,11 @@ const HomePage: React.FC = () => {
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString('ko-KR', {
       year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
     });
   };
 
@@ -376,7 +408,15 @@ const HomePage: React.FC = () => {
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     
     if (diffDays === 0) {
-      return '오늘';
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      if (diffHours === 0) {
+        const diffMins = Math.floor(diffMs / (1000 * 60));
+        if (diffMins === 0) {
+          return '방금 전';
+        }
+        return `${diffMins}분 전`;
+      }
+      return `${diffHours}시간 전`;
     } else if (diffDays === 1) {
       return '어제';
     } else if (diffDays < 7) {
@@ -390,8 +430,34 @@ const HomePage: React.FC = () => {
     diagram.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalEntities = diagrams.length * 3; // 임시 계산
-  const totalRelations = diagrams.length * 2; // 임시 계산
+  // 실제 엔티티와 관계 수 계산
+  const totalEntities = diagrams.reduce((total, diagram) => {
+    const savedData = localStorage.getItem(`erd-${diagram.id}`);
+    if (savedData) {
+      try {
+        const erdData = JSON.parse(savedData);
+        const entityCount = erdData.nodes?.filter((node: any) => node.type === 'entity').length || 0;
+        return total + entityCount;
+      } catch (error) {
+        return total;
+      }
+    }
+    return total;
+  }, 0);
+
+  const totalRelations = diagrams.reduce((total, diagram) => {
+    const savedData = localStorage.getItem(`erd-${diagram.id}`);
+    if (savedData) {
+      try {
+        const erdData = JSON.parse(savedData);
+        const relationCount = erdData.edges?.length || 0;
+        return total + relationCount;
+      } catch (error) {
+        return total;
+      }
+    }
+    return total;
+  }, 0);
 
   return (
     <HomeContainer>
@@ -401,8 +467,7 @@ const HomePage: React.FC = () => {
           <h1>ERD Studio</h1>
         </Logo>
         <UserInfo>
-          <FaUsers />
-          <span>무료 플랜</span>
+          <a href="#" className="login-link">로그인</a>
         </UserInfo>
       </Header>
 
@@ -417,21 +482,21 @@ const HomePage: React.FC = () => {
           <StatsSection>
             <StatCard>
               <div className="icon">
-                <FaDatabase />
+                <FaProjectDiagram />
               </div>
               <div className="number">{diagrams.length}</div>
               <div className="label">다이어그램</div>
             </StatCard>
             <StatCard>
               <div className="icon">
-                <FaChartLine />
+                <FaCubes />
               </div>
               <div className="number">{totalEntities}</div>
               <div className="label">엔티티</div>
             </StatCard>
             <StatCard>
               <div className="icon">
-                <FaGlobe />
+                <FaSitemap />
               </div>
               <div className="number">{totalRelations}</div>
               <div className="label">관계</div>
@@ -443,10 +508,10 @@ const HomePage: React.FC = () => {
               <FaPlus />
               새 다이어그램 만들기
             </ActionButton>
-            <ActionButton onClick={() => navigate('/templates')}>
+            {/* <ActionButton onClick={() => navigate('/templates')}>
               <FaFolder />
               템플릿 둘러보기
-            </ActionButton>
+            </ActionButton> */}
           </ButtonGroup>
         </WelcomeSection>
 
@@ -479,10 +544,10 @@ const HomePage: React.FC = () => {
                   <DiagramMeta>
                     <span>
                       <FaClock style={{ marginRight: '6px' }} />
-                      {formatTime(diagram.updatedAt)}
+                      수정: {formatTime(diagram.updatedAt)}
                     </span>
                     <span>
-                      {formatDate(diagram.createdAt)}
+                      생성: {formatDate(diagram.createdAt)}
                     </span>
                   </DiagramMeta>
                   <DiagramTags>

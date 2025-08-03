@@ -756,6 +756,9 @@ type RFState = {
   // 편집 상태
   editingCommentId: string | null; // 현재 편집 중인 커멘트 노드 ID
   
+  // 하단 패널 새로고침용 키
+  bottomPanelRefreshKey?: number;
+  
   // 로딩 관련
   isLoading: boolean;
   loadingMessage: string;
@@ -936,6 +939,9 @@ const useStore = create<RFState>((set, get) => ({
   
   // 편집 상태
   editingCommentId: null,
+  
+  // 하단 패널 새로고침용 키
+  bottomPanelRefreshKey: 0,
   
   // 로딩 관련 초기값
   isLoading: false,
@@ -1257,6 +1263,7 @@ const useStore = create<RFState>((set, get) => ({
           nodes: updatedNodes,
           edges: updatedEdges,
           selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
+          isBottomPanelOpen: false, // 엔티티 삭제시 하단 패널 자동 닫힘
         };
       } else {
         // 엔티티가 아닌 경우 (코멘트 등) 단순 삭제
@@ -1271,12 +1278,22 @@ const useStore = create<RFState>((set, get) => ({
     // 히스토리 저장 (변경 후)
     if (nodeToDelete) {
       const currentState = get();
+      const metadata = nodeToDelete.type === 'entity' ? {
+        name: nodeToDelete.data.label,
+        physicalName: nodeToDelete.data.physicalName,
+        comment: nodeToDelete.data.comment,
+        columns: nodeToDelete.data.columns || [],
+        position: nodeToDelete.position
+      } : { 
+        name: nodeToDelete.data.label 
+      };
+      
       currentState.saveHistoryState(
         nodeToDelete.type === 'entity' ? HISTORY_ACTIONS.DELETE_ENTITY :
         nodeToDelete.type === 'comment' ? HISTORY_ACTIONS.DELETE_COMMENT :
         nodeToDelete.type === 'image' ? HISTORY_ACTIONS.DELETE_IMAGE :
         HISTORY_ACTIONS.DELETE_COMMENT, // 기본값
-        { name: nodeToDelete.data.label }
+        metadata
       );
     }
     
@@ -3859,7 +3876,9 @@ const useStore = create<RFState>((set, get) => ({
         hoveredEdgeId: null,
         highlightedEntities: [],
         highlightedEdges: [],
-        highlightedColumns: new Map()
+        highlightedColumns: new Map(),
+        // 하단 패널 새로고침을 위한 플래그
+        bottomPanelRefreshKey: Date.now()
       });
       
       state.updateHistoryFlags();
@@ -3892,7 +3911,9 @@ const useStore = create<RFState>((set, get) => ({
         hoveredEdgeId: null,
         highlightedEntities: [],
         highlightedEdges: [],
-        highlightedColumns: new Map()
+        highlightedColumns: new Map(),
+        // 하단 패널 새로고침을 위한 플래그
+        bottomPanelRefreshKey: Date.now()
       });
       
       state.updateHistoryFlags();

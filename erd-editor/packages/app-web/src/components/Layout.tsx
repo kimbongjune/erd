@@ -6,7 +6,7 @@ import Toolbox from './Toolbox';
 import Canvas from './Canvas';
 import useStore, { propagateColumnAddition, propagateColumnDeletion, propagateDataTypeChange, propagateRelationshipTypeChange } from '../store/useStore';
 import { toast } from 'react-toastify';
-import { MYSQL_DATATYPES, validateEnglishOnly, validateDataType, validatePhysicalName } from '../utils/mysqlTypes';
+import { MYSQL_DATATYPES, validateEnglishOnly, validateDataType, validatePhysicalName, validateDataTypeForSQL } from '../utils/mysqlTypes';
 import { HISTORY_ACTIONS } from '../utils/historyManager';
 import Tooltip from './Tooltip';
 
@@ -869,7 +869,8 @@ const Layout = () => {
   const { 
     isBottomPanelOpen, 
     setBottomPanelOpen, 
-    selectedNodeId, 
+    selectedNodeId,
+    setSelectedNodeId, 
     nodes,
     setNodes,
     updateNodeData,
@@ -877,7 +878,8 @@ const Layout = () => {
     theme,
     isLoading,
     loadingMessage,
-    loadingProgress
+    loadingProgress,
+    bottomPanelRefreshKey
   } = useStore();
   const [bottomPanelHeight, setBottomPanelHeight] = useState(250);
   const [isDragging, setIsDragging] = useState(false);
@@ -889,6 +891,9 @@ const Layout = () => {
   const [selectedColumn, setSelectedColumn] = useState<any>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [isComposing, setIsComposing] = useState(false);
+  
+  // 하단 패널에서 현재 표시 중인 노드 ID (undo/redo 시에도 유지)
+  const [currentPanelNodeId, setCurrentPanelNodeId] = useState<string | null>(null);
   
   // 자동완성 관련 상태
   const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
@@ -998,10 +1003,30 @@ const Layout = () => {
     }
   }, [dropdownOpen, showAutocomplete]);
 
+  // 하단 패널이 열릴 때 현재 노드 ID 설정
+  React.useEffect(() => {
+    if (isBottomPanelOpen && selectedNodeId) {
+      setCurrentPanelNodeId(selectedNodeId);
+    } else if (!isBottomPanelOpen) {
+      setCurrentPanelNodeId(null);
+    }
+  }, [isBottomPanelOpen, selectedNodeId]);
+
+  // undo/redo 후 selectedNodeId 복원 (하단 패널이 열려있을 때)
+  React.useEffect(() => {
+    if (isBottomPanelOpen && currentPanelNodeId && !selectedNodeId) {
+      console.log('🔄 undo/redo 후 selectedNodeId 복원:', currentPanelNodeId);
+      setSelectedNodeId(currentPanelNodeId);
+    }
+  }, [bottomPanelRefreshKey, isBottomPanelOpen, currentPanelNodeId, selectedNodeId, setSelectedNodeId]);
+
   // 선택된 엔티티의 데이터를 가져오기
   React.useEffect(() => {
-    if (selectedNodeId && isBottomPanelOpen) {
-      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+    // 하단 패널이 열려있고 표시할 노드 ID가 있을 때 데이터 새로고침
+    const targetNodeId = currentPanelNodeId;
+    if (isBottomPanelOpen && targetNodeId) {
+      console.log('🔄 하단 패널 데이터 새로고침:', { targetNodeId, bottomPanelRefreshKey });
+      const selectedNode = nodes.find(node => node.id === targetNodeId);
       if (selectedNode && selectedNode.type === 'entity') {
         setTableName(selectedNode.data.physicalName || selectedNode.data.label || '');
         setTableLogicalName(selectedNode.data.logicalName || '');
@@ -1030,7 +1055,7 @@ const Layout = () => {
         }
       }
     }
-  }, [selectedNodeId, isBottomPanelOpen, nodes]);
+  }, [currentPanelNodeId, isBottomPanelOpen, nodes, bottomPanelRefreshKey]);
 
   // columns 변경 시 selectedColumn 동기화
   React.useEffect(() => {
@@ -1157,8 +1182,9 @@ const Layout = () => {
       counter++;
     }
     
+    const targetNodeId = currentPanelNodeId || selectedNodeId;
     const newColumn = {
-      id: `col-${selectedNodeId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `col-${targetNodeId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: newColumnName,
       dataType: 'VARCHAR(45)',
       type: 'VARCHAR(45)', // EntityNode에서 사용
@@ -1174,7 +1200,12 @@ const Layout = () => {
     
     // 컬럼 추가 후 히스토리 저장
     console.log('💾 컬럼 추가 히스토리 저장:', newColumn.name);
-    useStore.getState().saveHistoryState('ADD_COLUMN');
+    useStore.getState().saveHistoryState('ADD_COLUMN', {
+      columnName: newColumn.name,
+      columnData: newColumn,
+      entityId: targetNodeId,
+      entityName: nodes.find(n => n.id === targetNodeId)?.data?.label
+    });
   };
 
   const deleteColumn = (columnId: string) => {
@@ -1183,7 +1214,8 @@ const Layout = () => {
     if (columnToDelete) {
       console.log(`🗑️ 컬럼 삭제 시작: ${columnToDelete.name}, PK: ${columnToDelete.pk}, FK: ${columnToDelete.fk}`);
       
-      const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
+      const targetNodeId = currentPanelNodeId || selectedNodeId;
+      const currentEntity = useStore.getState().nodes.find(n => n.id === targetNodeId);
       if (currentEntity?.type === 'entity') {
         const allEdges = useStore.getState().edges;
         const allNodes = useStore.getState().nodes;
@@ -1219,10 +1251,10 @@ const Layout = () => {
                 const finalColumns = columns.filter(col => !col.name.startsWith(fkPrefix));
 
                 setColumns(finalColumns);
-                if (selectedNodeId) {
-                  const selectedNode = nodes.find(node => node.id === selectedNodeId);
+                if (targetNodeId) {
+                  const selectedNode = nodes.find(node => node.id === targetNodeId);
                   if (selectedNode) {
-                    updateNodeData(selectedNodeId, {
+                    updateNodeData(targetNodeId, {
                       ...selectedNode.data,
                       columns: finalColumns
                     });
@@ -1242,6 +1274,26 @@ const Layout = () => {
                 setTimeout(() => {
                   updateEdgeHandles();
                 }, 200);
+                
+                // 복합키 관계 해제 히스토리 저장
+                setTimeout(() => {
+                  console.log('💾 복합키 관계 해제 히스토리 저장:', columnToDelete.name);
+                  console.log('💾 삭제된 FK 컬럼 정보:', {
+                    pk: columnToDelete.pk,
+                    nn: columnToDelete.nn,
+                    uq: columnToDelete.uq,
+                    ai: columnToDelete.ai,
+                    dataType: columnToDelete.dataType,
+                    fk: columnToDelete.fk
+                  });
+                  useStore.getState().saveHistoryState('DELETE_COLUMN', {
+                    columnName: columnToDelete.name,
+                    columnData: columnToDelete,
+                    entityId: targetNodeId,
+                    entityName: currentEntity.data.label
+                  });
+                }, 250);
+                
                 return; // 여기서 종료
               } else {
                 // 6. 단일키 관계: 해당 FK만 삭제 + 관계 삭제
@@ -1251,10 +1303,10 @@ const Layout = () => {
                 setColumns(newColumns);
                 
                 // 노드 데이터 직접 업데이트
-                if (selectedNodeId) {
-                  const selectedNode = nodes.find(node => node.id === selectedNodeId);
+                if (targetNodeId) {
+                  const selectedNode = nodes.find(node => node.id === targetNodeId);
                   if (selectedNode) {
-                    updateNodeData(selectedNodeId, {
+                    updateNodeData(targetNodeId, {
                       ...selectedNode.data,
                       columns: newColumns
                     });
@@ -1276,6 +1328,25 @@ const Layout = () => {
                 setTimeout(() => {
                   updateEdgeHandles();
                 }, 200);
+                
+                // 단일키 관계 해제 히스토리 저장
+                setTimeout(() => {
+                  console.log('💾 단일키 관계 해제 히스토리 저장:', columnToDelete.name);
+                  console.log('💾 삭제된 FK 컬럼 정보:', {
+                    pk: columnToDelete.pk,
+                    nn: columnToDelete.nn,
+                    uq: columnToDelete.uq,
+                    ai: columnToDelete.ai,
+                    dataType: columnToDelete.dataType,
+                    fk: columnToDelete.fk
+                  });
+                  useStore.getState().saveHistoryState('DELETE_COLUMN', {
+                    columnName: columnToDelete.name,
+                    columnData: columnToDelete,
+                    entityId: targetNodeId,
+                    entityName: currentEntity.data.label
+                  });
+                }, 250);
                 
                 return; // 여기서 종료
               }
@@ -1346,6 +1417,24 @@ const Layout = () => {
             updateEdgeHandles();
           }, 200);
           
+          // PK 컬럼 삭제 히스토리 저장
+          setTimeout(() => {
+            console.log('💾 PK 컬럼 삭제 히스토리 저장:', columnToDelete.name);
+            console.log('💾 삭제된 PK 컬럼 정보:', {
+              pk: columnToDelete.pk,
+              nn: columnToDelete.nn,
+              uq: columnToDelete.uq,
+              ai: columnToDelete.ai,
+              dataType: columnToDelete.dataType
+            });
+            useStore.getState().saveHistoryState('DELETE_COLUMN', {
+              columnName: columnToDelete.name,
+              columnData: columnToDelete,
+              entityId: selectedNodeId,
+              entityName: currentEntity.data.label
+            });
+          }, 250); // 다른 업데이트들이 완료된 후에 실행
+          
           return; // 여기서 종료
         }
         
@@ -1368,9 +1457,23 @@ const Layout = () => {
           setSelectedColumn(newColumns[0] || null);
         }
         
-        // 컬럼 삭제 후 히스토리 저장
-        console.log('💾 컬럼 삭제 히스토리 저장:', columnToDelete.name);
-        useStore.getState().saveHistoryState('DELETE_COLUMN');
+        // 노드 데이터 업데이트 완료 후 히스토리 저장
+        setTimeout(() => {
+          console.log('💾 컬럼 삭제 히스토리 저장:', columnToDelete.name);
+          console.log('💾 삭제된 컬럼 정보:', {
+            pk: columnToDelete.pk,
+            nn: columnToDelete.nn,
+            uq: columnToDelete.uq,
+            ai: columnToDelete.ai,
+            dataType: columnToDelete.dataType
+          });
+          useStore.getState().saveHistoryState('DELETE_COLUMN', {
+            columnName: columnToDelete.name,
+            columnData: columnToDelete,
+            entityId: selectedNodeId,
+            entityName: nodes.find(n => n.id === selectedNodeId)?.data?.label
+          });
+        }, 0);
         
         // Handle 업데이트
         setTimeout(() => {
@@ -1381,10 +1484,11 @@ const Layout = () => {
   };
 
   const updateNodeColumns = (newColumns: any[]) => {
-    if (selectedNodeId) {
-      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+    const targetNodeId = currentPanelNodeId || selectedNodeId;
+    if (targetNodeId) {
+      const selectedNode = nodes.find(node => node.id === targetNodeId);
       if (selectedNode) {
-        updateNodeData(selectedNodeId, {
+        updateNodeData(targetNodeId, {
           ...selectedNode.data,
           columns: newColumns,
           label: tableName
@@ -1407,6 +1511,7 @@ const Layout = () => {
 
   const updateColumnField = (columnId: string, field: string, value: any) => {
     // 한국어 필터링 제거 - onKeyPress에서 이미 차단됨
+    const targetNodeId = currentPanelNodeId || selectedNodeId;
 
     const newColumns = columns.map(col => {
       if (col.id === columnId) {
@@ -1418,16 +1523,16 @@ const Layout = () => {
           updatedCol.uq = false; // PK 체크하면 UQ 해제
           
           // PK 추가 시 하위 계층으로 재귀적 FK 전파
-          const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
-          if (currentEntity?.type === 'entity' && selectedNodeId) {
+          const currentEntity = useStore.getState().nodes.find(n => n.id === targetNodeId);
+          if (currentEntity?.type === 'entity' && targetNodeId) {
             const allNodes = useStore.getState().nodes;
             const allEdges = useStore.getState().edges;
-            const childEdges = allEdges.filter(edge => edge.source === selectedNodeId);
+            const childEdges = allEdges.filter(edge => edge.source === targetNodeId);
             
             if (childEdges.length > 0) {
               // 재귀적으로 하위 계층까지 FK 전파
               const propagationResult = propagateColumnAddition(
-                selectedNodeId,
+                targetNodeId,
                 updatedCol,
                 allNodes,
                 allEdges
@@ -1484,13 +1589,13 @@ const Layout = () => {
           
           // PK 컬럼의 데이터타입 변경 시 모든 FK에 전파
           if (updatedCol.pk) {
-            const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
-            if (currentEntity?.type === 'entity' && selectedNodeId) {
+            const currentEntity = useStore.getState().nodes.find(n => n.id === targetNodeId);
+            if (currentEntity?.type === 'entity' && targetNodeId) {
               const allNodes = useStore.getState().nodes;
               const allEdges = useStore.getState().edges;
               
               // propagateDataTypeChange 호출
-              const result = propagateDataTypeChange(selectedNodeId, updatedCol, value, allNodes, allEdges);
+              const result = propagateDataTypeChange(targetNodeId, updatedCol, value, allNodes, allEdges);
               useStore.getState().setNodes(result.updatedNodes);
               
               setTimeout(() => {
@@ -1565,7 +1670,7 @@ const Layout = () => {
           }
           
           // 관계 타입 변경
-          const currentEntity = useStore.getState().nodes.find(n => n.id === selectedNodeId);
+          const currentEntity = useStore.getState().nodes.find(n => n.id === targetNodeId);
           if (currentEntity?.type === 'entity') {
             const allEdges = useStore.getState().edges;
             const parentEntity = useStore.getState().nodes.find(node => 
@@ -1723,14 +1828,30 @@ const Layout = () => {
         }
       }
     }
+    
+    // 컬럼 기타 필드 변경시 히스토리 저장
+    if (['name', 'logicalName', 'dataType', 'defaultValue', 'comment'].includes(field)) {
+      const columnToUpdate = columns.find(col => col.id === columnId);
+      if (columnToUpdate) {
+        console.log(`💾 컬럼 ${field} 변경 히스토리 저장:`, columnToUpdate.name);
+        useStore.getState().saveHistoryState(HISTORY_ACTIONS.MODIFY_COLUMN, {
+          columnName: columnToUpdate.name,
+          field: field,
+          newValue: value,
+          entityId: targetNodeId,
+          entityName: nodes.find(n => n.id === targetNodeId)?.data?.label
+        });
+      }
+    }
   };
 
   const updateTableName = (newName: string) => {
     setTableName(newName);
-    if (selectedNodeId) {
-      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+    const targetNodeId = currentPanelNodeId || selectedNodeId;
+    if (targetNodeId) {
+      const selectedNode = nodes.find(node => node.id === targetNodeId);
       if (selectedNode) {
-        updateNodeData(selectedNodeId, {
+        updateNodeData(targetNodeId, {
           ...selectedNode.data,
           label: newName,
           physicalName: newName
@@ -1915,10 +2036,11 @@ const Layout = () => {
 
   const updateTableLogicalName = (newName: string) => {
     setTableLogicalName(newName);
-    if (selectedNodeId) {
-      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+    const targetNodeId = currentPanelNodeId || selectedNodeId;
+    if (targetNodeId) {
+      const selectedNode = nodes.find(node => node.id === targetNodeId);
       if (selectedNode) {
-        updateNodeData(selectedNodeId, {
+        updateNodeData(targetNodeId, {
           ...selectedNode.data,
           logicalName: newName
         });
@@ -2125,10 +2247,11 @@ const Layout = () => {
     setColumns(newColumns);
 
     // 엔티티 노드의 데이터 업데이트
-    if (selectedNodeId) {
-      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+    const targetNodeId = currentPanelNodeId || selectedNodeId;
+    if (targetNodeId) {
+      const selectedNode = nodes.find(node => node.id === targetNodeId);
       if (selectedNode && selectedNode.type === 'entity') {
-        updateNodeData(selectedNodeId, {
+        updateNodeData(targetNodeId, {
           ...selectedNode.data,
           columns: newColumns,
           label: tableName
@@ -2138,6 +2261,15 @@ const Layout = () => {
         setTimeout(() => {
           updateEdgeHandles();
         }, 50);
+        
+        // 컬럼 순서 변경 히스토리 저장
+        console.log('💾 컬럼 순서 변경 히스토리 저장');
+        useStore.getState().saveHistoryState('REORDER_COLUMNS', {
+          entityId: targetNodeId,
+          entityName: selectedNode.data.label,
+          columnId: columnId,
+          direction: direction
+        });
       }
     }
   };
@@ -2253,10 +2385,11 @@ const Layout = () => {
                         const currentValue = tableName || '';
                         const newValue = currentValue.slice(0, -1);
                         setTableName(newValue);
-                        if (selectedNodeId) {
-                          const selectedNode = nodes.find(node => node.id === selectedNodeId);
+                        const targetNodeId = currentPanelNodeId || selectedNodeId;
+                        if (targetNodeId) {
+                          const selectedNode = nodes.find(node => node.id === targetNodeId);
                           if (selectedNode) {
-                            updateNodeData(selectedNodeId, {
+                            updateNodeData(targetNodeId, {
                               ...selectedNode.data,
                               label: newValue,
                               physicalName: newValue
@@ -2290,10 +2423,11 @@ const Layout = () => {
                     // 유효한 문자만 추가
                     const newValue = currentValue + e.key;
                     setTableName(newValue);
-                    if (selectedNodeId) {
-                      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+                    const targetNodeId = currentPanelNodeId || selectedNodeId;
+                    if (targetNodeId) {
+                      const selectedNode = nodes.find(node => node.id === targetNodeId);
                       if (selectedNode) {
-                        updateNodeData(selectedNodeId, {
+                        updateNodeData(targetNodeId, {
                           ...selectedNode.data,
                           label: newValue,
                           physicalName: newValue
@@ -2582,7 +2716,6 @@ const Layout = () => {
                         className={editingCell === `${column.id}-name` ? 'editing' : ''}
                         data-editing={editingCell === `${column.id}-name` ? `${column.id}-name` : ''}
                         value={column.name === undefined ? '' : column.name}
-                        readOnly
                         onKeyDown={(e) => {
                           // 편집 중이 아니면 아무것도 하지 않음
                           if (editingCell !== `${column.id}-name`) return;
@@ -2662,7 +2795,18 @@ const Layout = () => {
                           data-editing={editingCell === `${column.id}-dataType` ? `${column.id}-dataType` : ''}
                           value={column.dataType || ''}
                           onChange={(e) => {
-                            const newValue = e.target.value.toUpperCase();
+                            let newValue = e.target.value.toUpperCase();
+                            
+                            // 한국어나 허용되지 않는 문자 제거
+                            const originalValue = newValue;
+                            newValue = newValue.replace(/[^A-Z0-9_()]/g, '');
+                            
+                            // 잘못된 문자가 있었으면 경고 메시지 표시
+                            if (originalValue !== newValue) {
+                              toast.error('데이터타입은 영어, 숫자, 언더바, 괄호만 사용할 수 있습니다.');
+                            }
+                            
+                            // 항상 상태 업데이트하여 사용자 입력이 반영되도록 함
                             updateColumnField(column.id, 'dataType', newValue);
                             
                             // 자동완성 트리거
@@ -2681,6 +2825,15 @@ const Layout = () => {
                             }
                           }}
                           onBlur={(e) => {
+                            // 데이터타입 최종 검증 (SQL 내보내기 기준)
+                            const value = e.target.value;
+                            if (value) {
+                              const validation = validateDataTypeForSQL(value);
+                              if (!validation.isValid) {
+                                toast.error(`데이터타입 오류: ${validation.error}`);
+                              }
+                            }
+                            
                             // 자동완성 관련 처리
                             const relatedTarget = e.relatedTarget as HTMLElement;
                             if (!relatedTarget || (!relatedTarget.closest('[data-autocomplete-item]') && !relatedTarget.closest('[data-dropdown]') && !relatedTarget.closest('[data-dropdown-button]'))) {
@@ -2775,7 +2928,11 @@ const Layout = () => {
                       <Checkbox 
                         type="checkbox" 
                         checked={column.pk || false} 
-                        onChange={(e) => updateColumnField(column.id, 'pk', e.target.checked)}
+                        onChange={(e) => {
+                          updateColumnField(column.id, 'pk', e.target.checked);
+                          // 포커스 제거하여 Ctrl+Z/Y 작동 가능하도록
+                          setTimeout(() => e.target.blur(), 0);
+                        }}
                       />
                     </CheckboxCell>
                     <CheckboxCell $darkMode={isDarkMode} key={`${column.id}-nn`}>
@@ -2783,14 +2940,22 @@ const Layout = () => {
                         type="checkbox" 
                         checked={column.nn || column.pk || false} 
                         disabled={column.pk}
-                        onChange={(e) => updateColumnField(column.id, 'nn', e.target.checked)}
+                        onChange={(e) => {
+                          updateColumnField(column.id, 'nn', e.target.checked);
+                          // 포커스 제거하여 Ctrl+Z/Y 작동 가능하도록
+                          setTimeout(() => e.target.blur(), 0);
+                        }}
                       />
                     </CheckboxCell>
                     <CheckboxCell $darkMode={isDarkMode} key={`${column.id}-uq`}>
                       <Checkbox 
                         type="checkbox" 
                         checked={column.uq || false} 
-                        onChange={(e) => updateColumnField(column.id, 'uq', e.target.checked)}
+                        onChange={(e) => {
+                          updateColumnField(column.id, 'uq', e.target.checked);
+                          // 포커스 제거하여 Ctrl+Z/Y 작동 가능하도록
+                          setTimeout(() => e.target.blur(), 0);
+                        }}
                       />
                     </CheckboxCell>
                     <CheckboxCell $darkMode={isDarkMode} key={`${column.id}-ai`}>
@@ -2802,7 +2967,11 @@ const Layout = () => {
                           const isIntType = /^(INT|INTEGER|BIGINT|SMALLINT|TINYINT)(\(\d+\))?$/.test(dataType || '');
                           return !column.pk || !isIntType;
                         })()}
-                        onChange={(e) => updateColumnField(column.id, 'ai', e.target.checked)}
+                        onChange={(e) => {
+                          updateColumnField(column.id, 'ai', e.target.checked);
+                          // 포커스 제거하여 Ctrl+Z/Y 작동 가능하도록
+                          setTimeout(() => e.target.blur(), 0);
+                        }}
                       />
                     </CheckboxCell>
 
@@ -2975,17 +3144,27 @@ const Layout = () => {
               </label>
               <TableCommentTextarea
                 $darkMode={isDarkMode}
-                value={nodes.find(n => n.id === selectedNodeId)?.data?.comment || ''}
+                value={nodes.find(n => n.id === (currentPanelNodeId || selectedNodeId))?.data?.comment || ''}
                 onChange={(e) => {
-                  if (selectedNodeId) {
-                    const selectedNode = nodes.find(n => n.id === selectedNodeId);
+                  const targetNodeId = currentPanelNodeId || selectedNodeId;
+                  if (targetNodeId) {
+                    const selectedNode = nodes.find(n => n.id === targetNodeId);
                     if (selectedNode) {
-                      updateNodeData(selectedNodeId, { 
+                      updateNodeData(targetNodeId, { 
                         ...selectedNode.data, 
                         comment: e.target.value 
                       });
                     }
                   }
+                }}
+                onBlur={() => {
+                  // 테이블 주석 변경 히스토리 저장
+                  const targetNodeId = currentPanelNodeId || selectedNodeId;
+                  console.log('💾 테이블 주석 변경 히스토리 저장');
+                  useStore.getState().saveHistoryState('CHANGE_ENTITY_NAME', {
+                    entityId: targetNodeId,
+                    entityName: nodes.find(n => n.id === targetNodeId)?.data?.label
+                  });
                 }}
                 placeholder="테이블에 대한 설명을 입력하세요..."
               />

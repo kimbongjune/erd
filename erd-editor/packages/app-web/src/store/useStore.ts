@@ -3882,7 +3882,7 @@ const useStore = create<RFState>((set, get) => ({
       });
       
       state.updateHistoryFlags();
-      toast.success(`${historyEntry.description} 취소됨`);
+      // toast.success(`${historyEntry.description} 취소됨`); // 토스트 제거
     } else {
       console.log('↩️ Undo 실패: 되돌릴 상태가 없음');
     }
@@ -3917,7 +3917,7 @@ const useStore = create<RFState>((set, get) => ({
       });
       
       state.updateHistoryFlags();
-      toast.success(`${historyEntry.description} 다시 실행됨`);
+      // toast.success(`${historyEntry.description} 다시 실행됨`); // 토스트 제거
     } else {
       console.log('↪️ Redo 실패: 다시 실행할 상태가 없음');
     }

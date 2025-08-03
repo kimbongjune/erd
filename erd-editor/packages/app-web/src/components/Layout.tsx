@@ -991,8 +991,16 @@ const Layout = () => {
       
       // Enter 키 처리
       if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // 편집 종료 및 포커스 해제
         setEditingCell(null);
         setIsEditingTableName(false);
+        setIsEditingLogicalName(false);
+        
+        // 입력창에서 포커스 제거
+        (e.target as HTMLInputElement).blur();
         return;
       }
       
@@ -1176,8 +1184,57 @@ const Layout = () => {
     }
     
     // 이동 키들은 허용
-    const navigationKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Tab', 'Enter', 'Escape'];
+    const navigationKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Tab', 'Escape'];
     if (navigationKeys.includes(e.key)) {
+      return;
+    }
+    
+    // Enter 키 별도 처리 - 편집 종료 및 포커스 해제
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // 편집 상태 종료
+      if (target.getAttribute('data-editing')?.includes('-name')) {
+        const columnId = target.getAttribute('data-editing')?.replace('-name', '') || '';
+        setColumnControlledValues(prev => {
+          const newState = { ...prev };
+          delete newState[`${columnId}-name`];
+          return newState;
+        });
+        setColumnDisplayValues(prev => {
+          const newState = { ...prev };
+          delete newState[`${columnId}-name`];
+          return newState;
+        });
+      } else if (target.getAttribute('data-editing')?.includes('-dataType')) {
+        const columnId = target.getAttribute('data-editing')?.replace('-dataType', '') || '';
+        setColumnControlledValues(prev => {
+          const newState = { ...prev };
+          delete newState[`${columnId}-dataType`];
+          return newState;
+        });
+        setColumnDisplayValues(prev => {
+          const newState = { ...prev };
+          delete newState[`${columnId}-dataType`];
+          return newState;
+        });
+      } else if (isEditingTableName) {
+        setTableControlledValue('');
+        setTableDisplayValue('');
+        setIsEditingTableName(false);
+      }
+      
+      setEditingCell(null);
+      setIsEditingLogicalName(false);
+      
+      // 자동완성 닫기
+      setShowAutocomplete(false);
+      setAutocompleteColumnId(null);
+      setSelectedAutocompleteIndex(-1);
+      
+      // 포커스 해제
+      target.blur();
       return;
     }
     

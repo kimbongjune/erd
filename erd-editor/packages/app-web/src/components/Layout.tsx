@@ -1591,6 +1591,21 @@ const Layout = () => {
     }
   }, [isDragging, showAutocomplete, autocompleteColumnId]);
 
+  // editingCell이 변경될 때 해당 필드에 포커스 주기
+  useEffect(() => {
+    if (editingCell) {
+      // 짧은 딜레이 후 포커스 (DOM 업데이트 대기)
+      setTimeout(() => {
+        const input = document.querySelector(`[data-editing="${editingCell}"]`) as HTMLInputElement;
+        if (input) {
+          input.focus();
+          // 텍스트 선택
+          input.select();
+        }
+      }, 50);
+    }
+  }, [editingCell]);
+
   // 드롭다운 위치 계산 함수
   const calculateDropdownPosition = (element: HTMLElement) => {
     const rect = element.getBoundingClientRect();
@@ -2505,15 +2520,109 @@ const Layout = () => {
       }
     }
     
+    // Tab 키 네비게이션 처리
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (editingCell) {
+        // 현재 편집 중인 셀 정보 파싱
+        const [columnId, field] = editingCell.split('-');
+        const currentEntity = nodes.find((entity: any) => entity.id === selectedNodeId);
+        const currentColumnIndex = currentEntity?.data?.columns?.findIndex((col: any) => col.id === columnId) ?? -1;
+        
+        if (currentEntity && currentEntity.data?.columns && currentColumnIndex >= 0) {
+          const fieldOrder = ['name', 'logicalName', 'dataType', 'defaultValue'];
+          const currentFieldIndex = fieldOrder.indexOf(field);
+          
+          // 자동완성 닫기
+          setShowAutocomplete(false);
+          setAutocompleteColumnId(null);
+          setSelectedAutocompleteIndex(-1);
+          
+          if (e.shiftKey) {
+            // Shift+Tab: 이전 필드로 이동
+            if (currentFieldIndex > 0) {
+              // 같은 행의 이전 필드
+              let prevField = fieldOrder[currentFieldIndex - 1];
+              // FK 컬럼에서 데이터타입 필드는 스킵
+              if (prevField === 'dataType' && currentEntity.data.columns[currentColumnIndex].fk) {
+                prevField = fieldOrder[currentFieldIndex - 2]; // logicalName으로 스킵
+              }
+              if (prevField && fieldOrder.indexOf(prevField) >= 0) {
+                setEditingCell(`${columnId}-${prevField}`);
+              }
+            } else if (currentColumnIndex > 0) {
+              // 이전 행의 마지막 필드
+              const prevColumn = currentEntity.data.columns[currentColumnIndex - 1];
+              setEditingCell(`${prevColumn.id}-defaultValue`);
+            }
+          } else {
+            // Tab: 다음 필드로 이동
+            if (currentFieldIndex < fieldOrder.length - 1) {
+              // 같은 행의 다음 필드
+              let nextField = fieldOrder[currentFieldIndex + 1];
+              // FK 컬럼에서 데이터타입 필드는 스킵
+              if (nextField === 'dataType' && currentEntity.data.columns[currentColumnIndex].fk) {
+                nextField = fieldOrder[currentFieldIndex + 2]; // defaultValue로 스킵
+              }
+              if (nextField) {
+                setEditingCell(`${columnId}-${nextField}`);
+              }
+            } else if (currentColumnIndex < currentEntity.data.columns.length - 1) {
+              // 다음 행의 첫 번째 필드
+              const nextColumn = currentEntity.data.columns[currentColumnIndex + 1];
+              setEditingCell(`${nextColumn.id}-name`);
+            } else {
+              // 마지막 필드이면 편집 종료
+              setEditingCell(null);
+              (e.target as HTMLInputElement).blur();
+            }
+          }
+        }
+      }
+      return;
+    }
+    
     if (e.key === 'Enter' && !isComposing) {
       e.preventDefault();
       e.stopPropagation();
-      // 자동완성 닫기
-      setShowAutocomplete(false);
-      setAutocompleteColumnId(null);
-      setSelectedAutocompleteIndex(-1);
-      setEditingCell(null);
-      (e.target as HTMLInputElement).blur();
+      
+      // Tab과 유사하지만 다음 행의 같은 필드로 이동
+      if (editingCell) {
+        const [columnId, field] = editingCell.split('-');
+        const currentEntity = nodes.find((entity: any) => entity.id === selectedNodeId);
+        const currentColumnIndex = currentEntity?.data?.columns?.findIndex((col: any) => col.id === columnId) ?? -1;
+        
+        if (currentEntity && currentEntity.data?.columns && currentColumnIndex >= 0) {
+          // 자동완성 닫기
+          setShowAutocomplete(false);
+          setAutocompleteColumnId(null);
+          setSelectedAutocompleteIndex(-1);
+          
+          if (currentColumnIndex < currentEntity.data.columns.length - 1) {
+            // 다음 행의 같은 필드로 이동
+            const nextColumn = currentEntity.data.columns[currentColumnIndex + 1];
+            // FK 컬럼에서 데이터타입 필드는 스킵해서 name 필드로 이동
+            let targetField = field;
+            if (field === 'dataType' && nextColumn.fk) {
+              targetField = 'name';
+            }
+            setEditingCell(`${nextColumn.id}-${targetField}`);
+          } else {
+            // 마지막 행이면 편집 종료
+            setEditingCell(null);
+            (e.target as HTMLInputElement).blur();
+          }
+        }
+      } else {
+        // 자동완성 닫기
+        setShowAutocomplete(false);
+        setAutocompleteColumnId(null);
+        setSelectedAutocompleteIndex(-1);
+        setEditingCell(null);
+        (e.target as HTMLInputElement).blur();
+      }
     }
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -2972,7 +3081,9 @@ const Layout = () => {
                         data-editing={editingCell === `${column.id}-logicalName` ? `${column.id}-logicalName` : ''}
                         value={column.logicalName === undefined ? '' : column.logicalName}
                         onChange={(e) => updateColumnField(column.id, 'logicalName', e.target.value)}
-                        onBlur={handleCellBlur}
+                        onBlur={() => {
+                          handleCellBlur();
+                        }}
                         onKeyDown={handleCellKeyDown}
                         readOnly={editingCell !== `${column.id}-logicalName`}
                       />
@@ -3145,7 +3256,9 @@ const Layout = () => {
                         data-editing={editingCell === `${column.id}-defaultValue` ? `${column.id}-defaultValue` : ''}
                         value={column.defaultValue || ''}
                         onChange={(e) => updateColumnField(column.id, 'defaultValue', e.target.value)}
-                        onBlur={handleCellBlur}
+                        onBlur={() => {
+                          handleCellBlur();
+                        }}
                         onKeyDown={handleCellKeyDown}
                         readOnly={editingCell !== `${column.id}-defaultValue`}
                         placeholder="null"

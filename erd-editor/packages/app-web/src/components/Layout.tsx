@@ -887,6 +887,13 @@ const Layout = () => {
   const [tableLogicalName, setTableLogicalName] = useState('');
   const [isEditingTableName, setIsEditingTableName] = useState(false);
   const [isEditingLogicalName, setIsEditingLogicalName] = useState(false);
+  
+  // Test.tsx와 완전히 똑같은 controlled 상태들
+  const [tableControlledValue, setTableControlledValue] = useState('');
+  const [tableDisplayValue, setTableDisplayValue] = useState('');
+  const [columnControlledValues, setColumnControlledValues] = useState<{[key: string]: string}>({});
+  const [columnDisplayValues, setColumnDisplayValues] = useState<{[key: string]: string}>({});
+  
   const [columns, setColumns] = useState<any[]>([]);
   const [selectedColumn, setSelectedColumn] = useState<any>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
@@ -899,6 +906,27 @@ const Layout = () => {
   const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
   
   // Test.tsx의 validation 로직 (기존 코드는 그대로 유지하고 추가만)
+  
+  // Test.tsx 허용된 문자만 필터링하는 함수 - 토씨 하나 틀리지 않고 동일
+  const filterValue = useCallback((value: string): string => {
+    if (!value) return '';
+    
+    // 허용된 문자: 영어, 숫자, 언더바
+    // 단, 숫자로 시작할 수 없음
+    let filtered = value.replace(/[^a-zA-Z0-9_]/g, '');
+    
+    // 숫자로 시작하는 경우 제거
+    if (filtered && /^[0-9]/.test(filtered)) {
+      filtered = filtered.replace(/^[0-9]+/, '');
+    }
+    
+    return filtered;
+  }, []);
+
+  // Test.tsx 허용된 문자인지 확인하는 함수 - 토씨 하나 틀리지 않고 동일
+  const isValidChar = useCallback((char: string): boolean => {
+    return /[a-zA-Z0-9_]/.test(char);
+  }, []);
   
   // 허용된 문자만 필터링하는 함수 (테이블명용)
   const filterTableValue = useCallback((value: string): string => {
@@ -996,30 +1024,239 @@ const Layout = () => {
     };
   }, []);
 
-  // Test.tsx와 동일한 키보드 핸들러들 추가
-  const handleTableNameKeyDown = createKeyDownHandler(false);
-  const handleColumnKeyDown = createKeyDownHandler(false);
-  const handleDataTypeKeyDown = createKeyDownHandler(true);
+  // Test.tsx의 모든 핸들러를 토씨 하나 틀리지 않고 동일하게 복사
 
-  // 페이스트 핸들러
-  const handleTableNamePaste = useCallback((e: React.ClipboardEvent) => {
+  // Test.tsx 키 입력 완전 차단 (한국어, 허용되지 않은 문자 모두 차단) - 토씨 하나 틀리지 않고 동일
+  const testHandleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X 허용
+    if (e.ctrlKey && ['a', 'c', 'v', 'x'].includes(e.key.toLowerCase())) {
+      return;
+    }
+    
+    const target = e.target as HTMLInputElement;
+    
+    // Test.tsx와 완전히 똑같이 - controlled 값 가져오기
+    let controlledValue: string;
+    if (target.getAttribute('data-editing')?.includes('-name')) {
+      const columnId = target.getAttribute('data-editing')?.replace('-name', '') || '';
+      controlledValue = columnControlledValues[`${columnId}-name`] || '';
+    } else if (target.getAttribute('data-editing')?.includes('-dataType')) {
+      const columnId = target.getAttribute('data-editing')?.replace('-dataType', '') || '';
+      controlledValue = columnControlledValues[`${columnId}-dataType`] || '';
+    } else if (isEditingTableName) {
+      controlledValue = tableControlledValue;
+    } else {
+      controlledValue = target.value;
+    }
+    
+    // Backspace 처리 - Test.tsx와 완전히 똑같이
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      const cursorStart = target.selectionStart || 0;
+      const cursorEnd = target.selectionEnd || 0;
+      const currentValue = controlledValue;
+      
+      let newValue: string;
+      let newCursorPos: number;
+      
+      if (cursorStart !== cursorEnd) {
+        // 선택된 텍스트 삭제
+        newValue = currentValue.slice(0, cursorStart) + currentValue.slice(cursorEnd);
+        newCursorPos = cursorStart;
+      } else if (cursorStart > 0) {
+        // 커서 앞 한 글자 삭제
+        newValue = currentValue.slice(0, cursorStart - 1) + currentValue.slice(cursorStart);
+        newCursorPos = cursorStart - 1;
+      } else {
+        return; // 삭제할 게 없음
+      }
+      
+      // Test.tsx와 똑같이 상태 업데이트
+      if (target.getAttribute('data-editing')?.includes('-name')) {
+        const columnId = target.getAttribute('data-editing')?.replace('-name', '') || '';
+        setColumnControlledValues(prev => ({ ...prev, [`${columnId}-name`]: newValue }));
+        setColumnDisplayValues(prev => ({ ...prev, [`${columnId}-name`]: newValue }));
+        updateColumnField(columnId, 'name', newValue);
+      } else if (target.getAttribute('data-editing')?.includes('-dataType')) {
+        const columnId = target.getAttribute('data-editing')?.replace('-dataType', '') || '';
+        setColumnControlledValues(prev => ({ ...prev, [`${columnId}-dataType`]: newValue }));
+        setColumnDisplayValues(prev => ({ ...prev, [`${columnId}-dataType`]: newValue }));
+        updateColumnField(columnId, 'dataType', newValue);
+      } else if (isEditingTableName) {
+        setTableControlledValue(newValue);
+        setTableDisplayValue(newValue);
+        setTableName(newValue);
+      }
+      
+      // 커서 위치 조정
+      setTimeout(() => {
+        if (target) {
+          target.setSelectionRange(newCursorPos, newCursorPos);
+        }
+      }, 0);
+      return;
+    }
+    
+    // Delete 처리 - Test.tsx와 완전히 똑같이
+    if (e.key === 'Delete') {
+      e.preventDefault();
+      const cursorStart = target.selectionStart || 0;
+      const cursorEnd = target.selectionEnd || 0;
+      const currentValue = controlledValue;
+      
+      let newValue: string;
+      let newCursorPos: number;
+      
+      if (cursorStart !== cursorEnd) {
+        // 선택된 텍스트 삭제
+        newValue = currentValue.slice(0, cursorStart) + currentValue.slice(cursorEnd);
+        newCursorPos = cursorStart;
+      } else if (cursorStart < currentValue.length) {
+        // 커서 뒤 한 글자 삭제
+        newValue = currentValue.slice(0, cursorStart) + currentValue.slice(cursorStart + 1);
+        newCursorPos = cursorStart;
+      } else {
+        return; // 삭제할 게 없음
+      }
+      
+      // Test.tsx와 똑같이 상태 업데이트
+      if (target.getAttribute('data-editing')?.includes('-name')) {
+        const columnId = target.getAttribute('data-editing')?.replace('-name', '') || '';
+        setColumnControlledValues(prev => ({ ...prev, [`${columnId}-name`]: newValue }));
+        setColumnDisplayValues(prev => ({ ...prev, [`${columnId}-name`]: newValue }));
+        updateColumnField(columnId, 'name', newValue);
+      } else if (target.getAttribute('data-editing')?.includes('-dataType')) {
+        const columnId = target.getAttribute('data-editing')?.replace('-dataType', '') || '';
+        setColumnControlledValues(prev => ({ ...prev, [`${columnId}-dataType`]: newValue }));
+        setColumnDisplayValues(prev => ({ ...prev, [`${columnId}-dataType`]: newValue }));
+        updateColumnField(columnId, 'dataType', newValue);
+      } else if (isEditingTableName) {
+        setTableControlledValue(newValue);
+        setTableDisplayValue(newValue);
+        setTableName(newValue);
+      }
+      
+      // 커서 위치 유지
+      setTimeout(() => {
+        if (target) {
+          target.setSelectionRange(newCursorPos, newCursorPos);
+        }
+      }, 0);
+      return;
+    }
+    
+    // 이동 키들은 허용
+    const navigationKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Tab', 'Enter', 'Escape'];
+    if (navigationKeys.includes(e.key)) {
+      return;
+    }
+    
+    // 모든 문자 입력 차단 (허용된 문자도 일단 차단 - 직접 처리)
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // 허용된 문자인 경우에만 직접 추가 - Test.tsx와 똑같이
+    if (e.key.length === 1) {
+      const isDataTypeField = target.getAttribute('data-editing')?.includes('-dataType');
+      const validChar = isDataTypeField ? /[a-zA-Z0-9_()]/.test(e.key) : isValidChar(e.key);
+      
+      if (validChar) {
+        const cursorPos = target.selectionStart || 0;
+        const currentValue = controlledValue;
+        
+        // 숫자나 괄호로 시작하는 것 방지
+        if (isDataTypeField && /[0-9()]/.test(e.key) && cursorPos === 0) {
+          return; // 차단
+        } else if (!isDataTypeField && /[0-9]/.test(e.key) && cursorPos === 0) {
+          return; // 차단
+        }
+        
+        // 허용된 문자 직접 추가
+        const newValue = currentValue.slice(0, cursorPos) + e.key + currentValue.slice(cursorPos);
+        
+        // Test.tsx와 똑같이 상태 업데이트
+        if (target.getAttribute('data-editing')?.includes('-name')) {
+          const columnId = target.getAttribute('data-editing')?.replace('-name', '') || '';
+          setColumnControlledValues(prev => ({ ...prev, [`${columnId}-name`]: newValue }));
+          setColumnDisplayValues(prev => ({ ...prev, [`${columnId}-name`]: newValue }));
+          updateColumnField(columnId, 'name', newValue);
+        } else if (target.getAttribute('data-editing')?.includes('-dataType')) {
+          const columnId = target.getAttribute('data-editing')?.replace('-dataType', '') || '';
+          const upperValue = newValue.toUpperCase();
+          setColumnControlledValues(prev => ({ ...prev, [`${columnId}-dataType`]: upperValue }));
+          setColumnDisplayValues(prev => ({ ...prev, [`${columnId}-dataType`]: upperValue }));
+          updateColumnField(columnId, 'dataType', upperValue);
+        } else if (isEditingTableName) {
+          setTableControlledValue(newValue);
+          setTableDisplayValue(newValue);
+          setTableName(newValue);
+        }
+        
+        // 커서 위치 조정
+        setTimeout(() => {
+          if (target) {
+            target.setSelectionRange(cursorPos + 1, cursorPos + 1);
+          }
+        }, 0);
+      }
+    }
+  }, [isValidChar, tableControlledValue, columnControlledValues, isEditingTableName]);
+
+  // Test.tsx 모든 조합 이벤트 완전 차단
+  const testHandleCompositionStart = useCallback((e: React.CompositionEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+  
+  const testHandleCompositionUpdate = useCallback((e: React.CompositionEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+  
+  const testHandleCompositionEnd = useCallback((e: React.CompositionEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  // Test.tsx 모든 beforeinput 차단
+  const testHandleBeforeInput = useCallback((e: React.FormEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  // Test.tsx 모든 input 이벤트 차단  
+  const testHandleInput = useCallback((e: React.FormEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // 강제로 제어된 값으로 복원
+    // Layout.tsx에서는 DOM 값 유지 (상태 기반이 아니므로)
+  }, []);
+
+  // Test.tsx 붙여넣기 처리
+  const testHandlePaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     const pastedText = e.clipboardData.getData('text');
-    const filteredText = filterTableValue(pastedText);
+    const target = e.target as HTMLInputElement;
     
-    if (tableNameInputRef.current) {
-      const input = tableNameInputRef.current;
-      const start = input.selectionStart || 0;
-      const end = input.selectionEnd || 0;
-      const currentValue = input.value;
-      
-      const newValue = currentValue.slice(0, start) + filteredText + currentValue.slice(end);
-      input.value = newValue;
-      input.setSelectionRange(start + filteredText.length, start + filteredText.length);
-      
-      setTableName(newValue);
-    }
-  }, [filterTableValue]);
+    const currentValue = target.value;
+    const cursorPos = target.selectionStart || 0;
+    
+    // 현재 커서 위치에 붙여넣기
+    const newValue = currentValue.slice(0, cursorPos) + pastedText + currentValue.slice(cursorPos);
+    
+    // 데이터타입 필드는 filterDataTypeValue 사용, 나머지는 filterValue 사용
+    const isDataTypeField = target.getAttribute('data-editing')?.includes('-dataType');
+    const filtered = isDataTypeField ? filterDataTypeValue(newValue) : filterValue(newValue);
+    
+    // DOM에 직접 설정
+    target.value = filtered;
+    
+    // 커서 위치를 붙여넣은 텍스트 끝으로 이동
+    const pastedFiltered = isDataTypeField ? filterDataTypeValue(pastedText) : filterValue(pastedText);
+    const newCursorPos = cursorPos + pastedFiltered.length;
+    target.setSelectionRange(newCursorPos, newCursorPos);
+  }, [filterValue, filterDataTypeValue]);
 
   // Test.tsx와 동일한 주기적 검증 로직 (DOM만 조작, 상태는 건드리지 않음)
   useEffect(() => {
@@ -2155,6 +2392,11 @@ const Layout = () => {
 
   const handleTableNameDoubleClick = () => {
     setIsEditingTableName(true);
+    
+    // controlled 상태 초기화 - 현재 테이블 이름으로 설정
+    const currentValue = tableName || '';
+    setTableControlledValue(currentValue);
+    setTableDisplayValue(currentValue);
   };
 
   const handleLogicalNameDoubleClick = () => {
@@ -2163,6 +2405,10 @@ const Layout = () => {
 
   const handleTableNameBlur = () => {
     setIsEditingTableName(false);
+    
+    // controlled 상태 초기화
+    setTableControlledValue('');
+    setTableDisplayValue('');
     
     // 실제 노드 데이터 업데이트
     if (selectedNodeId && tableName !== undefined) {
@@ -2211,6 +2457,21 @@ const Layout = () => {
 
   const handleCellDoubleClick = (columnId: string, field: string) => {
     setEditingCell(`${columnId}-${field}`);
+    
+    // controlled 상태 초기화 - 현재 컬럼 값으로 설정
+    const column = columns.find(col => col.id === columnId);
+    if (column) {
+      if (field === 'name') {
+        const currentValue = column.name || '';
+        setColumnControlledValues(prev => ({ ...prev, [`${columnId}-name`]: currentValue }));
+        setColumnDisplayValues(prev => ({ ...prev, [`${columnId}-name`]: currentValue }));
+      } else if (field === 'dataType') {
+        const currentValue = column.dataType || '';
+        setColumnControlledValues(prev => ({ ...prev, [`${columnId}-dataType`]: currentValue }));
+        setColumnDisplayValues(prev => ({ ...prev, [`${columnId}-dataType`]: currentValue }));
+      }
+    }
+    
     // 다음 프레임에서 포커스와 커서 위치 설정
     setTimeout(() => {
       const input = document.querySelector(`input[data-editing="${columnId}-${field}"]`) as HTMLInputElement;
@@ -2222,6 +2483,22 @@ const Layout = () => {
   };
 
   const handleCellBlur = () => {
+    // controlled 상태 초기화
+    if (editingCell) {
+      const [columnId, field] = editingCell.split('-');
+      if (field === 'name' || field === 'dataType') {
+        setColumnControlledValues(prev => {
+          const newState = { ...prev };
+          delete newState[editingCell];
+          return newState;
+        });
+        setColumnDisplayValues(prev => {
+          const newState = { ...prev };
+          delete newState[editingCell];
+          return newState;
+        });
+      }
+    }
     setEditingCell(null);
   };
 
@@ -2415,13 +2692,20 @@ const Layout = () => {
               {isEditingTableName ? (
                 <TableNameInput
                   $darkMode={isDarkMode}
-                  value={tableName === undefined ? '' : tableName}
-                  onChange={(e) => setTableName(e.target.value)}
-                  onKeyDown={handleTableNameKeyDown}
+                  value={isEditingTableName ? tableDisplayValue : (tableName || '')}
+                  onChange={(e) => {
+                    // Test.tsx와 똑같이 - controlled component에서는 onChange 무시
+                  }}
+                  onKeyDown={testHandleKeyDown}
+                  onCompositionStart={testHandleCompositionStart}
+                  onCompositionUpdate={testHandleCompositionUpdate}
+                  onCompositionEnd={testHandleCompositionEnd}
+                  onBeforeInput={testHandleBeforeInput}
+                  onInput={testHandleInput}
                   onBlur={(e) => {
                     handleTableNameBlur();
                   }}
-                  onPaste={handleTableNamePaste}
+                  onPaste={testHandlePaste}
                   autoFocus
                   placeholder="물리명"
                   ref={tableNameInputRef}
@@ -2699,16 +2983,23 @@ const Layout = () => {
                         $darkMode={isDarkMode}
                         className={editingCell === `${column.id}-name` ? 'editing' : ''}
                         data-editing={editingCell === `${column.id}-name` ? `${column.id}-name` : ''}
-                        value={column.name === undefined ? '' : column.name}
+                        value={editingCell === `${column.id}-name` ? 
+                          (columnDisplayValues[`${column.id}-name`] !== undefined ? columnDisplayValues[`${column.id}-name`] : (column.name || '')) :
+                          (column.name || '')
+                        }
                         onChange={(e) => {
-                          // 단순히 상태만 업데이트 (실제 검증은 onKeyDown과 interval에서)
-                          updateColumnField(column.id, 'name', e.target.value);
+                          // Test.tsx와 똑같이 - controlled component에서는 onChange 무시
                         }}
-                        onKeyDown={handleColumnKeyDown}
+                        onKeyDown={testHandleKeyDown}
+                        onCompositionStart={testHandleCompositionStart}
+                        onCompositionUpdate={testHandleCompositionUpdate}
+                        onCompositionEnd={testHandleCompositionEnd}
+                        onBeforeInput={testHandleBeforeInput}
+                        onInput={testHandleInput}
                         onBlur={(e) => {
                           handleCellBlur();
-                          validateColumnName(column.id, e.target.value);
                         }}
+                        onPaste={testHandlePaste}
                         readOnly={editingCell !== `${column.id}-name`}
                       />
                     </TableCell>
@@ -2730,9 +3021,19 @@ const Layout = () => {
                           $darkMode={isDarkMode}
                           className={editingCell === `${column.id}-dataType` ? 'editing' : ''}
                           data-editing={editingCell === `${column.id}-dataType` ? `${column.id}-dataType` : ''}
-                          value={column.dataType || ''}
-                          onChange={(e) => updateColumnField(column.id, 'dataType', e.target.value.toUpperCase())}
-                          onKeyDown={handleDataTypeKeyDown}
+                          value={editingCell === `${column.id}-dataType` ? 
+                            (columnDisplayValues[`${column.id}-dataType`] !== undefined ? columnDisplayValues[`${column.id}-dataType`] : (column.dataType || '')) :
+                            (column.dataType || '')
+                          }
+                          onChange={(e) => {
+                            // Test.tsx와 똑같이 - controlled component에서는 onChange 무시
+                          }}
+                          onKeyDown={testHandleKeyDown}
+                          onCompositionStart={testHandleCompositionStart}
+                          onCompositionUpdate={testHandleCompositionUpdate}
+                          onCompositionEnd={testHandleCompositionEnd}
+                          onBeforeInput={testHandleBeforeInput}
+                          onInput={testHandleInput}
                           onBlur={(e) => {
                             // 자동완성 관련 처리
                             const relatedTarget = e.relatedTarget as HTMLElement;
@@ -2743,6 +3044,7 @@ const Layout = () => {
                               setDropdownOpen(null);
                             }
                           }}
+                          onPaste={testHandlePaste}
                           readOnly={editingCell !== `${column.id}-dataType` || column.fk}
                           placeholder={column.fk ? "FK 컬럼은 수정 불가" : "데이터타입 선택 또는 입력"}
                         />

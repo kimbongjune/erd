@@ -152,5 +152,5 @@
 128. 템플릿? 한다면 public private 접근 제한?(https://www.erdcloud.com/library)
 129. ✅ 엔티티 삭제 히스토리에 테이블 주석, 컬럼순서 저장안됨
 130. 엔티티물리명, 컬럼물리명 한국어 입력시 토스트
-131. form validation 한국어 입력하면 지워는지는데 저장후 불러오거나, history undo할 때 입력되어있는 것 처럼 보임
+131. ✅ form validation 한국어 입력하면 지워는지는데 저장후 불러오거나, history undo할 때 입력되어있는 것 처럼 보임
 ```

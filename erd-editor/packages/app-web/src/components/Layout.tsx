@@ -572,7 +572,7 @@ const PortalDropdown: React.FC<{
         boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.15)',
         zIndex: 2147483647, // 최대 z-index 값
       }}
-      data-dropdown="true"
+      data-dropdown={dropdownType ? "fk-options" : "true"}
     >
       {dropdownType && options ? (
         options.map((option) => (
@@ -1082,6 +1082,21 @@ const Layout = () => {
         setColumnControlledValues(prev => ({ ...prev, [`${columnId}-dataType`]: newValue }));
         setColumnDisplayValues(prev => ({ ...prev, [`${columnId}-dataType`]: newValue }));
         updateColumnField(columnId, 'dataType', newValue);
+        
+        // 자동완성 트리거 (원래 기능 복구 - Backspace)
+        const column = columns.find(col => col.id === columnId);
+        if (!column?.fk) {
+          setAutocompleteColumnId(columnId);
+          filterDataTypes(newValue);
+          
+          if (newValue.length > 0) {
+            const rect = target.getBoundingClientRect();
+            setDropdownPosition({
+              top: rect.bottom + 2,
+              left: rect.left
+            });
+          }
+        }
       } else if (isEditingTableName) {
         setTableControlledValue(newValue);
         setTableDisplayValue(newValue);
@@ -1130,6 +1145,21 @@ const Layout = () => {
         setColumnControlledValues(prev => ({ ...prev, [`${columnId}-dataType`]: newValue }));
         setColumnDisplayValues(prev => ({ ...prev, [`${columnId}-dataType`]: newValue }));
         updateColumnField(columnId, 'dataType', newValue);
+        
+        // 자동완성 트리거 (원래 기능 복구 - Delete)
+        const column = columns.find(col => col.id === columnId);
+        if (!column?.fk) {
+          setAutocompleteColumnId(columnId);
+          filterDataTypes(newValue);
+          
+          if (newValue.length > 0) {
+            const rect = target.getBoundingClientRect();
+            setDropdownPosition({
+              top: rect.bottom + 2,
+              left: rect.left
+            });
+          }
+        }
       } else if (isEditingTableName) {
         setTableControlledValue(newValue);
         setTableDisplayValue(newValue);
@@ -1186,6 +1216,22 @@ const Layout = () => {
           setColumnControlledValues(prev => ({ ...prev, [`${columnId}-dataType`]: upperValue }));
           setColumnDisplayValues(prev => ({ ...prev, [`${columnId}-dataType`]: upperValue }));
           updateColumnField(columnId, 'dataType', upperValue);
+          
+          // 자동완성 트리거 (원래 기능 복구)
+          const column = columns.find(col => col.id === columnId);
+          if (!column?.fk) {
+            setAutocompleteColumnId(columnId);
+            filterDataTypes(upperValue);
+            
+            // 자동완성 위치 계산
+            if (upperValue.length > 0) {
+              const rect = target.getBoundingClientRect();
+              setDropdownPosition({
+                top: rect.bottom + 2,
+                left: rect.left
+              });
+            }
+          }
         } else if (isEditingTableName) {
           setTableControlledValue(newValue);
           setTableDisplayValue(newValue);
@@ -1314,105 +1360,7 @@ const Layout = () => {
     return () => clearInterval(interval);
   }, [editingCell, isEditingTableName, filterTableValue, filterColumnValue, filterDataTypeValue]);
 
-  // 컬럼 입력 검증을 위한 공통 함수들
-  const createColumnKeyDownHandler = (columnId: string, field: 'name' | 'dataType') => {
-    const isDataType = field === 'dataType';
-    
-    return (e: React.KeyboardEvent<HTMLInputElement>) => {
-      // 편집 중이 아니면 아무것도 하지 않음
-      if (editingCell !== `${columnId}-${field}`) return;
-      
-      // 특수 키는 허용
-      const allowedKeys = [
-        'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-        'Home', 'End', 'Tab', 'Enter', 'Escape', 'Control', 'Alt', 'Shift', 'Meta'
-      ];
-      
-      if (allowedKeys.includes(e.key)) {
-        if (e.key === 'Enter' || e.key === 'Escape') {
-          setEditingCell(null);
-        }
-        if (e.key === 'Backspace' && isDataType) {
-          // 데이터타입의 경우 자동완성 트리거
-          const currentValue = e.currentTarget.value;
-          const newValue = currentValue.slice(0, -1);
-          updateColumnField(columnId, 'dataType', newValue);
-          
-          const column = columns.find(col => col.id === columnId);
-          if (!column?.fk) {
-            setAutocompleteColumnId(columnId);
-            filterDataTypes(newValue);
-            if (newValue.length > 0) {
-              const rect = e.currentTarget.getBoundingClientRect();
-              setDropdownPosition({
-                top: rect.bottom + 2,
-                left: rect.left
-              });
-            }
-          }
-        }
-        return;
-      }
-
-      // 복사/붙여넣기 등 조합 키 허용
-      if (e.ctrlKey || e.metaKey) {
-        return;
-      }
-
-      // 한국어 IME 차단
-      if (e.nativeEvent.isComposing || e.keyCode === 229) {
-        e.preventDefault();
-        return;
-      }
-
-      // 유효하지 않은 문자 차단
-      const validCharRegex = isDataType ? /^[A-Za-z0-9_()]$/ : /^[A-Za-z0-9_]$/;
-      if (!validCharRegex.test(e.key)) {
-        e.preventDefault();
-        if (isDataType) {
-          toast.error('데이터타입은 영어, 숫자, 언더바, 괄호만 사용할 수 있습니다.');
-        } else {
-          toast.error('영어, 숫자, 언더바(_)만 입력 가능합니다.');
-        }
-        return;
-      }
-
-      // 첫 글자가 숫자나 괄호인 경우 차단
-      const currentValue = e.currentTarget.value;
-      if (currentValue === '' && /^[0-9()]$/.test(e.key)) {
-        e.preventDefault();
-        if (isDataType) {
-          toast.error('데이터타입은 영어로 시작해야 합니다.');
-        } else {
-          toast.error('컬럼명은 영어로 시작해야 합니다.');
-        }
-        return;
-      }
-      
-      // 데이터타입의 경우 추가 처리
-      if (isDataType) {
-        // 유효한 문자만 추가 (대문자로 변환)
-        const newValue = (currentValue + e.key).toUpperCase();
-        updateColumnField(columnId, 'dataType', newValue);
-        
-        // 자동완성 트리거
-        const column = columns.find(col => col.id === columnId);
-        if (!column?.fk) {
-          setAutocompleteColumnId(columnId);
-          filterDataTypes(newValue);
-          
-          // 자동완성 위치 계산
-          if (newValue.length > 0) {
-            const rect = e.currentTarget.getBoundingClientRect();
-            setDropdownPosition({
-              top: rect.bottom + 2,
-              left: rect.left
-            });
-          }
-        }
-      }
-    };
-  };
+  // 컬럼 입력 검증을 위한 공통 함수들 (제거됨 - testHandleKeyDown으로 통합)
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [autocompleteColumnId, setAutocompleteColumnId] = useState<string | null>(null);
   const [selectedAutocompleteIndex, setSelectedAutocompleteIndex] = useState<number>(-1);
@@ -1444,6 +1392,7 @@ const Layout = () => {
           setDropdownPosition(null);
           setDropdownType(null);
           setDropdownColumnId(null);
+          setTooltip({ visible: false, x: -9999, y: -9999, content: '', position: 'top' });
         }
       }
       
@@ -2026,12 +1975,24 @@ const Layout = () => {
   };
 
   const updateColumnField = (columnId: string, field: string, value: any) => {
+    console.log('updateColumnField 호출:', { columnId, field, value });
     // 한국어 필터링 제거 - onKeyPress에서 이미 차단됨
     const targetNodeId = currentPanelNodeId || selectedNodeId;
 
     const newColumns = columns.map(col => {
       if (col.id === columnId) {
-        let updatedCol = { ...col, [field]: value };
+        let updatedCol = { ...col };
+        
+        // FK onDelete, onUpdate 처리 - 먼저 처리
+        if (field === 'onDelete' || field === 'onUpdate') {
+          console.log('FK 필드 업데이트:', { field, value, beforeUpdate: col[field] });
+          updatedCol[field] = value;
+          console.log('FK 필드 업데이트 후:', { field, afterUpdate: updatedCol[field] });
+          return updatedCol; // 다른 로직 건너뛰고 바로 반환
+        }
+        
+        // 일반 필드 처리
+        updatedCol = { ...col, [field]: value };
         
         // PK 설정 시 NN도 자동으로 체크
         if (field === 'pk' && value === true) {
@@ -2658,6 +2619,7 @@ const Layout = () => {
               setDropdownPosition(null);
               setDropdownType(null);
               setDropdownColumnId(null);
+              setTooltip({ visible: false, x: -9999, y: -9999, content: '', position: 'top' });
             }
             
             // 자동완성 드롭다운 닫기
@@ -3313,12 +3275,23 @@ const Layout = () => {
               <PortalDropdown
                 isOpen={true}
                 position={dropdownPosition}
-                onClose={() => setDropdownOpen(null)}
+                onClose={() => {
+                  setDropdownOpen(null);
+                  setDropdownPosition(null);
+                  setDropdownType(null);
+                  setDropdownColumnId(null);
+                  setTooltip({ visible: false, x: -9999, y: -9999, content: '', position: 'top' });
+                }}
                 onSelect={(value) => {
+                  console.log('FK 드롭다운 선택:', { value, dropdownColumnId, dropdownType });
                   if (dropdownColumnId && dropdownType) {
                     updateColumnField(dropdownColumnId, dropdownType, value);
                   }
                   setDropdownOpen(null);
+                  setDropdownPosition(null);
+                  setDropdownType(null);
+                  setDropdownColumnId(null);
+                  setTooltip({ visible: false, x: -9999, y: -9999, content: '', position: 'top' });
                 }}
                 darkMode={isDarkMode}
                 dropdownType={dropdownType || undefined}

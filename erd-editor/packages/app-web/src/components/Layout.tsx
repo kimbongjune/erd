@@ -2794,29 +2794,81 @@ const Layout = () => {
                           className={editingCell === `${column.id}-dataType` ? 'editing' : ''}
                           data-editing={editingCell === `${column.id}-dataType` ? `${column.id}-dataType` : ''}
                           value={column.dataType || ''}
-                          onChange={(e) => {
-                            let newValue = e.target.value.toUpperCase();
+                          onKeyDown={(e) => {
+                            // 편집 중이 아니면 아무것도 하지 않음
+                            if (editingCell !== `${column.id}-dataType`) return;
                             
-                            // 한국어나 허용되지 않는 문자 제거
-                            const originalValue = newValue;
-                            newValue = newValue.replace(/[^A-Z0-9_()]/g, '');
+                            // 특수 키들은 허용 (토스트 없이)
+                            const allowedSpecialKeys = [
+                              'Enter', 'Escape', 'Backspace', 'Delete', 
+                              'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+                              'Home', 'End', 'Tab', 'Shift', 'Control', 'Alt',
+                              'CapsLock', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
+                              'Meta', 'ContextMenu', 'Insert', 'PageUp', 'PageDown'
+                            ];
                             
-                            // 잘못된 문자가 있었으면 경고 메시지 표시
-                            if (originalValue !== newValue) {
-                              toast.error('데이터타입은 영어, 숫자, 언더바, 괄호만 사용할 수 있습니다.');
+                            if (allowedSpecialKeys.includes(e.key)) {
+                              if (e.key === 'Enter') {
+                                setEditingCell(null);
+                              }
+                              if (e.key === 'Escape') {
+                                setEditingCell(null);
+                              }
+                              if (e.key === 'Backspace') {
+                                const currentValue = column.dataType || '';
+                                const newValue = currentValue.slice(0, -1);
+                                updateColumnField(column.id, 'dataType', newValue);
+                                
+                                // 자동완성 트리거
+                                if (!column.fk) {
+                                  setAutocompleteColumnId(column.id);
+                                  filterDataTypes(newValue);
+                                  
+                                  // 자동완성 위치 계산
+                                  if (newValue.length > 0) {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setDropdownPosition({
+                                      top: rect.bottom + 2,
+                                      left: rect.left
+                                    });
+                                  }
+                                }
+                              }
+                              return; // 특수 키는 그냥 통과
                             }
                             
-                            // 항상 상태 업데이트하여 사용자 입력이 반영되도록 함
+                            // 한영키 등 IME 관련 키도 허용 (토스트 없이)
+                            if (e.key === 'Process' || e.key === 'Unidentified' || e.nativeEvent.isComposing || e.keyCode === 229) {
+                              return; // 한영키 등은 토스트 없이 무시
+                            }
+                            
+                            // 영어, 숫자, 언더바, 괄호만 허용 (대소문자 구분 없이)
+                            if (!/^[A-Za-z0-9_()]$/.test(e.key)) {
+                              e.preventDefault();
+                              toast.error('데이터타입은 영어, 숫자, 언더바, 괄호만 사용할 수 있습니다.');
+                              return;
+                            }
+                            
+                            // 첫 글자가 숫자나 괄호면 차단
+                            const currentValue = column.dataType || '';
+                            if (currentValue === '' && /^[0-9()]$/.test(e.key)) {
+                              e.preventDefault();
+                              toast.error('데이터타입은 영어로 시작해야 합니다.');
+                              return;
+                            }
+                            
+                            // 유효한 문자만 추가 (대문자로 변환)
+                            const newValue = (currentValue + e.key).toUpperCase();
                             updateColumnField(column.id, 'dataType', newValue);
                             
                             // 자동완성 트리거
-                            if (editingCell === `${column.id}-dataType` && !column.fk) {
+                            if (!column.fk) {
                               setAutocompleteColumnId(column.id);
                               filterDataTypes(newValue);
                               
                               // 자동완성 위치 계산
                               if (newValue.length > 0) {
-                                const rect = e.target.getBoundingClientRect();
+                                const rect = e.currentTarget.getBoundingClientRect();
                                 setDropdownPosition({
                                   top: rect.bottom + 2,
                                   left: rect.left
@@ -2825,15 +2877,6 @@ const Layout = () => {
                             }
                           }}
                           onBlur={(e) => {
-                            // 데이터타입 최종 검증 (SQL 내보내기 기준)
-                            const value = e.target.value;
-                            if (value) {
-                              const validation = validateDataTypeForSQL(value);
-                              if (!validation.isValid) {
-                                toast.error(`데이터타입 오류: ${validation.error}`);
-                              }
-                            }
-                            
                             // 자동완성 관련 처리
                             const relatedTarget = e.relatedTarget as HTMLElement;
                             if (!relatedTarget || (!relatedTarget.closest('[data-autocomplete-item]') && !relatedTarget.closest('[data-dropdown]') && !relatedTarget.closest('[data-dropdown-button]'))) {
@@ -2843,7 +2886,6 @@ const Layout = () => {
                               setDropdownOpen(null);
                             }
                           }}
-                          onKeyDown={handleCellKeyDown}
                           readOnly={editingCell !== `${column.id}-dataType` || column.fk}
                           placeholder={column.fk ? "FK 컬럼은 수정 불가" : "데이터타입 선택 또는 입력"}
                         />

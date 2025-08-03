@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import HomePage from './pages/HomePage';
 import ERDEditor from './pages/ERDEditor';
 import NotFound from './pages/NotFound';
+import Test from './pages/Test';
 import { GlobalStyle } from './styles/GlobalStyle';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -56,6 +57,7 @@ function AppContent() {
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/home" element={<HomePage />} />
         <Route path="/erd/:id" element={<ERDEditor />} />
+        <Route path="/test" element={<Test />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <ToastContainer

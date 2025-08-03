@@ -897,6 +897,285 @@ const Layout = () => {
   
   // 자동완성 관련 상태
   const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
+  
+  // Test.tsx의 validation 로직 (기존 코드는 그대로 유지하고 추가만)
+  
+  // 허용된 문자만 필터링하는 함수 (테이블명용)
+  const filterTableValue = useCallback((value: string): string => {
+    if (!value) return '';
+    
+    // 허용된 문자: 영어, 숫자, 언더바
+    // 단, 숫자로 시작할 수 없음
+    let filtered = value.replace(/[^a-zA-Z0-9_]/g, '');
+    
+    // 숫자로 시작하는 경우 제거
+    if (filtered && /^[0-9]/.test(filtered)) {
+      filtered = filtered.replace(/^[0-9]+/, '');
+    }
+    
+    return filtered;
+  }, []);
+
+  // 허용된 문자인지 확인하는 함수 (테이블명용)
+  const isValidTableChar = useCallback((char: string): boolean => {
+    return /[a-zA-Z0-9_]/.test(char);
+  }, []);
+
+  // 컬럼명용 필터링 함수
+  const filterColumnValue = useCallback((value: string): string => {
+    if (!value) return '';
+    
+    let filtered = value.replace(/[^a-zA-Z0-9_]/g, '');
+    
+    if (filtered && /^[0-9]/.test(filtered)) {
+      filtered = filtered.replace(/^[0-9]+/, '');
+    }
+    
+    return filtered;
+  }, []);
+
+  // 데이터타입용 필터링 함수
+  const filterDataTypeValue = useCallback((value: string): string => {
+    if (!value) return '';
+    
+    let filtered = value.replace(/[^a-zA-Z0-9_()]/g, '').toUpperCase();
+    
+    if (filtered && /^[0-9()]/.test(filtered)) {
+      filtered = filtered.replace(/^[0-9()]+/, '');
+    }
+    
+    return filtered;
+  }, []);
+
+  // 키 입력 차단 (한국어 키 차단) - Test.tsx와 동일
+  const createKeyDownHandler = useCallback((isDataType: boolean = false) => {
+    return (e: React.KeyboardEvent<HTMLInputElement>) => {
+      // 특수 키들은 허용 (백스페이스, 삭제, 화살표 등)
+      const allowedKeys = [
+        'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+        'Home', 'End', 'Tab', 'Enter', 'Escape', 'Ctrl', 'Alt', 'Shift'
+      ];
+      
+      // Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X 허용
+      if (e.ctrlKey && ['a', 'c', 'v', 'x'].includes(e.key.toLowerCase())) {
+        return;
+      }
+      
+      // Enter 키 처리
+      if (e.key === 'Enter') {
+        setEditingCell(null);
+        setIsEditingTableName(false);
+        return;
+      }
+      
+      // 특수 키는 허용
+      if (allowedKeys.includes(e.key)) {
+        return;
+      }
+      
+      // 입력되는 문자가 유효하지 않으면 차단 (한국어 등)
+      if (e.key.length === 1) {
+        const validCharRegex = isDataType ? /[a-zA-Z0-9_()]/ : /[a-zA-Z0-9_]/;
+        if (!validCharRegex.test(e.key)) {
+          e.preventDefault();
+          return;
+        }
+        
+        // 숫자로 시작하는 것을 방지 (첫 글자가 숫자인 경우)
+        if (/[0-9()]/.test(e.key)) {
+          const cursorPos = e.currentTarget.selectionStart || 0;
+          const currentValue = e.currentTarget.value;
+          
+          // 커서가 맨 앞에 있고, 현재 값이 비어있거나 숫자를 입력하려는 경우
+          if (cursorPos === 0 && (currentValue === '' || /^[0-9()]/.test(currentValue))) {
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+    };
+  }, []);
+
+  // Test.tsx와 동일한 키보드 핸들러들 추가
+  const handleTableNameKeyDown = createKeyDownHandler(false);
+  const handleColumnKeyDown = createKeyDownHandler(false);
+  const handleDataTypeKeyDown = createKeyDownHandler(true);
+
+  // 페이스트 핸들러
+  const handleTableNamePaste = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedText = e.clipboardData.getData('text');
+    const filteredText = filterTableValue(pastedText);
+    
+    if (tableNameInputRef.current) {
+      const input = tableNameInputRef.current;
+      const start = input.selectionStart || 0;
+      const end = input.selectionEnd || 0;
+      const currentValue = input.value;
+      
+      const newValue = currentValue.slice(0, start) + filteredText + currentValue.slice(end);
+      input.value = newValue;
+      input.setSelectionRange(start + filteredText.length, start + filteredText.length);
+      
+      setTableName(newValue);
+    }
+  }, [filterTableValue]);
+
+  // Test.tsx와 동일한 주기적 검증 로직 (DOM만 조작, 상태는 건드리지 않음)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // 테이블명 검증 (DOM만 수정, 상태는 onChange에서 처리)
+      if (tableNameInputRef.current && isEditingTableName) {
+        const currentValue = tableNameInputRef.current.value;
+        const filtered = filterTableValue(currentValue);
+        
+        if (filtered !== currentValue) {
+          const cursorPos = tableNameInputRef.current.selectionStart || 0;
+          const removedCount = currentValue.length - filtered.length;
+          
+          tableNameInputRef.current.value = filtered;
+          
+          const newCursorPos = Math.max(0, cursorPos - removedCount);
+          tableNameInputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+          
+          // 상태도 업데이트 (히스토리 방해하지 않도록 조건부)
+          if (tableName !== filtered) {
+            setTableName(filtered);
+          }
+        }
+      }
+      
+      // 컬럼 필드 검증 (DOM만 수정)
+      if (editingCell) {
+        const input = document.querySelector(`input[data-editing="${editingCell}"]`) as HTMLInputElement;
+        
+        if (input) {
+          const currentValue = input.value;
+          let filtered: string;
+          
+          if (editingCell.endsWith('-name')) {
+            filtered = filterColumnValue(currentValue);
+          } else if (editingCell.endsWith('-dataType')) {
+            filtered = filterDataTypeValue(currentValue);
+          } else {
+            return;
+          }
+          
+          if (filtered !== currentValue) {
+            const cursorPos = input.selectionStart || 0;
+            const removedCount = currentValue.length - filtered.length;
+            
+            input.value = filtered;
+            
+            const newCursorPos = Math.max(0, cursorPos - removedCount);
+            input.setSelectionRange(newCursorPos, newCursorPos);
+          }
+        }
+      }
+    }, 10);
+    
+    return () => clearInterval(interval);
+  }, [editingCell, isEditingTableName, filterTableValue, filterColumnValue, filterDataTypeValue]);
+
+  // 컬럼 입력 검증을 위한 공통 함수들
+  const createColumnKeyDownHandler = (columnId: string, field: 'name' | 'dataType') => {
+    const isDataType = field === 'dataType';
+    
+    return (e: React.KeyboardEvent<HTMLInputElement>) => {
+      // 편집 중이 아니면 아무것도 하지 않음
+      if (editingCell !== `${columnId}-${field}`) return;
+      
+      // 특수 키는 허용
+      const allowedKeys = [
+        'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+        'Home', 'End', 'Tab', 'Enter', 'Escape', 'Control', 'Alt', 'Shift', 'Meta'
+      ];
+      
+      if (allowedKeys.includes(e.key)) {
+        if (e.key === 'Enter' || e.key === 'Escape') {
+          setEditingCell(null);
+        }
+        if (e.key === 'Backspace' && isDataType) {
+          // 데이터타입의 경우 자동완성 트리거
+          const currentValue = e.currentTarget.value;
+          const newValue = currentValue.slice(0, -1);
+          updateColumnField(columnId, 'dataType', newValue);
+          
+          const column = columns.find(col => col.id === columnId);
+          if (!column?.fk) {
+            setAutocompleteColumnId(columnId);
+            filterDataTypes(newValue);
+            if (newValue.length > 0) {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setDropdownPosition({
+                top: rect.bottom + 2,
+                left: rect.left
+              });
+            }
+          }
+        }
+        return;
+      }
+
+      // 복사/붙여넣기 등 조합 키 허용
+      if (e.ctrlKey || e.metaKey) {
+        return;
+      }
+
+      // 한국어 IME 차단
+      if (e.nativeEvent.isComposing || e.keyCode === 229) {
+        e.preventDefault();
+        return;
+      }
+
+      // 유효하지 않은 문자 차단
+      const validCharRegex = isDataType ? /^[A-Za-z0-9_()]$/ : /^[A-Za-z0-9_]$/;
+      if (!validCharRegex.test(e.key)) {
+        e.preventDefault();
+        if (isDataType) {
+          toast.error('데이터타입은 영어, 숫자, 언더바, 괄호만 사용할 수 있습니다.');
+        } else {
+          toast.error('영어, 숫자, 언더바(_)만 입력 가능합니다.');
+        }
+        return;
+      }
+
+      // 첫 글자가 숫자나 괄호인 경우 차단
+      const currentValue = e.currentTarget.value;
+      if (currentValue === '' && /^[0-9()]$/.test(e.key)) {
+        e.preventDefault();
+        if (isDataType) {
+          toast.error('데이터타입은 영어로 시작해야 합니다.');
+        } else {
+          toast.error('컬럼명은 영어로 시작해야 합니다.');
+        }
+        return;
+      }
+      
+      // 데이터타입의 경우 추가 처리
+      if (isDataType) {
+        // 유효한 문자만 추가 (대문자로 변환)
+        const newValue = (currentValue + e.key).toUpperCase();
+        updateColumnField(columnId, 'dataType', newValue);
+        
+        // 자동완성 트리거
+        const column = columns.find(col => col.id === columnId);
+        if (!column?.fk) {
+          setAutocompleteColumnId(columnId);
+          filterDataTypes(newValue);
+          
+          // 자동완성 위치 계산
+          if (newValue.length > 0) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setDropdownPosition({
+              top: rect.bottom + 2,
+              left: rect.left
+            });
+          }
+        }
+      }
+    };
+  };
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [autocompleteColumnId, setAutocompleteColumnId] = useState<string | null>(null);
   const [selectedAutocompleteIndex, setSelectedAutocompleteIndex] = useState<number>(-1);
@@ -1860,180 +2139,6 @@ const Layout = () => {
     }
   };
 
-  // 한국어 입력을 완전히 차단하는 이벤트 핸들러
-  const handleTableNameBeforeInput = (e: React.FormEvent<HTMLInputElement>) => {
-    const nativeEvent = e.nativeEvent as InputEvent;
-    const currentValue = (e.target as HTMLInputElement).value;
-    
-    // 모든 한국어 입력 차단
-    if (nativeEvent.data && /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(nativeEvent.data)) {
-      e.preventDefault();
-      e.stopPropagation();
-      toast.error('한국어는 입력할 수 없습니다.');
-      return false;
-    }
-    // 영어, 숫자, 언더바가 아닌 문자도 차단
-    if (nativeEvent.data && /[^A-Za-z0-9_]/.test(nativeEvent.data)) {
-      e.preventDefault();
-      e.stopPropagation();
-      toast.error('영어, 숫자, 언더바(_)만 입력 가능합니다.');
-      return false;
-    }
-    // 숫자로 시작하는 것 차단 (첫 번째 문자가 숫자인 경우)
-    if (currentValue === '' && nativeEvent.data && /[0-9]/.test(nativeEvent.data)) {
-      e.preventDefault();
-      e.stopPropagation();
-      toast.error('테이블명은 영어로 시작해야 합니다.');
-      return false;
-    }
-  };
-
-  // 키보드 입력에서도 한국어 차단
-  const handleTableNameKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const char = String.fromCharCode(e.which || e.keyCode);
-    if (/[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(char)) {
-      e.preventDefault();
-      e.stopPropagation();
-      toast.error('한국어는 입력할 수 없습니다.');
-      return false;
-    }
-  };
-
-  // IME 조합 시작 시 차단
-  const handleTableNameCompositionStart = (e: React.CompositionEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    toast.error('영어, 숫자, 언더바(_)만 입력 가능합니다.');
-  };
-
-  // ref를 통한 직접 input 제어로 한국어 입력 완전 차단
-  const handleTableNameInput = (e: React.FormEvent<HTMLInputElement>) => {
-    const input = e.currentTarget;
-    const rawValue = input.value;
-    
-    // 1단계: 영어, 숫자, 언더바가 아닌 모든 문자 제거 (한국어 포함)
-    let filteredValue = rawValue.replace(/[^A-Za-z0-9_]/g, '');
-    
-    // 2단계: 숫자로 시작하는 경우 제거
-    filteredValue = filteredValue.replace(/^[0-9]+/, '');
-    
-    // 잘못된 문자가 입력되었다면 즉시 되돌리기
-    if (rawValue !== filteredValue) {
-      input.value = filteredValue; // DOM에서 즉시 제거
-      toast.error('영어, 숫자, 언더바(_)만 입력 가능하며 영어로 시작해야 합니다.');
-    }
-    
-    // React state 업데이트
-    setTableName(filteredValue);
-    
-    // 노드 데이터 업데이트
-    if (selectedNodeId) {
-      const selectedNode = nodes.find(node => node.id === selectedNodeId);
-      if (selectedNode) {
-        updateNodeData(selectedNodeId, {
-          ...selectedNode.data,
-          label: filteredValue,
-          physicalName: filteredValue
-        });
-      }
-    }
-  };
-
-  // 한국어 키보드 입력을 완전히 차단
-  const handleTableNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // 한국어 입력 모드 감지 및 차단
-    if (e.nativeEvent.isComposing || e.keyCode === 229) {
-      e.preventDefault();
-      e.stopPropagation();
-      toast.error('한국어는 입력할 수 없습니다.');
-      return false;
-    }
-
-    // 특수 키는 허용 (백스페이스, 화살표, Enter, Escape 등)
-    const allowedKeys = [
-      'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-      'Home', 'End', 'Tab', 'Enter', 'Escape', 'Control', 'Alt', 'Shift'
-    ];
-    
-    if (allowedKeys.includes(e.key)) {
-      if (e.key === 'Enter') {
-        setIsEditingTableName(false);
-      }
-      if (e.key === 'Escape') {
-        setIsEditingTableName(false);
-      }
-      return; // 특수 키는 허용
-    }
-
-    // 현재 입력값 확인
-    const currentValue = e.currentTarget.value;
-    const key = e.key;
-
-    // 영어, 숫자, 언더바가 아닌 문자 차단
-    if (!/^[A-Za-z0-9_]$/.test(key)) {
-      e.preventDefault();
-      e.stopPropagation();
-      toast.error('영어, 숫자, 언더바(_)만 입력 가능합니다.');
-      return false;
-    }
-
-    // 첫 번째 문자가 숫자인 경우 차단
-    if (currentValue === '' && /^[0-9]$/.test(key)) {
-      e.preventDefault();
-      e.stopPropagation();
-      toast.error('테이블명은 영어로 시작해야 합니다.');
-      return false;
-    }
-  };
-
-  // 컬럼 한국어 키보드 입력을 완전히 차단
-  const handleColumnKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // 한국어 입력 모드 감지 및 차단
-    if (e.nativeEvent.isComposing || e.keyCode === 229) {
-      e.preventDefault();
-      e.stopPropagation();
-      toast.error('한국어는 입력할 수 없습니다.');
-      return false;
-    }
-
-    // 특수 키는 허용 (백스페이스, 화살표, Enter, Escape 등)
-    const allowedKeys = [
-      'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-      'Home', 'End', 'Tab', 'Enter', 'Escape', 'Control', 'Alt', 'Shift'
-    ];
-    
-    if (allowedKeys.includes(e.key)) {
-      if (e.key === 'Enter') {
-        setEditingCell(null);
-      }
-      if (e.key === 'Escape') {
-        setEditingCell(null);
-      }
-      return; // 특수 키는 허용
-    }
-
-    // 현재 편집 중인 셀이 물리명이나 데이터타입인 경우만 검증
-    if (editingCell?.endsWith('-name') || editingCell?.endsWith('-dataType')) {
-      const currentValue = e.currentTarget.value;
-      const key = e.key;
-
-      // 영어, 숫자, 언더바가 아닌 문자 차단
-      if (!/^[A-Za-z0-9_]$/.test(key)) {
-        e.preventDefault();
-        e.stopPropagation();
-        toast.error('영어, 숫자, 언더바(_)만 입력 가능합니다.');
-        return false;
-      }
-
-      // 첫 번째 문자가 숫자인 경우 차단
-      if (currentValue === '' && /^[0-9]$/.test(key)) {
-        e.preventDefault();
-        e.stopPropagation();
-        toast.error('컬럼명은 영어로 시작해야 합니다.');
-        return false;
-      }
-    }
-  };
-
   const updateTableLogicalName = (newName: string) => {
     setTableLogicalName(newName);
     const targetNodeId = currentPanelNodeId || selectedNodeId;
@@ -2059,6 +2164,18 @@ const Layout = () => {
   const handleTableNameBlur = () => {
     setIsEditingTableName(false);
     
+    // 실제 노드 데이터 업데이트
+    if (selectedNodeId && tableName !== undefined) {
+      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+      if (selectedNode) {
+        updateNodeData(selectedNodeId, {
+          ...selectedNode.data,
+          label: tableName,
+          physicalName: tableName
+        });
+      }
+    }
+    
     // 엔티티명 변경 후 히스토리 저장
     console.log('💾 엔티티명 변경 히스토리 저장');
     useStore.getState().saveHistoryState('CHANGE_ENTITY_NAME');
@@ -2066,6 +2183,17 @@ const Layout = () => {
 
   const handleLogicalNameBlur = () => {
     setIsEditingLogicalName(false);
+    
+    // 실제 노드 데이터 업데이트  
+    if (selectedNodeId && tableLogicalName !== undefined) {
+      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+      if (selectedNode) {
+        updateNodeData(selectedNodeId, {
+          ...selectedNode.data,
+          logicalName: tableLogicalName
+        });
+      }
+    }
     
     // 엔티티 논리명 변경 후 히스토리 저장
     console.log('💾 엔티티명 변경 히스토리 저장');
@@ -2158,78 +2286,6 @@ const Layout = () => {
       setSelectedAutocompleteIndex(-1);
       setEditingCell(null);
       (e.target as HTMLInputElement).blur();
-    }
-  };
-
-  // 컬럼 한국어 입력을 완전히 차단하는 이벤트 핸들러
-  const handleColumnBeforeInput = (e: React.FormEvent<HTMLInputElement>) => {
-    const nativeEvent = e.nativeEvent as InputEvent;
-    const currentValue = (e.target as HTMLInputElement).value;
-    
-    // 모든 한국어 입력 차단
-    if (nativeEvent.data && /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(nativeEvent.data)) {
-      e.preventDefault();
-      e.stopPropagation();
-      toast.error('한국어는 입력할 수 없습니다.');
-      return false;
-    }
-    // 영어, 숫자, 언더바가 아닌 문자도 차단
-    if (nativeEvent.data && /[^A-Za-z0-9_]/.test(nativeEvent.data)) {
-      e.preventDefault();
-      e.stopPropagation();
-      toast.error('영어, 숫자, 언더바(_)만 입력 가능합니다.');
-      return false;
-    }
-    // 숫자로 시작하는 것 차단 (첫 번째 문자가 숫자인 경우)
-    if (currentValue === '' && nativeEvent.data && /[0-9]/.test(nativeEvent.data)) {
-      e.preventDefault();
-      e.stopPropagation();
-      toast.error('컬럼명은 영어로 시작해야 합니다.');
-      return false;
-    }
-  };
-
-  // 컬럼 키보드 입력에서도 한국어 차단
-  const handleColumnKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const char = String.fromCharCode(e.which || e.keyCode);
-    if (/[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(char)) {
-      e.preventDefault();
-      e.stopPropagation();
-      toast.error('한국어는 입력할 수 없습니다.');
-      return false;
-    }
-  };
-
-  // 컬럼 IME 조합 시작 시 차단
-  const handleColumnCompositionStart = (e: React.CompositionEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    toast.error('영어, 숫자, 언더바(_)만 입력 가능합니다.');
-  };
-
-  // ref를 통한 직접 컬럼 input 제어로 한국어 입력 완전 차단
-  const handleColumnInput = (columnId: string, field: string, e: React.FormEvent<HTMLInputElement>) => {
-    const input = e.currentTarget;
-    const rawValue = input.value;
-    
-    // 물리명(name)과 데이터타입(dataType)은 엄격하게 필터링
-    if (field === 'name' || field === 'dataType') {
-      // 1단계: 영어, 숫자, 언더바가 아닌 모든 문자 제거 (한국어 포함)
-      let filteredValue = rawValue.replace(/[^A-Za-z0-9_]/g, '');
-      
-      // 2단계: 숫자로 시작하는 경우 제거
-      filteredValue = filteredValue.replace(/^[0-9]+/, '');
-      
-      // 잘못된 문자가 입력되었다면 즉시 되돌리기
-      if (rawValue !== filteredValue) {
-        input.value = filteredValue; // DOM에서 즉시 제거
-        toast.error('영어, 숫자, 언더바(_)만 입력 가능하며 영어로 시작해야 합니다.');
-      }
-      
-      // React state 업데이트
-      updateColumnField(columnId, field, filteredValue);
-    } else {
-      // 다른 필드(논리명 등)는 그대로 처리
-      updateColumnField(columnId, field, rawValue);
     }
   };
 
@@ -2357,87 +2413,15 @@ const Layout = () => {
               <TableIcon />
               <span style={{ fontSize: '10px', color: isDarkMode ? '#cbd5e0' : '#666', marginRight: '4px' }}>물리명:</span>
               {isEditingTableName ? (
-                <TableNameInput 
+                <TableNameInput
                   $darkMode={isDarkMode}
                   value={tableName === undefined ? '' : tableName}
-                  onChange={() => {}} // 빈 onChange 핸들러 (onKeyDown에서 수동 제어)
-                  onKeyDown={(e) => {
-                    // 편집 중이 아니면 아무것도 하지 않음
-                    if (!isEditingTableName) return;
-                    
-                    // 특수 키들은 허용 (토스트 없이)
-                    const allowedSpecialKeys = [
-                      'Enter', 'Escape', 'Backspace', 'Delete', 
-                      'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-                      'Home', 'End', 'Tab', 'Shift', 'Control', 'Alt',
-                      'CapsLock', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
-                      'Meta', 'ContextMenu', 'Insert', 'PageUp', 'PageDown'
-                    ];
-                    
-                    if (allowedSpecialKeys.includes(e.key)) {
-                      if (e.key === 'Enter') {
-                        setIsEditingTableName(false);
-                      }
-                      if (e.key === 'Escape') {
-                        setIsEditingTableName(false);
-                      }
-                      if (e.key === 'Backspace') {
-                        const currentValue = tableName || '';
-                        const newValue = currentValue.slice(0, -1);
-                        setTableName(newValue);
-                        const targetNodeId = currentPanelNodeId || selectedNodeId;
-                        if (targetNodeId) {
-                          const selectedNode = nodes.find(node => node.id === targetNodeId);
-                          if (selectedNode) {
-                            updateNodeData(targetNodeId, {
-                              ...selectedNode.data,
-                              label: newValue,
-                              physicalName: newValue
-                            });
-                          }
-                        }
-                      }
-                      return; // 특수 키는 그냥 통과
-                    }
-                    
-                    // 한영키 등 IME 관련 키도 허용 (토스트 없이)
-                    if (e.key === 'Process' || e.key === 'Unidentified' || e.nativeEvent.isComposing || e.keyCode === 229) {
-                      return; // 한영키 등은 토스트 없이 무시
-                    }
-                    
-                    // 영어, 숫자, 언더바만 허용
-                    if (!/^[A-Za-z0-9_]$/.test(e.key)) {
-                      e.preventDefault();
-                      toast.error('영어, 숫자, 언더바(_)만 입력 가능합니다.');
-                      return;
-                    }
-                    
-                    // 첫 글자가 숫자면 차단
-                    const currentValue = tableName || '';
-                    if (currentValue === '' && /^[0-9]$/.test(e.key)) {
-                      e.preventDefault();
-                      toast.error('테이블명은 영어로 시작해야 합니다.');
-                      return;
-                    }
-                    
-                    // 유효한 문자만 추가
-                    const newValue = currentValue + e.key;
-                    setTableName(newValue);
-                    const targetNodeId = currentPanelNodeId || selectedNodeId;
-                    if (targetNodeId) {
-                      const selectedNode = nodes.find(node => node.id === targetNodeId);
-                      if (selectedNode) {
-                        updateNodeData(targetNodeId, {
-                          ...selectedNode.data,
-                          label: newValue,
-                          physicalName: newValue
-                        });
-                      }
-                    }
-                  }}
+                  onChange={(e) => setTableName(e.target.value)}
+                  onKeyDown={handleTableNameKeyDown}
                   onBlur={(e) => {
                     handleTableNameBlur();
                   }}
+                  onPaste={handleTableNamePaste}
                   autoFocus
                   placeholder="물리명"
                   ref={tableNameInputRef}
@@ -2716,58 +2700,11 @@ const Layout = () => {
                         className={editingCell === `${column.id}-name` ? 'editing' : ''}
                         data-editing={editingCell === `${column.id}-name` ? `${column.id}-name` : ''}
                         value={column.name === undefined ? '' : column.name}
-                        onKeyDown={(e) => {
-                          // 편집 중이 아니면 아무것도 하지 않음
-                          if (editingCell !== `${column.id}-name`) return;
-                          
-                          // 특수 키들은 허용 (토스트 없이)
-                          const allowedSpecialKeys = [
-                            'Enter', 'Escape', 'Backspace', 'Delete', 
-                            'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-                            'Home', 'End', 'Tab', 'Shift', 'Control', 'Alt',
-                            'CapsLock', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
-                            'Meta', 'ContextMenu', 'Insert', 'PageUp', 'PageDown'
-                          ];
-                          
-                          if (allowedSpecialKeys.includes(e.key)) {
-                            if (e.key === 'Enter') {
-                              setEditingCell(null);
-                            }
-                            if (e.key === 'Escape') {
-                              setEditingCell(null);
-                            }
-                            if (e.key === 'Backspace') {
-                              const currentValue = column.name || '';
-                              const newValue = currentValue.slice(0, -1);
-                              updateColumnField(column.id, 'name', newValue);
-                            }
-                            return; // 특수 키는 그냥 통과
-                          }
-                          
-                          // 한영키 등 IME 관련 키도 허용 (토스트 없이)
-                          if (e.key === 'Process' || e.key === 'Unidentified' || e.nativeEvent.isComposing || e.keyCode === 229) {
-                            return; // 한영키 등은 토스트 없이 무시
-                          }
-                          
-                          // 영어, 숫자, 언더바만 허용
-                          if (!/^[A-Za-z0-9_]$/.test(e.key)) {
-                            e.preventDefault();
-                            toast.error('영어, 숫자, 언더바(_)만 입력 가능합니다.');
-                            return;
-                          }
-                          
-                          // 첫 글자가 숫자면 차단
-                          const currentValue = column.name || '';
-                          if (currentValue === '' && /^[0-9]$/.test(e.key)) {
-                            e.preventDefault();
-                            toast.error('컬럼명은 영어로 시작해야 합니다.');
-                            return;
-                          }
-                          
-                          // 유효한 문자만 추가
-                          const newValue = currentValue + e.key;
-                          updateColumnField(column.id, 'name', newValue);
+                        onChange={(e) => {
+                          // 단순히 상태만 업데이트 (실제 검증은 onKeyDown과 interval에서)
+                          updateColumnField(column.id, 'name', e.target.value);
                         }}
+                        onKeyDown={handleColumnKeyDown}
                         onBlur={(e) => {
                           handleCellBlur();
                           validateColumnName(column.id, e.target.value);
@@ -2794,88 +2731,8 @@ const Layout = () => {
                           className={editingCell === `${column.id}-dataType` ? 'editing' : ''}
                           data-editing={editingCell === `${column.id}-dataType` ? `${column.id}-dataType` : ''}
                           value={column.dataType || ''}
-                          onKeyDown={(e) => {
-                            // 편집 중이 아니면 아무것도 하지 않음
-                            if (editingCell !== `${column.id}-dataType`) return;
-                            
-                            // 특수 키들은 허용 (토스트 없이)
-                            const allowedSpecialKeys = [
-                              'Enter', 'Escape', 'Backspace', 'Delete', 
-                              'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-                              'Home', 'End', 'Tab', 'Shift', 'Control', 'Alt',
-                              'CapsLock', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
-                              'Meta', 'ContextMenu', 'Insert', 'PageUp', 'PageDown'
-                            ];
-                            
-                            if (allowedSpecialKeys.includes(e.key)) {
-                              if (e.key === 'Enter') {
-                                setEditingCell(null);
-                              }
-                              if (e.key === 'Escape') {
-                                setEditingCell(null);
-                              }
-                              if (e.key === 'Backspace') {
-                                const currentValue = column.dataType || '';
-                                const newValue = currentValue.slice(0, -1);
-                                updateColumnField(column.id, 'dataType', newValue);
-                                
-                                // 자동완성 트리거
-                                if (!column.fk) {
-                                  setAutocompleteColumnId(column.id);
-                                  filterDataTypes(newValue);
-                                  
-                                  // 자동완성 위치 계산
-                                  if (newValue.length > 0) {
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    setDropdownPosition({
-                                      top: rect.bottom + 2,
-                                      left: rect.left
-                                    });
-                                  }
-                                }
-                              }
-                              return; // 특수 키는 그냥 통과
-                            }
-                            
-                            // 한영키 등 IME 관련 키도 허용 (토스트 없이)
-                            if (e.key === 'Process' || e.key === 'Unidentified' || e.nativeEvent.isComposing || e.keyCode === 229) {
-                              return; // 한영키 등은 토스트 없이 무시
-                            }
-                            
-                            // 영어, 숫자, 언더바, 괄호만 허용 (대소문자 구분 없이)
-                            if (!/^[A-Za-z0-9_()]$/.test(e.key)) {
-                              e.preventDefault();
-                              toast.error('데이터타입은 영어, 숫자, 언더바, 괄호만 사용할 수 있습니다.');
-                              return;
-                            }
-                            
-                            // 첫 글자가 숫자나 괄호면 차단
-                            const currentValue = column.dataType || '';
-                            if (currentValue === '' && /^[0-9()]$/.test(e.key)) {
-                              e.preventDefault();
-                              toast.error('데이터타입은 영어로 시작해야 합니다.');
-                              return;
-                            }
-                            
-                            // 유효한 문자만 추가 (대문자로 변환)
-                            const newValue = (currentValue + e.key).toUpperCase();
-                            updateColumnField(column.id, 'dataType', newValue);
-                            
-                            // 자동완성 트리거
-                            if (!column.fk) {
-                              setAutocompleteColumnId(column.id);
-                              filterDataTypes(newValue);
-                              
-                              // 자동완성 위치 계산
-                              if (newValue.length > 0) {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                setDropdownPosition({
-                                  top: rect.bottom + 2,
-                                  left: rect.left
-                                });
-                              }
-                            }
-                          }}
+                          onChange={(e) => updateColumnField(column.id, 'dataType', e.target.value.toUpperCase())}
+                          onKeyDown={handleDataTypeKeyDown}
                           onBlur={(e) => {
                             // 자동완성 관련 처리
                             const relatedTarget = e.relatedTarget as HTMLElement;

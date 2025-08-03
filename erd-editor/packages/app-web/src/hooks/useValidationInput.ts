@@ -1,17 +1,27 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 
-function Test() {
-  const [displayValue, setDisplayValue] = useState('');
+export interface UseValidationInputOptions {
+  onValueChange?: (value: string) => void;
+  allowDataType?: boolean; // 데이터타입 필드인 경우 괄호 허용
+}
+
+export const useValidationInput = (options: UseValidationInputOptions = {}) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const checkIntervalRef = useRef<number | null>(null);
+  const { onValueChange, allowDataType = false } = options;
 
   // 허용된 문자만 필터링하는 함수
   const filterValue = useCallback((value: string): string => {
     if (!value) return '';
     
-    // 허용된 문자: 영어, 숫자, 언더바
-    // 단, 숫자로 시작할 수 없음
-    let filtered = value.replace(/[^a-zA-Z0-9_]/g, '');
+    let filtered: string;
+    if (allowDataType) {
+      // 데이터타입: 영어, 숫자, 언더바, 괄호만 허용하고 대문자로 변환
+      filtered = value.replace(/[^a-zA-Z0-9_()]/g, '').toUpperCase();
+    } else {
+      // 일반: 영어, 숫자, 언더바만 허용
+      filtered = value.replace(/[^a-zA-Z0-9_]/g, '');
+    }
     
     // 숫자로 시작하는 경우 제거
     if (filtered && /^[0-9]/.test(filtered)) {
@@ -19,12 +29,16 @@ function Test() {
     }
     
     return filtered;
-  }, []);
+  }, [allowDataType]);
 
   // 허용된 문자인지 확인하는 함수
   const isValidChar = useCallback((char: string): boolean => {
-    return /[a-zA-Z0-9_]/.test(char);
-  }, []);
+    if (allowDataType) {
+      return /[a-zA-Z0-9_()]/.test(char);
+    } else {
+      return /[a-zA-Z0-9_]/.test(char);
+    }
+  }, [allowDataType]);
 
   // 키 입력 차단 (한국어 키 차단)
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -81,11 +95,13 @@ function Test() {
       // 커서 위치 복원
       const newCursorPos = Math.max(0, cursorPos - removedCount);
       inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      
+      // 상태 업데이트
+      if (onValueChange) {
+        onValueChange(filtered);
+      }
     }
-    
-    // 표시용 상태 업데이트
-    setDisplayValue(filtered);
-  }, [filterValue]);
+  }, [filterValue, onValueChange]);
 
   // 컴포넌트 마운트 시 주기적 체크 시작 (백업용, 더 짧은 주기)
   useEffect(() => {
@@ -126,37 +142,16 @@ function Test() {
     const newCursorPos = cursorPos + pastedFiltered.length;
     inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
     
-    setDisplayValue(filtered);
-  }, [filterValue]);
+    if (onValueChange) {
+      onValueChange(filtered);
+    }
+  }, [filterValue, onValueChange]);
 
-  return (
-    <div style={{ padding: '20px' }}>
-      <div style={{ marginBottom: '10px' }}>
-        <label>물리명 입력 (영어, 숫자, 언더바만 허용, 숫자로 시작 불가):</label>
-      </div>
-      <input
-        ref={inputRef}
-        type="text"
-        onKeyDown={handleKeyDown}
-        onBlur={handleBlur}
-        onPaste={handlePaste}
-        placeholder="table_name_1"
-        style={{
-          padding: '8px 12px',
-          border: '1px solid #ccc',
-          borderRadius: '4px',
-          fontSize: '14px',
-          width: '300px'
-        }}
-      />
-      <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
-        현재 값: "{displayValue}"
-      </div>
-      <div style={{ marginTop: '5px', fontSize: '12px', color: '#666' }}>
-        필터링 방식: 키 차단 + 빠른 백업 체크 (10ms)
-      </div>
-    </div>
-  );
-}
-
-export default Test;
+  return {
+    inputRef,
+    handleKeyDown,
+    handleBlur,
+    handlePaste,
+    filterValue
+  };
+};

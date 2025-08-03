@@ -1858,28 +1858,54 @@ const Layout = () => {
           childEdges.forEach(edge => {
             const targetNode = allNodes.find(n => n.id === edge.target);
             if (targetNode?.type === 'entity') {
-              const fkColumnName = `${currentEntity.data.label.toLowerCase()}_${columnToDelete.name}`;
               const targetColumns = targetNode.data.columns || [];
+              console.log(`🔍 자식 엔티티 ${targetNode.data.label}에서 FK 컬럼 찾기 시작`);
+              console.log(`🔍 삭제된 PK 컬럼: ${columnToDelete.name}`);
+              console.log(`🔍 부모 엔티티: ${currentEntity.data.label}`);
               
-              // 해당 FK 컬럼이 있는지 확인
-              const fkColumn = targetColumns.find((col: any) => col.name === fkColumnName);
+              // FK 컬럼을 더 정확하게 찾기 - 여러 패턴 확인
+              const possibleFkPatterns = [
+                `${currentEntity.data.label.toLowerCase()}_${columnToDelete.name}`,
+                `${currentEntity.data.physicalName?.toLowerCase()}_${columnToDelete.name}`,
+                `${currentEntity.data.label}_${columnToDelete.name}`,
+                columnToDelete.name // 같은 이름의 FK도 확인
+              ];
               
-              // 해당 FK 컬럼 제거
-              const updatedTargetColumns = targetColumns.filter((col: any) => col.name !== fkColumnName);
+              // FK 속성이 있고 위의 패턴 중 하나와 일치하는 컬럼들 찾기
+              const fkColumnsToDelete = targetColumns.filter((col: any) => {
+                const matchesPattern = possibleFkPatterns.some(pattern => col.name === pattern);
+                const isFkColumn = col.fk || col.name.includes('_');
+                const relatedToDeletedColumn = col.name.includes(columnToDelete.name);
+                
+                console.log(`  - 컬럼 ${col.name}: FK=${col.fk}, 패턴매칭=${matchesPattern}, 관련=${relatedToDeletedColumn}`);
+                
+                return matchesPattern && (isFkColumn || relatedToDeletedColumn);
+              });
               
-              // 타겟 노드 업데이트
-              const updatedNodes = useStore.getState().nodes.map(node => 
-                node.id === edge.target 
-                  ? { ...node, data: { ...node.data, columns: updatedTargetColumns } }
-                  : node
-              );
-              useStore.getState().setNodes(updatedNodes);
+              console.log(`🔍 삭제할 FK 컬럼들:`, fkColumnsToDelete.map(col => col.name));
               
-              // FK 컬럼 삭제 토스트 메시지
-              if (fkColumn) {
-                setTimeout(() => {
-                  toast.info(`연쇄삭제: ${targetNode.data.label}에서 외래키 컬럼 ${fkColumnName}이 삭제되었습니다.`);
-                }, 100);
+              if (fkColumnsToDelete.length > 0) {
+                // 해당 FK 컬럼들 제거
+                const updatedTargetColumns = targetColumns.filter((col: any) => 
+                  !fkColumnsToDelete.some(fkCol => fkCol.id === col.id)
+                );
+                
+                // 안전한 노드 업데이트 - updateNodeData 사용
+                updateNodeData(edge.target, {
+                  ...targetNode.data,
+                  columns: updatedTargetColumns
+                });
+                
+                // FK 컬럼 삭제 토스트 메시지
+                fkColumnsToDelete.forEach(fkCol => {
+                  setTimeout(() => {
+                    toast.info(`연쇄삭제: ${targetNode.data.label}에서 외래키 컬럼 ${fkCol.name}이 삭제되었습니다.`);
+                  }, 100);
+                });
+                
+                console.log(`✅ ${targetNode.data.label}에서 ${fkColumnsToDelete.length}개 FK 컬럼 삭제 완료`);
+              } else {
+                console.log(`❌ ${targetNode.data.label}에서 관련 FK 컬럼을 찾지 못했습니다.`);
               }
               
               // 남은 PK가 없으면 관계 끊기

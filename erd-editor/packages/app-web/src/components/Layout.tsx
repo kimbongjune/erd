@@ -1867,8 +1867,8 @@ const Layout = () => {
                 if (!finalColumns.find(col => col.id === selectedColumn?.id)) {
                   setSelectedColumn(finalColumns[0] || null);
                 }
-                // 관계선 삭제
-                useStore.getState().deleteEdge(relationEdge.id);
+                // 관계선 삭제 (히스토리 저장 안함)
+                useStore.getState().deleteEdge(relationEdge.id, true);
                 
                 // 토스트 알림 추가
                 console.log('토스트 호출 시도:', `복합키 관계가 해제되었습니다. (${parentEntity.data.label} ↔ ${currentEntity.data.label})`);
@@ -1920,8 +1920,8 @@ const Layout = () => {
                   setSelectedColumn(newColumns[0] || null);
                 }
                 
-                // 관계선 삭제
-                useStore.getState().deleteEdge(relationEdge.id);
+                // 관계선 삭제 (히스토리 저장 안함)
+                useStore.getState().deleteEdge(relationEdge.id, true);
                 
                 // 토스트 알림 추가
                 console.log('토스트 호출 시도:', `관계가 해제되었습니다. (${parentEntity.data.label} ↔ ${currentEntity.data.label})`);

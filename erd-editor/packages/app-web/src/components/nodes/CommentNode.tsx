@@ -156,6 +156,7 @@ const CommentNode = ({ data, selected, id }: any) => {
   
   const nodes = useStore((state) => state.nodes);
   const setNodes = useStore((state) => state.setNodes);
+  const updateNodeData = useStore((state) => state.updateNodeData);
   const selectedNodeId = useStore((state) => state.selectedNodeId);
   const setSelectedNodeId = useStore((state) => state.setSelectedNodeId);
   const getCommentColor = useStore((state) => state.getCommentColor);
@@ -359,22 +360,23 @@ const CommentNode = ({ data, selected, id }: any) => {
       finalContent = data.label;
     }
     
-    // 텍스트가 실제로 변경된 경우에만 히스토리 저장
+    // updateNodeData를 사용하여 상태 일관성 유지 (먼저 노드 업데이트)
+    updateNodeData(id, { ...data, label: finalContent });
+    
+    // 텍스트가 실제로 변경된 경우에만 히스토리 저장 (업데이트 후 히스토리 저장)
     if (finalContent !== data.label) {
       console.log('💬 커멘트 텍스트 변경 히스토리 저장:', finalContent);
-      saveHistoryState('CHANGE_COMMENT_TEXT', {
-        commentId: id,
-        oldText: data.label,
-        newText: finalContent
-      });
+      setTimeout(() => {
+        saveHistoryState('CHANGE_COMMENT_TEXT', {
+          commentId: id,
+          oldText: data.label,
+          newText: finalContent
+        });
+      }, 0);
     }
     
-    const updatedNodes = nodes.map((node) =>
-      node.id === id ? { ...node, data: { ...node.data, label: finalContent } } : node
-    );
-    setNodes(updatedNodes);
     setEditingCommentId(null);
-  }, [data.label, nodes, id, setNodes, setEditingCommentId, saveHistoryState]);
+  }, [data.label, id, updateNodeData, setEditingCommentId, saveHistoryState]);
 
   const handleTextAreaWheel = useCallback((e: any) => {
     // 컨텐츠 내부에서 휠 이벤트가 위로 전파되지 않도록 차단

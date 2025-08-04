@@ -811,7 +811,7 @@ type RFState = {
   clearRelationsHighlight: () => void;
   setBottomPanelOpen: (isOpen: boolean) => void;
   deleteNode: (id: string) => void;
-  deleteEdge: (id: string) => void;
+  deleteEdge: (id: string, skipHistory?: boolean) => void;
   deleteSelected: () => void;
   setNodes: (nodes: Node[]) => void;
   setEdges: (edges: Edge[]) => void;
@@ -1288,7 +1288,7 @@ const useStore = create<RFState>((set, get) => ({
     // 자동저장 제거 - 수동 저장만 사용
   },
 
-  deleteEdge: (id) => {
+  deleteEdge: (id, skipHistory = false) => {
     set((state) => {
       const edgeToDelete = state.edges.find(edge => edge.id === id);
       if (!edgeToDelete) return state;
@@ -1358,8 +1358,10 @@ const useStore = create<RFState>((set, get) => ({
       };
     });
     
-    // 관계선 삭제 후 히스토리 저장
-    get().saveHistoryState(HISTORY_ACTIONS.DELETE_RELATIONSHIP);
+    // 관계선 삭제 후 히스토리 저장 (skipHistory가 false일 때만)
+    if (!skipHistory) {
+      get().saveHistoryState(HISTORY_ACTIONS.DELETE_RELATIONSHIP);
+    }
     
     // 자동저장 제거 - 수동 저장만 사용
   },

@@ -320,6 +320,7 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
   const [isImageLoading, setIsImageLoading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [isShiftPressed, setIsShiftPressed] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -328,13 +329,32 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
 
   // data.imageUrl이 변경될 때 local state 동기화 (undo/redo 대응)
   useEffect(() => {
-    console.log('🖼️ 이미지 URL 동기화:', { 
-      nodeId: id, 
-      dataImageUrl: data.imageUrl, 
-      currentImageUrl: imageUrl 
-    });
     setImageUrl(data.imageUrl || '');
   }, [data.imageUrl, id]);
+
+  // Shift 키 상태 감지 (종횡비 유지를 위한)
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Shift') {
+        setIsShiftPressed(true);
+      }
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key === 'Shift') {
+        setIsShiftPressed(false);
+      }
+    };
+
+    // 전역 키보드 이벤트 리스너 등록
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
 
   // 컴포넌트 unmount 시 리사이즈 타이머 정리
   useEffect(() => {
@@ -379,11 +399,9 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
     };
 
     const handleClickOutside = (event: MouseEvent) => {
-      console.log('Click detected, target:', event.target);
       // 모달이 열려있고, 클릭된 요소가 모달 외부라면 닫기
       const target = event.target as HTMLElement;
       if (!target.closest('[data-modal-content]') && !target.closest('button')) {
-        console.log('Closing modal');
         setIsModalOpen(false);
       }
     };
@@ -532,7 +550,6 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
 
   // 더블클릭 처리 (이미지 설정 모달 열기)
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
-    console.log('=== DOUBLE CLICK DETECTED ===');
     e.stopPropagation();
     e.preventDefault();
     
@@ -543,7 +560,6 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
       setUrlInputValue('');
     }
     
-    console.log('Opening modal...');
     setIsModalOpen(true);
   }, [imageUrl, setUrlInputValue, setIsModalOpen]);
 
@@ -562,27 +578,12 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
   const saveResizeHistory = useCallback((newWidth: number, newHeight: number) => {
     const initialSize = initialSizeRef.current;
     
-    console.log('🎯 saveResizeHistory 호출:', { 
-      nodeId: id, 
-      initialSize, 
-      newSize: { width: newWidth, height: newHeight },
-      hasInitialSize: !!initialSize 
-    });
-    
     if (!initialSize) {
-      console.log('❌ initialSize가 없어서 히스토리 저장 실패');
       return;
     }
     
-    console.log('💾 리사이즈 히스토리 저장:', { 
-      nodeId: id, 
-      oldSize: initialSize, 
-      newSize: { width: newWidth, height: newHeight } 
-    });
-    
     // 크기가 실제로 변경된 경우에만 히스토리 저장
     if (initialSize.width !== newWidth || initialSize.height !== newHeight) {
-      console.log('✅ 크기 변경 감지 - 히스토리 저장 진행');
       saveHistoryState(HISTORY_ACTIONS.RESIZE_NODE, {
         nodeId: id,
         oldSize: initialSize,
@@ -593,8 +594,6 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
       setTimeout(() => {
         saveToLocalStorage(false);
       }, 500);
-    } else {
-      console.log('📏 크기 변경 없음 - 히스토리 저장 안함');
     }
     
     // 상태 초기화
@@ -602,7 +601,6 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
     
     // 다음 리사이즈를 위해 현재 크기를 초기 크기로 업데이트
     initialSizeRef.current = { width: newWidth, height: newHeight };
-    console.log('🔄 초기 크기 업데이트:', { nodeId: id, newInitialSize: initialSizeRef.current });
   }, [id, saveHistoryState, saveToLocalStorage]);
 
   // 드래그앤드롭 처리
@@ -633,10 +631,10 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
         minWidth={200}
         minHeight={150}
         isVisible={selected}
+        keepAspectRatio={isShiftPressed}
         onResize={(event, params) => {
           // 리사이즈 시작 시 초기 크기 저장
           if (!isResizing) {
-            console.log('🔄 이미지 노드 리사이즈 시작:', id);
             setIsResizing(true);
             initialSizeRef.current = { width: data.width || 300, height: data.height || 200 };
           }
@@ -649,8 +647,6 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
           });
         }}
         onResizeEnd={(event, params) => {
-          console.log('🎯 NodeResizer 리사이즈 완료 감지:', { nodeId: id, finalSize: params });
-          
           // 히스토리 저장
           saveResizeHistory(params.width, params.height);
         }}
@@ -713,7 +709,6 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
         <Modal 
           $darkMode={isDarkMode}
           onClick={() => {
-            console.log('Modal background clicked - closing modal');
             setIsModalOpen(false);
           }}
         >
@@ -721,7 +716,6 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
             $darkMode={isDarkMode} 
             data-modal-content
             onClick={(e) => {
-              console.log('Modal content clicked - preventing close');
               e.stopPropagation();
             }}
           >

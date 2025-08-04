@@ -434,11 +434,8 @@ export const propagateRelationshipTypeChange = (
   let finalEdges = [...allEdges];
   let messages = [...toastMessages];
   
-  console.log(`[CASCADE] propagateRelationshipTypeChange - childNodeId: ${childNodeId}, removedPkColumns:`, removedPkColumns.map(col => col.name));
-  
   // 자식 노드가 부모인 관계선들 찾기
   const grandChildEdges = finalEdges.filter(edge => edge.source === childNodeId);
-  console.log(`[CASCADE] Found ${grandChildEdges.length} grandchild edges from ${childNodeId}`);
   
   // 각 관계별로 처리 (관계 단위로 처리하여 복합키 문제 해결)
   grandChildEdges.forEach(edge => {
@@ -458,19 +455,14 @@ export const propagateRelationshipTypeChange = (
         allAffectedFkColumns.push(...matchingFkColumns);
       });
       
-      console.log(`[CASCADE] Edge ${edge.id} (${childNodeId} -> ${edge.target}): found ${allAffectedFkColumns.length} affected FK columns`, allAffectedFkColumns.map(col => col.name));
-      
       if (allAffectedFkColumns.length > 0) {
         // 이 관계의 모든 FK 컬럼들 (제거 대상이 아닌 것들도 포함)
         const allRelationshipFkColumns = grandChildColumns.filter((col: any) => 
           col.fk && col.parentEntityId === childNodeId
         );
         
-        console.log(`[CASCADE] Total FK columns for this relationship: ${allRelationshipFkColumns.length}, affected: ${allAffectedFkColumns.length}`);
-        
         // 관계의 모든 FK 컬럼이 제거 대상인 경우 -> 관계 완전 해제
         if (allAffectedFkColumns.length === allRelationshipFkColumns.length) {
-          console.log(`[CASCADE] All FK columns affected - removing entire relationship ${edge.id}`);
           
           // 모든 FK 컬럼들 제거
           const updatedGrandChildColumns = grandChildColumns.filter((col: any) => 
@@ -486,7 +478,6 @@ export const propagateRelationshipTypeChange = (
           
           // 관계선 제거
           finalEdges = finalEdges.filter(e => e.id !== edge.id);
-          console.log(`[CASCADE] Removed edge ${edge.id} and ${allAffectedFkColumns.length} FK columns`);
           
           // 토스트 메시지 추가
           const childNode = finalNodes.find(n => n.id === childNodeId);
@@ -495,7 +486,6 @@ export const propagateRelationshipTypeChange = (
           // 제거된 FK가 PK이기도 했다면 재귀적으로 더 하위로 전파
           const removedPkFkColumns = allAffectedFkColumns.filter((col: any) => col.pk);
           if (removedPkFkColumns.length > 0) {
-            console.log(`[CASCADE] Recursively propagating ${removedPkFkColumns.length} PK+FK columns from ${edge.target}`);
             const recursiveResult = propagateRelationshipTypeChange(
               edge.target,
               removedPkFkColumns,
@@ -509,7 +499,6 @@ export const propagateRelationshipTypeChange = (
           }
         } else {
           // 일부 FK 컬럼만 제거 대상인 경우 -> 컬럼만 제거 (관계 유지)
-          console.log(`[CASCADE] Partial FK columns affected - removing only columns, keeping relationship ${edge.id}`);
           
           const updatedGrandChildColumns = grandChildColumns.filter((col: any) => 
             !allAffectedFkColumns.some((affectedCol: any) => affectedCol.id === col.id)
@@ -525,7 +514,6 @@ export const propagateRelationshipTypeChange = (
           // 제거된 FK가 PK이기도 했다면 재귀적으로 더 하위로 전파
           const removedPkFkColumns = allAffectedFkColumns.filter((col: any) => col.pk);
           if (removedPkFkColumns.length > 0) {
-            console.log(`[CASCADE] Recursively propagating ${removedPkFkColumns.length} PK+FK columns from ${edge.target} (partial removal)`);
             const recursiveResult = propagateRelationshipTypeChange(
               edge.target,
               removedPkFkColumns,
@@ -1374,7 +1362,6 @@ const useStore = create<RFState>((set, get) => ({
     });
     
     // 관계선 삭제 후 히스토리 저장
-    console.log('💾 관계선 삭제 히스토리 저장');
     get().saveHistoryState(HISTORY_ACTIONS.DELETE_RELATIONSHIP);
     
     // 관계 삭제 시 자동 저장
@@ -1422,12 +1409,6 @@ const useStore = create<RFState>((set, get) => ({
       const sourceNode = state.nodes.find((node) => node.id === connection.source);
       const targetNode = state.nodes.find((node) => node.id === connection.target);
 
-      console.log('🔗 onConnect 호출됨:', {
-        source: connection.source,
-        target: connection.target,
-        connectionMode: state.connectionMode
-      });
-
       // 순환참조 체크: 이미 반대 방향으로 관계가 있는지 확인 (자기 자신과의 관계는 제외)
       const existingReverseEdge = state.edges.find(edge => 
         edge.source === connection.target && edge.target === connection.source
@@ -1435,7 +1416,6 @@ const useStore = create<RFState>((set, get) => ({
       
       if (existingReverseEdge && connection.source !== connection.target) {
         toast.error('순환참조는 허용되지 않습니다. 이미 반대 방향으로 관계가 설정되어 있습니다.');
-        console.log('❌ 관계 생성 실패: 순환참조 - 히스토리 저장하지 않음');
         return state; // 상태 변경 없이 반환 (히스토리 저장 안됨)
       }
 
@@ -1444,15 +1424,6 @@ const useStore = create<RFState>((set, get) => ({
         (edge.source === connection.source && edge.target === connection.target) ||
         (edge.source === connection.target && edge.target === connection.source)
       );
-
-      console.log('🔍 기존 관계 확인:', {
-        existingEdge: existingEdge ? {
-          id: existingEdge.id,
-          type: existingEdge.type,
-          source: existingEdge.source,
-          target: existingEdge.target
-        } : null
-      });
 
       // 부모에는 세로선, 자식에는 관계 타입에 따른 마커 (1:1은 마커 없음, 1:N은 까마귀발)
       let sourceMarker = undefined; // markerStart용 - 자식 쪽
@@ -1470,7 +1441,6 @@ const useStore = create<RFState>((set, get) => ({
         // PK가 없는 경우 토스트 메시지 표시하고 관계 생성 중단
         if (sourcePkColumns.length === 0) {
           toast.error('관계를 생성하려면 부모 엔티티에 기본키(PK)가 필요합니다.');
-          console.log('❌ 관계 생성 실패: PK 없음 - 히스토리 저장하지 않음');
           return state; // 상태 변경 없이 반환 (히스토리 저장 안됨)
         }
 
@@ -1481,7 +1451,6 @@ const useStore = create<RFState>((set, get) => ({
           
           if (isIdentifyingRelationship) {
             toast.error('자기 자신과의 관계에서는 식별자 관계를 설정할 수 없습니다. 비식별자 관계만 가능합니다.');
-            console.log('❌ 관계 생성 실패: 셀프 식별자 관계 - 히스토리 저장하지 않음');
             return state; // 상태 변경 없이 반환 (히스토리 저장 안됨)
           }
         }
@@ -1685,14 +1654,14 @@ const useStore = create<RFState>((set, get) => ({
         const wasIdentifying = existingEdge.type?.includes('identifying') || false;
         const isNowNonIdentifying = newEdgeType.includes('non-identifying');
         
-        console.log('🔄 관계 재연결 감지:', {
-          existingType: existingEdge.type,
-          newType: newEdgeType,
-          wasIdentifying,
-          isNowNonIdentifying,
-          willCascade: wasIdentifying && isNowNonIdentifying,
-          connectionMode: state.connectionMode
-        });
+        // console.log('🔄 관계 재연결 감지:', {
+        //   existingType: existingEdge.type,
+        //   newType: newEdgeType,
+        //   wasIdentifying,
+        //   isNowNonIdentifying,
+        //   willCascade: wasIdentifying && isNowNonIdentifying,
+        //   connectionMode: state.connectionMode
+        // });
         
         // 먼저 현재 관계의 타입을 업데이트
         updatedEdges = state.edges.map(edge => {
@@ -1718,14 +1687,14 @@ const useStore = create<RFState>((set, get) => ({
             col.fk && col.parentEntityId === connection.source && col.pk
           );
           
-          console.log('🔍 제거될 PK+FK 컬럼들:', removedPkColumns.map((col: any) => col.name));
+         //console.log('🔍 제거될 PK+FK 컬럼들:', removedPkColumns.map((col: any) => col.name));
           
           // 자식 엔티티의 FK 컬럼들을 PK에서 일반 컬럼으로 변경
           updatedNodes = updatedNodes.map(node => {
             if (node.id === connection.target) {
               const updatedColumns = node.data.columns?.map((col: any) => {
                 if (col.fk && col.parentEntityId === connection.source) {
-                  console.log(`  📝 ${col.name}: PK(${col.pk}) -> false`);
+                  //console.log(`  📝 ${col.name}: PK(${col.pk}) -> false`);
                   return { ...col, pk: false, nn: false };
                 }
                 return col;
@@ -1737,7 +1706,7 @@ const useStore = create<RFState>((set, get) => ({
           
           // 연쇄적으로 하위 관계들도 해제 (업데이트된 edges 전달)
           if (removedPkColumns.length > 0) {
-            console.log('🌊 연쇄적 관계 해제 시작...');
+            //console.log('🌊 연쇄적 관계 해제 시작...');
             const cascadeResult = propagateRelationshipTypeChange(
               connection.target,
               removedPkColumns,
@@ -1747,7 +1716,7 @@ const useStore = create<RFState>((set, get) => ({
             );
             updatedNodes = cascadeResult.updatedNodes;
             updatedEdges = cascadeResult.updatedEdges;
-            console.log('✅ 연쇄적 관계 해제 완료');
+            //console.log('✅ 연쇄적 관계 해제 완료');
             
             // 연쇄 관계 해제 토스트 메시지 표시
             if (cascadeResult.toastMessages.length > 0) {
@@ -1800,7 +1769,7 @@ const useStore = create<RFState>((set, get) => ({
     const targetNode = finalState.nodes.find((node) => node.id === connection.target);
     
     if (sourceNode && targetNode) {
-      console.log('💾 관계선 생성 히스토리 저장:', sourceNode.data.label, '→', targetNode.data.label);
+      //console.log('💾 관계선 생성 히스토리 저장:', sourceNode.data.label, '→', targetNode.data.label);
       finalState.saveHistoryState(HISTORY_ACTIONS.CREATE_RELATIONSHIP, {
         sourceLabel: sourceNode.data.label,
         targetLabel: targetNode.data.label
@@ -2624,7 +2593,7 @@ const useStore = create<RFState>((set, get) => ({
       // PK 컬럼의 데이터타입 변경에 따른 하위 계층으로의 연쇄 전파
       if (dataTypeChangedPkColumns.length > 0) {
         dataTypeChangedPkColumns.forEach(({ oldColumn, newColumn }: any) => {
-          console.log(`🔄 PK 컬럼 데이터타입 변경 감지: ${oldColumn.name} (${oldColumn.dataType || oldColumn.type} -> ${newColumn.dataType || newColumn.type})`);
+          //console.log(`🔄 PK 컬럼 데이터타입 변경 감지: ${oldColumn.name} (${oldColumn.dataType || oldColumn.type} -> ${newColumn.dataType || newColumn.type})`);
           
           // 재귀적으로 하위 계층까지 전파하여 데이터타입 변경
           const propagationResult = propagateDataTypeChange(
@@ -2698,7 +2667,7 @@ const useStore = create<RFState>((set, get) => ({
                       
                       // 연쇄적으로 하위 관계들도 해제 (118번 문제 해결)
                       if (removedPkColumns.length > 0) {
-                        console.log('🌊 PK→UQ 변경으로 인한 연쇄적 관계 해제 시작...', removedPkColumns.map((col: any) => col.name));
+                        //console.log('🌊 PK→UQ 변경으로 인한 연쇄적 관계 해제 시작...', removedPkColumns.map((col: any) => col.name));
                         const cascadeResult = propagateRelationshipTypeChange(
                           nodeId,
                           removedPkColumns,
@@ -2708,7 +2677,7 @@ const useStore = create<RFState>((set, get) => ({
                         );
                         finalNodes = cascadeResult.updatedNodes;
                         finalEdges = cascadeResult.updatedEdges;
-                        console.log('✅ PK→UQ 변경으로 인한 연쇄적 관계 해제 완료');
+                        //console.log('✅ PK→UQ 변경으로 인한 연쇄적 관계 해제 완료');
                         
                         // 식별자 관계 변경 토스트 메시지 표시
                         if (cascadeResult.toastMessages.length > 0) {
@@ -2926,7 +2895,7 @@ const useStore = create<RFState>((set, get) => ({
     const state = get();
     const node = state.nodes.find(n => n.id === nodeId);
     if (node) {
-      console.log('💾 노드 색상 변경 히스토리 저장:', node.data.label, color);
+      //console.log('💾 노드 색상 변경 히스토리 저장:', node.data.label, color);
       state.saveHistoryState(HISTORY_ACTIONS.CHANGE_NODE_COLOR, {
         nodeName: node.data.label,
         nodeId: nodeId,
@@ -2953,7 +2922,7 @@ const useStore = create<RFState>((set, get) => ({
     if (edge) {
       const sourceNode = state.nodes.find(n => n.id === edge.source);
       const targetNode = state.nodes.find(n => n.id === edge.target);
-      console.log('💾 관계선 색상 변경 히스토리 저장:', sourceNode?.data.label, '→', targetNode?.data.label, color);
+      //console.log('💾 관계선 색상 변경 히스토리 저장:', sourceNode?.data.label, '→', targetNode?.data.label, color);
       state.saveHistoryState('CHANGE_EDGE_COLOR' as any, {
         sourceName: sourceNode?.data.label,
         targetName: targetNode?.data.label,
@@ -2979,7 +2948,7 @@ const useStore = create<RFState>((set, get) => ({
     const state = get();
     const comment = state.nodes.find(n => n.id === commentId);
     if (comment) {
-      console.log('💾 커멘트 색상 변경 히스토리 저장:', comment.data.label, color);
+      //console.log('💾 커멘트 색상 변경 히스토리 저장:', comment.data.label, color);
       state.saveHistoryState('CHANGE_COMMENT_COLOR' as any, {
         commentText: comment.data.label,
         commentId: commentId,
@@ -3699,7 +3668,7 @@ const useStore = create<RFState>((set, get) => ({
       state.historyManager.saveState('INITIAL_STATE' as HistoryActionType, emptyState, { name: '초기 상태 (데이터 삭제 후)' });
       state.updateHistoryFlags();
       
-      console.log('🗑️ 데이터 삭제 완료 - 히스토리 초기화됨');
+      //console.log('🗑️ 데이터 삭제 완료 - 히스토리 초기화됨');
       
       toast.success('저장된 데이터가 삭제되고 초기 상태로 리셋되었습니다.');
     } catch (error) {
@@ -3783,7 +3752,7 @@ const useStore = create<RFState>((set, get) => ({
       
     } catch (error) {
       toast.error('SQL 파일 파싱 중 오류가 발생했습니다.');
-      console.error('SQL import error:', error);
+      //console.error('SQL import error:', error);
     }
   },
 
@@ -3799,79 +3768,79 @@ const useStore = create<RFState>((set, get) => ({
       hiddenEntities: state.hiddenEntities
     });
     
-    console.log('🔄 히스토리 저장:', actionType, metadata);
-    console.log('📊 저장되는 노드 수:', currentState.nodes.length);
+    //console.log('🔄 히스토리 저장:', actionType, metadata);
+    //console.log('📊 저장되는 노드 수:', currentState.nodes.length);
     
     // 엔티티 노드의 상세 정보 로깅 (최대 2개만)
     const entityNodes = currentState.nodes.filter(node => node.type === 'entity').slice(0, 2);
     entityNodes.forEach((node, index) => {
-      console.log(`📦 엔티티 ${index + 1}:`, {
-        id: node.id,
-        label: node.data.label,
-        physicalName: node.data.physicalName,
-        logicalName: node.data.logicalName,
-        columns: node.data.columns?.length || 0,
-        columnsDetail: node.data.columns?.slice(0, 3).map((col: any) => ({
-          name: col.name,
-          logicalName: col.logicalName,
-          pk: col.pk,
-          uq: col.uq,
-          nn: col.nn,
-          ai: col.ai,
-          dataType: col.dataType,
-          defaultValue: col.defaultValue
-        })) || []
-      });
+      // console.log(`📦 엔티티 ${index + 1}:`, {
+      //   id: node.id,
+      //   label: node.data.label,
+      //   physicalName: node.data.physicalName,
+      //   logicalName: node.data.logicalName,
+      //   columns: node.data.columns?.length || 0,
+      //   columnsDetail: node.data.columns?.slice(0, 3).map((col: any) => ({
+      //     name: col.name,
+      //     logicalName: col.logicalName,
+      //     pk: col.pk,
+      //     uq: col.uq,
+      //     nn: col.nn,
+      //     ai: col.ai,
+      //     dataType: col.dataType,
+      //     defaultValue: col.defaultValue
+      //   })) || []
+      // });
     });
     
     state.historyManager.saveState(actionType, currentState, metadata);
     state.updateHistoryFlags();
-    console.log('📚 히스토리 개수:', state.historyManager.getHistorySize());
+    //console.log('📚 히스토리 개수:', state.historyManager.getHistorySize());
   },
 
   undo: () => {
     const state = get();
-    console.log('↩️ Undo 시도, canUndo:', state.historyManager.canUndo());
+    //console.log('↩️ Undo 시도, canUndo:', state.historyManager.canUndo());
     const historyEntry = state.historyManager.undo();
     
     if (historyEntry) {
-      console.log('↩️ Undo 실행:', historyEntry.description);
+      //console.log('↩️ Undo 실행:', historyEntry.description);
       const restoredState = deserializeState(historyEntry.data);
       
-      console.log('📊 복원되는 노드 수:', restoredState.nodes.length);
+      //console.log('📊 복원되는 노드 수:', restoredState.nodes.length);
       
       // 복원되는 엔티티 노드의 상세 정보 로깅 (최대 2개만)
       const entityNodes = restoredState.nodes.filter(node => node.type === 'entity').slice(0, 2);
       entityNodes.forEach((node, index) => {
-        console.log(`📦 복원 엔티티 ${index + 1}:`, {
-          id: node.id,
-          label: node.data.label,
-          physicalName: node.data.physicalName,
-          logicalName: node.data.logicalName,
-          columns: node.data.columns?.length || 0,
-          columnsDetail: node.data.columns?.slice(0, 3).map((col: any) => ({
-            name: col.name,
-            logicalName: col.logicalName,
-            pk: col.pk,
-            uq: col.uq,
-            nn: col.nn,
-            ai: col.ai,
-            dataType: col.dataType,
-            defaultValue: col.defaultValue
-          })) || []
-        });
+        // console.log(`📦 복원 엔티티 ${index + 1}:`, {
+        //   id: node.id,
+        //   label: node.data.label,
+        //   physicalName: node.data.physicalName,
+        //   logicalName: node.data.logicalName,
+        //   columns: node.data.columns?.length || 0,
+        //   columnsDetail: node.data.columns?.slice(0, 3).map((col: any) => ({
+        //     name: col.name,
+        //     logicalName: col.logicalName,
+        //     pk: col.pk,
+        //     uq: col.uq,
+        //     nn: col.nn,
+        //     ai: col.ai,
+        //     dataType: col.dataType,
+        //     defaultValue: col.defaultValue
+        //   })) || []
+        // });
       });
       
       // 이미지 노드 복원 로깅
       const imageNodes = restoredState.nodes.filter(node => node.type === 'image');
       imageNodes.forEach((node, index) => {
-        console.log(`🖼️ 복원 이미지 노드 ${index + 1}:`, {
-          id: node.id,
-          label: node.data.label,
-          imageUrl: node.data.imageUrl ? `${node.data.imageUrl.substring(0, 50)}...` : 'None',
-          width: node.data.width,
-          height: node.data.height
-        });
+        // console.log(`🖼️ 복원 이미지 노드 ${index + 1}:`, {
+        //   id: node.id,
+        //   label: node.data.label,
+        //   imageUrl: node.data.imageUrl ? `${node.data.imageUrl.substring(0, 50)}...` : 'None',
+        //   width: node.data.width,
+        //   height: node.data.height
+        // });
       });
       
       set({
@@ -3896,31 +3865,31 @@ const useStore = create<RFState>((set, get) => ({
       state.updateHistoryFlags();
       // toast.success(`${historyEntry.description} 취소됨`); // 토스트 제거
     } else {
-      console.log('↩️ Undo 실패: 되돌릴 상태가 없음');
+      //console.log('↩️ Undo 실패: 되돌릴 상태가 없음');
     }
   },
 
   redo: () => {
     const state = get();
-    console.log('↪️ Redo 시도, canRedo:', state.historyManager.canRedo());
+    //console.log('↪️ Redo 시도, canRedo:', state.historyManager.canRedo());
     const historyEntry = state.historyManager.redo();
     
     if (historyEntry) {
-      console.log('↪️ Redo 실행:', historyEntry.description);
+      //console.log('↪️ Redo 실행:', historyEntry.description);
       const restoredState = deserializeState(historyEntry.data);
       
-      console.log('📊 Redo 복원되는 노드 수:', restoredState.nodes.length);
+      //console.log('📊 Redo 복원되는 노드 수:', restoredState.nodes.length);
       
       // 이미지 노드 복원 로깅
       const imageNodes = restoredState.nodes.filter(node => node.type === 'image');
       imageNodes.forEach((node, index) => {
-        console.log(`🖼️ Redo 복원 이미지 노드 ${index + 1}:`, {
-          id: node.id,
-          label: node.data.label,
-          imageUrl: node.data.imageUrl ? `${node.data.imageUrl.substring(0, 50)}...` : 'None',
-          width: node.data.width,
-          height: node.data.height
-        });
+        // console.log(`🖼️ Redo 복원 이미지 노드 ${index + 1}:`, {
+        //   id: node.id,
+        //   label: node.data.label,
+        //   imageUrl: node.data.imageUrl ? `${node.data.imageUrl.substring(0, 50)}...` : 'None',
+        //   width: node.data.width,
+        //   height: node.data.height
+        // });
       });
       
       set({
@@ -3945,7 +3914,7 @@ const useStore = create<RFState>((set, get) => ({
       state.updateHistoryFlags();
       // toast.success(`${historyEntry.description} 다시 실행됨`); // 토스트 제거
     } else {
-      console.log('↪️ Redo 실패: 다시 실행할 상태가 없음');
+      //console.log('↪️ Redo 실패: 다시 실행할 상태가 없음');
     }
   },
 

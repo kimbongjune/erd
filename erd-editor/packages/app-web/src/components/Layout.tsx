@@ -167,7 +167,7 @@ const BottomPanelHeader = styled.div<{ $darkMode?: boolean }>`
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background-color: ${props => props.$darkMode ? '#1E1E1E' : '#f5f5f5'};
+  background-color: ${props => props.$darkMode ? '#2d3748' : '#f5f5f5'};
   font-size: 12px;
   font-weight: normal;
   color: ${props => props.$darkMode ? '#e2e8f0' : '#333'};
@@ -217,11 +217,72 @@ const CloseButton = styled.button<{ $darkMode?: boolean }>`
   }
 `;
 
+// 탭 관련 스타일 컴포넌트들
+const TabBar = styled.div<{ $darkMode?: boolean }>`
+  display: flex;
+  border-bottom: 1px solid ${props => props.$darkMode ? '#4a5568' : '#e0e0e0'};
+  background-color: ${props => props.$darkMode ? '#2d3748' : '#f8f9fa'};
+`;
+
+const Tab = styled.button<{ $darkMode?: boolean; $active?: boolean }>`
+  background: ${props => props.$active 
+    ? (props.$darkMode ? '#4a5568' : '#f0f0f0') 
+    : 'transparent'
+  };
+  border: none;
+  color: ${props => props.$active 
+    ? (props.$darkMode ? '#60a5fa' : '#2563eb') 
+    : (props.$darkMode ? '#9ca3af' : '#6b7280')
+  };
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: ${props => props.$active ? '500' : '400'};
+  cursor: pointer;
+  outline: none;
+  border-radius: 4px 4px 0 0;
+  margin-bottom: ${props => props.$active ? '-1px' : '0'};
+  position: relative;
+  z-index: ${props => props.$active ? '2' : '1'};
+  
+  /* 호버, 포커스, 액티브 등 모든 상태 효과 제거 */
+  &:hover,
+  &:focus,
+  &:active {
+    background: ${props => props.$active 
+      ? (props.$darkMode ? '#4a5568' : '#f0f0f0') 
+      : 'transparent'
+    };
+    color: ${props => props.$active 
+      ? (props.$darkMode ? '#60a5fa' : '#2563eb') 
+      : (props.$darkMode ? '#9ca3af' : '#6b7280')
+    };
+    outline: none;
+  }
+`;
+
+const TabContent = styled.div<{ $darkMode?: boolean }>`
+  flex: 1;
+  overflow: hidden;
+  background-color: ${props => props.$darkMode ? '#1E1E1E' : '#ffffff'};
+`;
+
+const EmptyTabContent = styled.div<{ $darkMode?: boolean }>`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${props => props.$darkMode ? '#9ca3af' : '#6b7280'};
+  font-size: 14px;
+  background-color: ${props => props.$darkMode ? '#374151' : '#ffffff'};
+`;
+
 const TableContainer = styled.div<{ $darkMode?: boolean }>`
   flex: 1;
   overflow: hidden;
   background-color: ${props => props.$darkMode ? '#1E1E1E' : '#f5f5f5'};
   position: relative;
+  display: flex;
+  flex-direction: column;
 `;
 
 const TableScrollContainer = styled.div<{ $darkMode?: boolean }>`
@@ -901,6 +962,9 @@ const Layout = () => {
   
   // 하단 패널에서 현재 표시 중인 노드 ID (undo/redo 시에도 유지)
   const [currentPanelNodeId, setCurrentPanelNodeId] = useState<string | null>(null);
+  
+  // 하단 패널 탭 상태
+  const [activeTab, setActiveTab] = useState<'columns' | 'indexes' | 'foreignKeys'>('columns');
   
   // 자동완성 관련 상태
   const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
@@ -1941,12 +2005,12 @@ const Layout = () => {
                 return matchesPattern && (isFkColumn || relatedToDeletedColumn);
               });
               
-              console.log(`🔍 삭제할 FK 컬럼들:`, fkColumnsToDelete.map(col => col.name));
+              console.log(`🔍 삭제할 FK 컬럼들:`, fkColumnsToDelete.map((col: any) => col.name));
               
               if (fkColumnsToDelete.length > 0) {
                 // 해당 FK 컬럼들 제거
                 const updatedTargetColumns = targetColumns.filter((col: any) => 
-                  !fkColumnsToDelete.some(fkCol => fkCol.id === col.id)
+                  !fkColumnsToDelete.some((fkCol: any) => fkCol.id === col.id)
                 );
                 
                 // 안전한 노드 업데이트 - updateNodeData 사용
@@ -1956,15 +2020,15 @@ const Layout = () => {
                 });
                 
                 // FK 컬럼 삭제 토스트 메시지
-                fkColumnsToDelete.forEach(fkCol => {
+                fkColumnsToDelete.forEach((fkCol: any) => {
                   setTimeout(() => {
                     toast.info(`연쇄삭제: ${targetNode.data.label}에서 외래키 컬럼 ${fkCol.name}이 삭제되었습니다.`);
                   }, 100);
                 });
                 
-                console.log(`✅ ${targetNode.data.label}에서 ${fkColumnsToDelete.length}개 FK 컬럼 삭제 완료`);
+                //console.log(`✅ ${targetNode.data.label}에서 ${fkColumnsToDelete.length}개 FK 컬럼 삭제 완료`);
               } else {
-                console.log(`❌ ${targetNode.data.label}에서 관련 FK 컬럼을 찾지 못했습니다.`);
+                //console.log(`❌ ${targetNode.data.label}에서 관련 FK 컬럼을 찾지 못했습니다.`);
               }
               
               // 남은 PK가 없으면 관계 끊기
@@ -2894,6 +2958,9 @@ const Layout = () => {
               ×
             </CloseButton>
           </BottomPanelHeader>
+          
+          {/* 탭에 따른 컨텐츠 표시 영역 */}
+          {activeTab === 'columns' && (
           <TableContainer $darkMode={isDarkMode}>
             <TableScrollContainer $darkMode={isDarkMode}>
               <Table $darkMode={isDarkMode}>
@@ -3456,6 +3523,21 @@ const Layout = () => {
             </Table>
             </TableScrollContainer>
           </TableContainer>
+          )}
+          
+          {/* Indexes 탭 컨텐츠 */}
+          {activeTab === 'indexes' && (
+            <EmptyTabContent $darkMode={isDarkMode}>
+              인덱스 기능은 곧 추가될 예정입니다.
+            </EmptyTabContent>
+          )}
+          
+          {/* Foreign Keys 탭 컨텐츠 */}
+          {activeTab === 'foreignKeys' && (
+            <EmptyTabContent $darkMode={isDarkMode}>
+              외래키 기능은 곧 추가될 예정입니다.
+            </EmptyTabContent>
+          )}
           
           {/* 툴팁 렌더링 */}
           <Tooltip 
@@ -3498,7 +3580,8 @@ const Layout = () => {
             </div>
           )}
           
-          {/* 테이블 커멘트 입력 영역 */}
+          {/* 컬럼 탭일 때만 테이블 주석 표시 */}
+          {activeTab === 'columns' && (
           <div style={{ 
             padding: '15px', 
             borderTop: `1px solid ${isDarkMode ? '#404040' : '#ddd'}`,
@@ -3542,7 +3625,32 @@ const Layout = () => {
               />
             </div>
           </div>
+          )}
           
+          {/* 탭 바 */}
+          <TabBar $darkMode={isDarkMode}>
+            <Tab 
+              $darkMode={isDarkMode} 
+              $active={activeTab === 'columns'}
+              onClick={() => setActiveTab('columns')}
+            >
+              컬럼
+            </Tab>
+            <Tab 
+              $darkMode={isDarkMode} 
+              $active={activeTab === 'indexes'}
+              onClick={() => setActiveTab('indexes')}
+            >
+              인덱스
+            </Tab>
+            <Tab 
+              $darkMode={isDarkMode} 
+              $active={activeTab === 'foreignKeys'}
+              onClick={() => setActiveTab('foreignKeys')}
+            >
+              외래키
+            </Tab>
+          </TabBar>
 
         </BottomPanelContainer>
       )}

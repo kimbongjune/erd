@@ -2138,7 +2138,19 @@ const Layout = () => {
     return true;
   };
 
-  const updateColumnField = (columnId: string, field: string, value: any) => {
+  // 히스토리 저장을 위한 debounce 타이머들
+  const [historyTimeouts, setHistoryTimeouts] = useState<{[key: string]: NodeJS.Timeout}>({});
+
+  // 컴포넌트 언마운트 시 히스토리 타이머 정리
+  useEffect(() => {
+    return () => {
+      Object.values(historyTimeouts).forEach(timeout => {
+        clearTimeout(timeout);
+      });
+    };
+  }, [historyTimeouts]);
+
+  const updateColumnField = (columnId: string, field: string, value: any, skipHistory: boolean = false) => {
     console.log('updateColumnField 호출:', { columnId, field, value });
     // 한국어 필터링 제거 - onKeyPress에서 이미 차단됨
     const targetNodeId = currentPanelNodeId || selectedNodeId;
@@ -2470,18 +2482,41 @@ const Layout = () => {
       }
     }
     
-    // 컬럼 기타 필드 변경시 히스토리 저장
-    if (['name', 'logicalName', 'dataType', 'defaultValue', 'comment'].includes(field)) {
+    // 컬럼 기타 필드 변경시 히스토리 저장 (debounce 처리)
+    if (!skipHistory && ['name', 'logicalName', 'dataType', 'defaultValue', 'comment'].includes(field)) {
       const columnToUpdate = columns.find(col => col.id === columnId);
       if (columnToUpdate) {
-        console.log(`💾 컬럼 ${field} 변경 히스토리 저장:`, columnToUpdate.name);
-        useStore.getState().saveHistoryState(HISTORY_ACTIONS.MODIFY_COLUMN, {
-          columnName: columnToUpdate.name,
-          field: field,
-          newValue: value,
-          entityId: targetNodeId,
-          entityName: nodes.find(n => n.id === targetNodeId)?.data?.label
-        });
+        const timeoutKey = `${columnId}-${field}`;
+        
+        // 기존 타이머가 있으면 클리어
+        if (historyTimeouts[timeoutKey]) {
+          clearTimeout(historyTimeouts[timeoutKey]);
+        }
+        
+        // 새 타이머 설정 (1초 후 히스토리 저장)
+        const newTimeout = setTimeout(() => {
+          console.log(`💾 컬럼 ${field} 변경 히스토리 저장 (debounced):`, columnToUpdate.name);
+          useStore.getState().saveHistoryState(HISTORY_ACTIONS.MODIFY_COLUMN, {
+            columnName: columnToUpdate.name,
+            field: field,
+            newValue: value,
+            entityId: targetNodeId,
+            entityName: nodes.find(n => n.id === targetNodeId)?.data?.label
+          });
+          
+          // 완료된 타이머 제거
+          setHistoryTimeouts(prev => {
+            const newTimeouts = { ...prev };
+            delete newTimeouts[timeoutKey];
+            return newTimeouts;
+          });
+        }, 1000);
+        
+        // 새 타이머 저장
+        setHistoryTimeouts(prev => ({
+          ...prev,
+          [timeoutKey]: newTimeout
+        }));
       }
     }
   };

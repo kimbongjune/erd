@@ -14,6 +14,7 @@ function AppContent() {
   const location = useLocation();
   const saveToLocalStorage = useStore((state) => state.saveToLocalStorage);
   const checkAndAutoLoad = useStore((state) => state.checkAndAutoLoad);
+  const theme = useStore((state) => state.theme);
 
   useEffect(() => {
     // ERD 에디터 페이지에서만 자동 로딩 실행
@@ -70,7 +71,7 @@ function AppContent() {
         pauseOnFocusLoss
         draggable
         pauseOnHover
-        theme="dark"
+        theme={theme === 'dark' ? 'dark' : 'light'}
       />
     </>
   );

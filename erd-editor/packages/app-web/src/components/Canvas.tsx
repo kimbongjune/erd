@@ -205,6 +205,12 @@ const Canvas = () => {
       useStore.getState().setConnectingNodeId(null);
       useStore.getState().setSelectMode(true);
     } else if (event.key === 'Delete' || event.key === 'Backspace') {
+      // 커멘트 편집 중일 때는 노드 삭제하지 않음
+      const editingCommentId = useStore.getState().editingCommentId;
+      if (editingCommentId) {
+        return;
+      }
+      
       // 선택된 노드나 엣지 삭제
       event.preventDefault();
       deleteSelected();

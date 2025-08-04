@@ -288,14 +288,15 @@ const CommentNode = ({ data, selected, id }: any) => {
   }, []);
 
   const handleKeyDown = useCallback((e: any) => {
-    // 백스페이스 키 이벤트가 상위로 전파되어 노드 삭제되는 것 방지
-    if (e.key === 'Backspace') {
+    // 백스페이스와 Delete 키 이벤트가 상위로 전파되어 노드 삭제되는 것 방지
+    if (e.key === 'Backspace' || e.key === 'Delete') {
       e.stopPropagation();
     }
     
     // Enter 키 처리 - 두 줄 바뀜 방지
-    if (e.key === 'Enter' && !e.ctrlKey) {
+    if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey && !e.altKey) {
       e.preventDefault();
+      e.stopPropagation();
       
       // 현재 커서 위치에 <br> 삽입
       const selection = window.getSelection();
@@ -311,12 +312,12 @@ const CommentNode = ({ data, selected, id }: any) => {
         range.setEndAfter(br);
         selection.removeAllRanges();
         selection.addRange(range);
-      }
-      
-      // editValue 업데이트
-      if (contentRef.current) {
-        const textContent = contentRef.current.textContent || '';
-        setEditValue(textContent);
+        
+        // editValue 업데이트
+        if (contentRef.current) {
+          const textContent = contentRef.current.textContent || '';
+          setEditValue(textContent);
+        }
       }
       return;
     }

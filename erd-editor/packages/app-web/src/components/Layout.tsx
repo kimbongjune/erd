@@ -1036,8 +1036,8 @@ const Layout = () => {
 
   // Test.tsx 키 입력 완전 차단 (한국어, 허용되지 않은 문자 모두 차단) - 토씨 하나 틀리지 않고 동일
   const testHandleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X 허용
-    if (e.ctrlKey && ['a', 'c', 'v', 'x'].includes(e.key.toLowerCase())) {
+    // Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+Z, Ctrl+Y 허용 (macOS Cmd 키도 포함)
+    if ((e.ctrlKey || e.metaKey) && ['a', 'c', 'v', 'x', 'z', 'y'].includes(e.key.toLowerCase())) {
       return;
     }
     
@@ -1258,8 +1258,10 @@ const Layout = () => {
           return; // 차단
         }
         
-        // 허용된 문자 직접 추가
-        const newValue = currentValue.slice(0, cursorPos) + e.key + currentValue.slice(cursorPos);
+        // 허용된 문자 직접 추가 (선택 영역 고려)
+        const cursorStart = target.selectionStart || 0;
+        const cursorEnd = target.selectionEnd || 0;
+        const newValue = currentValue.slice(0, cursorStart) + e.key + currentValue.slice(cursorEnd);
         
         // Test.tsx와 똑같이 상태 업데이트
         if (target.getAttribute('data-editing')?.includes('-name')) {
@@ -1298,7 +1300,7 @@ const Layout = () => {
         // 커서 위치 조정
         setTimeout(() => {
           if (target) {
-            target.setSelectionRange(cursorPos + 1, cursorPos + 1);
+            target.setSelectionRange(cursorStart + 1, cursorStart + 1);
           }
         }, 0);
       }

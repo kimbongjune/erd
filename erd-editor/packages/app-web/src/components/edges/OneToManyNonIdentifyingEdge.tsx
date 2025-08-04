@@ -128,9 +128,9 @@ const OneToManyNonIdentifyingEdge: React.FC<OneToManyNonIdentifyingEdgeProps> = 
   const defaultStyle = useMemo(() => ({
     strokeWidth: isActive ? 2.5 : 1.5,
     stroke: strokeColor,
-    strokeDasharray: '5, 5', // Add dashed style for non-identifying
     cursor: 'pointer',
-    ...style
+    ...style,
+    strokeDasharray: '5, 5', // Add dashed style for non-identifying - 최우선으로 적용
   }), [isActive, strokeColor, style]);
   const markerStart = data?.markerStart ? `url(#${data.markerStart.id})` : 
     `url(#marker-parent-${id})`;

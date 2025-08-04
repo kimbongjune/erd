@@ -221,13 +221,42 @@ const SearchPanel: React.FC = () => {
   const highlightSearchTerm = (text: string, searchTerm: string) => {
     if (!searchTerm) return text;
     
-    const parts = text.split(new RegExp(`(${searchTerm})`, 'gi'));
-    return parts.map((part, index) => {
-      if (part.toLowerCase() === searchTerm.toLowerCase()) {
-        return <HighlightedText key={index} $darkMode={darkMode}>{part}</HighlightedText>;
+    // 검색어를 정규표현식에서 안전하게 사용할 수 있도록 이스케이프
+    const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // 대소문자 구분 없이 전역 검색하되, 중복 하이라이트 방지
+    const regex = new RegExp(`(${escapedSearchTerm})`, 'gi');
+    let lastIndex = 0;
+    const parts: React.ReactNode[] = [];
+    let match;
+    
+    while ((match = regex.exec(text)) !== null) {
+      // 매치 전 텍스트 추가
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
       }
-      return part;
-    });
+      
+      // 하이라이트된 텍스트 추가
+      parts.push(
+        <HighlightedText key={`${match.index}-${match[0]}`} $darkMode={darkMode}>
+          {match[0]}
+        </HighlightedText>
+      );
+      
+      lastIndex = regex.lastIndex;
+      
+      // 무한 루프 방지
+      if (match[0].length === 0) {
+        regex.lastIndex++;
+      }
+    }
+    
+    // 마지막 매치 후 남은 텍스트 추가
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : text;
   };
 
   // 엔티티 노드들만 필터링

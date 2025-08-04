@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { FaPlus, FaSearch, FaEllipsisV, FaGlobe, FaFolder, FaClock, FaEdit, FaDatabase, FaChartLine, FaUsers, FaCubes, FaProjectDiagram, FaSitemap, FaTable  } from 'react-icons/fa';
+import { FaPlus, FaSearch, FaEllipsisV, FaGlobe, FaFolder, FaClock, FaEdit, FaDatabase, FaChartLine, FaUsers, FaCubes, FaProjectDiagram, FaSitemap, FaTable, FaTrash, FaComment, FaImage, FaLock, FaUnlock  } from 'react-icons/fa';
+import { FaNoteSticky } from "react-icons/fa6";
+import { GrMysql } from "react-icons/gr";
+
 import { BsFillDiagram3Fill } from "react-icons/bs";
 const HomeContainer = styled.div`
   min-height: 100vh;
@@ -278,14 +281,65 @@ const DiagramCard = styled.div`
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
   }
   
-  .status-indicator {
+  .menu-button {
     position: absolute;
     top: 16px;
     right: 16px;
-    width: 8px;
-    height: 8px;
-    background: #10b981;
-    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 6px;
+    padding: 8px;
+    color: #9ca3af;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 10;
+    
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+  }
+`;
+
+const MenuDropdown = styled.div<{ $show: boolean }>`
+  position: absolute;
+  top: 45px;
+  right: 0;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  z-index: 20;
+  min-width: 120px;
+  opacity: ${props => props.$show ? 1 : 0};
+  visibility: ${props => props.$show ? 'visible' : 'hidden'};
+  transform: ${props => props.$show ? 'translateY(0)' : 'translateY(-10px)'};
+  transition: all 0.2s ease;
+`;
+
+const MenuItem = styled.button`
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  color: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  &:hover {
+    background: #374151;
+  }
+  
+  &.delete {
+    color: #f87171;
+    
+    &:hover {
+      background: rgba(248, 113, 113, 0.1);
+    }
   }
 `;
 
@@ -310,6 +364,31 @@ const DiagramName = styled.h4`
   line-height: 1.3;
 `;
 
+const DiagramStats = styled.div`
+  display: flex;
+  gap: 16px;
+  margin: 16px 0;
+  flex-wrap: wrap;
+`;
+
+const StatItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #9ca3af;
+  font-size: 13px;
+  
+  .icon {
+    color: #60a5fa;
+    font-size: 14px;
+  }
+  
+  .count {
+    font-weight: 500;
+    color: #ffffff;
+  }
+`;
+
 const DiagramMeta = styled.div`
   display: flex;
   justify-content: space-between;
@@ -322,15 +401,26 @@ const DiagramMeta = styled.div`
 const DiagramTags = styled.div`
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-top: 16px;
+  flex-wrap: wrap;
   
   .tag {
-    background: rgba(79, 70, 229, 0.2);
-    color: #a78bfa;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 12px;
+    background: rgba(96, 165, 250, 0.1);
+    color: #60a5fa;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
     font-weight: 500;
+    border: 1px solid rgba(96, 165, 250, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .status-tag {
+    background: rgba(156, 163, 175, 0.1);
+    color: #9ca3af;
+    border-color: rgba(156, 163, 175, 0.2);
   }
 `;
 
@@ -358,21 +448,133 @@ const EmptyState = styled.div`
   }
 `;
 
+const HighlightedText = styled.span`
+  background: #ffd700;
+  color: #000000;
+  padding: 1px 2px;
+  border-radius: 2px;
+  font-weight: 600;
+`;
+
+const DeleteModal = styled.div<{ $show: boolean }>`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: ${props => props.$show ? 'flex' : 'none'};
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+`;
+
+const ModalContent = styled.div`
+  background: #1f2937;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  border: 1px solid #374151;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: modalSlideIn 0.3s ease-out;
+  
+  @keyframes modalSlideIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9) translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+  
+  h3 {
+    margin: 0 0 16px 0;
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  
+  p {
+    margin: 0 0 24px 0;
+    color: #9ca3af;
+    line-height: 1.5;
+  }
+`;
+
+const ModalButtons = styled.div`
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+`;
+
+const ModalButton = styled.button<{ $primary?: boolean }>`
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 80px;
+  
+  ${props => props.$primary ? `
+    background: #dc2626;
+    color: white;
+    
+    &:hover {
+      background: #b91c1c;
+    }
+  ` : `
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  `}
+`;
+
 interface Diagram {
   id: string;
   name: string;
   createdAt: number;
   updatedAt: number;
+  visibility?: 'public' | 'private' | 'team';
 }
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [diagrams, setDiagrams] = useState<Diagram[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ show: boolean; diagramId: string | null; diagramName: string }>({
+    show: false,
+    diagramId: null,
+    diagramName: ''
+  });
 
   useEffect(() => {
     loadDiagrams();
-  }, []);
+    
+    // 메뉴가 열려있을 때 외부 클릭으로 닫기
+    const handleClickOutside = () => {
+      setMenuOpenId(null);
+    };
+    
+    if (menuOpenId) {
+      document.addEventListener('click', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [menuOpenId]);
 
   const loadDiagrams = () => {
     const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
@@ -398,6 +600,111 @@ const HomePage: React.FC = () => {
 
   const openDiagram = (id: string) => {
     navigate(`/erd/${id}`);
+  };
+
+  const deleteDiagram = (id: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    
+    const diagram = diagrams.find(d => d.id === id);
+    setDeleteModal({
+      show: true,
+      diagramId: id,
+      diagramName: diagram?.name || '다이어그램'
+    });
+    setMenuOpenId(null);
+  };
+
+  const confirmDelete = () => {
+    if (deleteModal.diagramId) {
+      // 다이어그램 목록에서 제거
+      const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
+      const updatedList = diagramsList.filter((diagram: Diagram) => diagram.id !== deleteModal.diagramId);
+      localStorage.setItem('erd-diagrams-list', JSON.stringify(updatedList));
+      
+      // 다이어그램 데이터 제거
+      localStorage.removeItem(`erd-${deleteModal.diagramId}`);
+      
+      // 상태 업데이트
+      setDiagrams(updatedList);
+    }
+    
+    // 모달을 먼저 숨기고, 트랜지션이 완료된 후에 상태 초기화
+    setDeleteModal(prev => ({ ...prev, show: false }));
+    setTimeout(() => {
+      setDeleteModal({ show: false, diagramId: null, diagramName: '' });
+    }, 300); // 트랜지션 시간과 동일하게 설정
+  };
+
+  const cancelDelete = () => {
+    // 모달을 먼저 숨기고, 트랜지션이 완료된 후에 상태 초기화
+    setDeleteModal(prev => ({ ...prev, show: false }));
+    setTimeout(() => {
+      setDeleteModal({ show: false, diagramId: null, diagramName: '' });
+    }, 300); // 트랜지션 시간과 동일하게 설정
+  };
+
+  const handleMenuClick = (id: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setMenuOpenId(menuOpenId === id ? null : id);
+  };
+
+  const getDiagramStats = (diagramId: string) => {
+    const savedData = localStorage.getItem(`erd-${diagramId}`);
+    if (savedData) {
+      try {
+        const erdData = JSON.parse(savedData);
+        const entityCount = erdData.nodes?.filter((node: any) => node.type === 'entity').length || 0;
+        const relationCount = erdData.edges?.length || 0;
+        const commentCount = erdData.nodes?.filter((node: any) => node.type === 'comment').length || 0;
+        const imageCount = erdData.nodes?.filter((node: any) => node.type === 'image').length || 0;
+        return { entityCount, relationCount, commentCount, imageCount };
+      } catch (error) {
+        return { entityCount: 0, relationCount: 0, commentCount: 0, imageCount: 0 };
+      }
+    }
+    return { entityCount: 0, relationCount: 0, commentCount: 0, imageCount: 0 };
+  };
+
+  // 검색어를 하이라이트 처리하는 함수
+  const highlightSearchTerm = (text: string, searchTerm: string) => {
+    if (!searchTerm.trim()) return text;
+    
+    // 검색어를 정규표현식에서 안전하게 사용할 수 있도록 이스케이프
+    const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // 대소문자 구분 없이 전역 검색
+    const regex = new RegExp(`(${escapedSearchTerm})`, 'gi');
+    let lastIndex = 0;
+    const parts: React.ReactNode[] = [];
+    let match;
+    
+    while ((match = regex.exec(text)) !== null) {
+      // 매치 전 텍스트 추가
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+      
+      // 하이라이트된 텍스트 추가
+      parts.push(
+        <HighlightedText key={`${match.index}-${match[0]}`}>
+          {match[0]}
+        </HighlightedText>
+      );
+      
+      lastIndex = regex.lastIndex;
+      
+      // 무한 루프 방지
+      if (match[0].length === 0) {
+        regex.lastIndex++;
+      }
+    }
+    
+    // 마지막 매치 후 남은 텍스트 추가
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : text;
   };
 
   const formatDate = (timestamp: number) => {
@@ -474,7 +781,7 @@ const HomePage: React.FC = () => {
       <Header>
         <Logo>
           <FaDatabase className="icon" />
-          <h1>ERD Studio</h1>
+          <h1>No ERD</h1>
         </Logo>
         <UserInfo>
           <a href="#" className="login-link">로그인</a>
@@ -544,28 +851,104 @@ const HomePage: React.FC = () => {
 
           {filteredDiagrams.length > 0 ? (
             <DiagramsGrid>
-              {filteredDiagrams.map((diagram) => (
-                <DiagramCard key={diagram.id} onClick={() => openDiagram(diagram.id)}>
-                  <div className="status-indicator"></div>
-                  <DiagramIcon>
-                    <FaDatabase />
-                  </DiagramIcon>
-                  <DiagramName>{diagram.name}</DiagramName>
-                  <DiagramMeta>
-                    <span>
-                      <FaClock style={{ marginRight: '6px' }} />
-                      수정: {formatTime(diagram.updatedAt)}
-                    </span>
-                    <span>
-                      생성: {formatDate(diagram.createdAt)}
-                    </span>
-                  </DiagramMeta>
-                  <DiagramTags>
-                    <span className="tag">MySQL</span>
-                    <span className="tag">최신</span>
-                  </DiagramTags>
-                </DiagramCard>
-              ))}
+              {filteredDiagrams.map((diagram) => {
+                const { entityCount, relationCount, commentCount, imageCount } = getDiagramStats(diagram.id);
+                
+                // 상태에 따른 아이콘과 텍스트 정의
+                const getStatusInfo = (visibility: 'public' | 'private' | 'team' = 'public') => {
+                  switch (visibility) {
+                    case 'private':
+                      return { icon: <FaLock />, text: '비공개' };
+                    case 'team':
+                      return { icon: <FaUsers />, text: '팀' };
+                    default:
+                      return { icon: <FaUnlock />, text: '공개' };
+                  }
+                };
+                
+                const statusInfo = getStatusInfo(diagram.visibility);
+                
+                return (
+                  <DiagramCard key={diagram.id} onClick={() => openDiagram(diagram.id)}>
+                    <button 
+                      className="menu-button"
+                      onClick={(e) => handleMenuClick(diagram.id, e)}
+                      title="메뉴"
+                    >
+                      <FaEllipsisV />
+                    </button>
+                    <MenuDropdown $show={menuOpenId === diagram.id}>
+                      <MenuItem 
+                        className="delete"
+                        onClick={(e) => deleteDiagram(diagram.id, e)}
+                      >
+                        <FaTrash />
+                        삭제
+                      </MenuItem>
+                    </MenuDropdown>
+                    <DiagramIcon>
+                      <FaDatabase />
+                    </DiagramIcon>
+                    <DiagramName>
+                      {highlightSearchTerm(diagram.name, searchTerm)}
+                    </DiagramName>
+                    <DiagramMeta>
+                      <span>
+                        <FaClock style={{ marginRight: '6px' }} />
+                        수정: {formatTime(diagram.updatedAt)}
+                      </span>
+                      <span>
+                        생성: {formatDate(diagram.createdAt)}
+                      </span>
+                    </DiagramMeta>
+                    <DiagramStats>
+                      {entityCount > 0 && (
+                        <StatItem>
+                          <FaTable className="icon" />
+                          <span className="count">{entityCount}</span>
+                          <span>엔티티</span>
+                        </StatItem>
+                      )}
+                      {relationCount > 0 && (
+                        <StatItem>
+                          <FaProjectDiagram className="icon" />
+                          <span className="count">{relationCount}</span>
+                          <span>관계</span>
+                        </StatItem>
+                      )}
+                      {commentCount > 0 && (
+                        <StatItem>
+                          <FaNoteSticky className="icon" />
+                          <span className="count">{commentCount}</span>
+                          <span>메모</span>
+                        </StatItem>
+                      )}
+                      {imageCount > 0 && (
+                        <StatItem>
+                          <FaImage className="icon" />
+                          <span className="count">{imageCount}</span>
+                          <span>이미지</span>
+                        </StatItem>
+                      )}
+                      {entityCount === 0 && relationCount === 0 && commentCount === 0 && imageCount === 0 && (
+                        <StatItem>
+                          <span style={{ color: '#6b7280' }}>(비어있음)</span>
+                        </StatItem>
+                      )}
+                    </DiagramStats>
+                    <DiagramTags>
+                      <span className="tag">
+                        <GrMysql style={{ marginRight: '4px' }} />
+                        MySQL
+                      </span>
+                      <span className="tag status-tag">
+                        {statusInfo.icon}
+                        {statusInfo.text}
+                      </span>
+                    </DiagramTags>
+                  </DiagramCard>
+                );
+              })}
             </DiagramsGrid>
           ) : (
             <EmptyState>
@@ -592,6 +975,38 @@ const HomePage: React.FC = () => {
           )}
         </DiagramsSection>
       </MainContent>
+      
+      {/* 삭제 확인 모달 */}
+      {deleteModal.show && (
+        <DeleteModal 
+          $show={deleteModal.show} 
+          onClick={(e) => {
+            // 배경 클릭 시에만 닫기 (ConfirmModal과 동일한 방식)
+            if (e.target === e.currentTarget) {
+              setDeleteModal(prev => ({ ...prev, show: false }));
+              setTimeout(() => {
+                setDeleteModal({ show: false, diagramId: null, diagramName: '' });
+              }, 300);
+            }
+          }}
+        >
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <h3>다이어그램 삭제</h3>
+            <p>
+              정말로 "<strong>{deleteModal.diagramName}</strong>" 다이어그램을 삭제하시겠습니까?<br/>
+              이 작업은 되돌릴 수 없습니다.
+            </p>
+            <ModalButtons>
+              <ModalButton onClick={cancelDelete}>
+                취소
+              </ModalButton>
+              <ModalButton $primary onClick={confirmDelete}>
+                삭제
+              </ModalButton>
+            </ModalButtons>
+          </ModalContent>
+        </DeleteModal>
+      )}
     </HomeContainer>
   );
 };

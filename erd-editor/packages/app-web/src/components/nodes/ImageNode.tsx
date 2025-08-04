@@ -2,10 +2,11 @@ import { Handle, Position } from 'reactflow';
 import { NodeResizer } from '@reactflow/node-resizer';
 import '@reactflow/node-resizer/dist/style.css';
 import styled from 'styled-components';
-import { useState, useCallback, useRef, memo, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { FaImage, FaUpload, FaLink, FaTimes } from 'react-icons/fa';
 import { Resizable } from 'react-resizable';
 import useStore from '../../store/useStore';
+import { HISTORY_ACTIONS } from '../../utils/historyManager';
 
 const NodeContainer = styled.div<{ 
   selected?: boolean; 
@@ -304,10 +305,12 @@ interface ImageNodeProps {
   id: string;
 }
 
-const ImageNode = memo(({ data, selected, id }: ImageNodeProps) => {
+const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
   const theme = useStore((state) => state.theme);
   const isDarkMode = theme === 'dark';
   const updateNodeData = useStore((state) => state.updateNodeData);
+  const saveHistoryState = useStore((state) => state.saveHistoryState);
+  const saveToLocalStorage = useStore((state) => state.saveToLocalStorage);
 
   const [imageUrl, setImageUrl] = useState(data.imageUrl || '');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -316,9 +319,31 @@ const ImageNode = memo(({ data, selected, id }: ImageNodeProps) => {
   const [error, setError] = useState('');
   const [isImageLoading, setIsImageLoading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nodeRef = useRef<HTMLDivElement>(null);
+  const resizeTimerRef = useRef<number | null>(null);
+  const initialSizeRef = useRef<{ width: number; height: number } | null>(null);
+
+  // data.imageUrl이 변경될 때 local state 동기화 (undo/redo 대응)
+  useEffect(() => {
+    console.log('🖼️ 이미지 URL 동기화:', { 
+      nodeId: id, 
+      dataImageUrl: data.imageUrl, 
+      currentImageUrl: imageUrl 
+    });
+    setImageUrl(data.imageUrl || '');
+  }, [data.imageUrl, id]);
+
+  // 컴포넌트 unmount 시 리사이즈 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (resizeTimerRef.current) {
+        clearTimeout(resizeTimerRef.current);
+      }
+    };
+  }, []);
 
   // 이미지 유효성 검증
   const validateImageUrl = useCallback((url: string): Promise<boolean> => {
@@ -395,17 +420,35 @@ const ImageNode = memo(({ data, selected, id }: ImageNodeProps) => {
     try {
       setIsImageLoading(true);
       const base64 = await fileToBase64(file);
+      
+      // 이미지 데이터 업데이트 먼저 실행
+      const oldImageUrl = imageUrl;
       setImageUrl(base64);
       updateNodeData(id, { ...data, imageUrl: base64 });
+      
+      // 업데이트 후 히스토리 저장 (변경된 상태가 반영됨)
+      setTimeout(() => {
+        saveHistoryState(HISTORY_ACTIONS.CHANGE_IMAGE_SOURCE, {
+          nodeId: id,
+          oldImageUrl,
+          newImageUrl: base64
+        });
+      }, 50); // 짧은 지연으로 상태 업데이트 완료 보장
+      
       setError('');
       setIsModalOpen(false);
+      
+      // 이미지 변경 시 자동저장
+      setTimeout(() => {
+        saveToLocalStorage(false);
+      }, 500);
     } catch (err) {
       setError('파일을 읽는 중 오류가 발생했습니다.');
       setTimeout(() => setError(''), 3000);
     } finally {
       setIsImageLoading(false);
     }
-  }, [id, data, updateNodeData, fileToBase64]);
+  }, [id, data, updateNodeData, fileToBase64, imageUrl, saveHistoryState]);
 
   // 파일 선택 처리
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -420,9 +463,32 @@ const ImageNode = memo(({ data, selected, id }: ImageNodeProps) => {
     const url = urlInputValue.trim();
     
     if (!url) {
-      setImageUrl('');
-      updateNodeData(id, { ...data, imageUrl: '' });
+      // 빈 URL인 경우 이미지 제거
+      const oldImageUrl = imageUrl;
+      if (oldImageUrl) {
+        // 이미지 데이터 업데이트 먼저 실행
+        setImageUrl('');
+        updateNodeData(id, { ...data, imageUrl: '' });
+        
+        // 업데이트 후 히스토리 저장
+        setTimeout(() => {
+          saveHistoryState(HISTORY_ACTIONS.CHANGE_IMAGE_SOURCE, {
+            nodeId: id,
+            oldImageUrl,
+            newImageUrl: ''
+          });
+        }, 50);
+      } else {
+        // 원래 이미지가 없는 경우 히스토리 저장 없이 처리
+        setImageUrl('');
+        updateNodeData(id, { ...data, imageUrl: '' });
+      }
       setIsModalOpen(false);
+      
+      // 이미지 제거 시 자동저장
+      setTimeout(() => {
+        saveToLocalStorage(false);
+      }, 500);
       return;
     }
 
@@ -431,10 +497,27 @@ const ImageNode = memo(({ data, selected, id }: ImageNodeProps) => {
       const isValid = await validateImageUrl(url);
       
       if (isValid) {
+        // 이미지 데이터 업데이트 먼저 실행
+        const oldImageUrl = imageUrl;
         setImageUrl(url);
         updateNodeData(id, { ...data, imageUrl: url });
+        
+        // 업데이트 후 히스토리 저장 (변경된 상태가 반영됨)
+        setTimeout(() => {
+          saveHistoryState(HISTORY_ACTIONS.CHANGE_IMAGE_SOURCE, {
+            nodeId: id,
+            oldImageUrl,
+            newImageUrl: url
+          });
+        }, 50); // 짧은 지연으로 상태 업데이트 완료 보장
+        
         setError('');
         setIsModalOpen(false);
+        
+        // 이미지 URL 변경 시 자동저장
+        setTimeout(() => {
+          saveToLocalStorage(false);
+        }, 500);
       } else {
         setError('유효하지 않은 이미지 URL입니다.');
         setTimeout(() => setError(''), 3000);
@@ -445,7 +528,7 @@ const ImageNode = memo(({ data, selected, id }: ImageNodeProps) => {
     } finally {
       setIsImageLoading(false);
     }
-  }, [urlInputValue, id, data, updateNodeData, validateImageUrl]);
+  }, [urlInputValue, id, data, updateNodeData, validateImageUrl, imageUrl, saveHistoryState]);
 
   // 더블클릭 처리 (이미지 설정 모달 열기)
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
@@ -474,6 +557,53 @@ const ImageNode = memo(({ data, selected, id }: ImageNodeProps) => {
     }
     setIsModalOpen(true);
   }, [imageUrl]);
+
+  // 리사이즈 debounced 히스토리 저장
+  const saveResizeHistory = useCallback((newWidth: number, newHeight: number) => {
+    const initialSize = initialSizeRef.current;
+    
+    console.log('🎯 saveResizeHistory 호출:', { 
+      nodeId: id, 
+      initialSize, 
+      newSize: { width: newWidth, height: newHeight },
+      hasInitialSize: !!initialSize 
+    });
+    
+    if (!initialSize) {
+      console.log('❌ initialSize가 없어서 히스토리 저장 실패');
+      return;
+    }
+    
+    console.log('💾 리사이즈 히스토리 저장:', { 
+      nodeId: id, 
+      oldSize: initialSize, 
+      newSize: { width: newWidth, height: newHeight } 
+    });
+    
+    // 크기가 실제로 변경된 경우에만 히스토리 저장
+    if (initialSize.width !== newWidth || initialSize.height !== newHeight) {
+      console.log('✅ 크기 변경 감지 - 히스토리 저장 진행');
+      saveHistoryState(HISTORY_ACTIONS.RESIZE_NODE, {
+        nodeId: id,
+        oldSize: initialSize,
+        newSize: { width: newWidth, height: newHeight }
+      });
+      
+      // 리사이즈 완료 시 자동저장
+      setTimeout(() => {
+        saveToLocalStorage(false);
+      }, 500);
+    } else {
+      console.log('📏 크기 변경 없음 - 히스토리 저장 안함');
+    }
+    
+    // 상태 초기화
+    setIsResizing(false);
+    
+    // 다음 리사이즈를 위해 현재 크기를 초기 크기로 업데이트
+    initialSizeRef.current = { width: newWidth, height: newHeight };
+    console.log('🔄 초기 크기 업데이트:', { nodeId: id, newInitialSize: initialSizeRef.current });
+  }, [id, saveHistoryState, saveToLocalStorage]);
 
   // 드래그앤드롭 처리
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -504,12 +634,25 @@ const ImageNode = memo(({ data, selected, id }: ImageNodeProps) => {
         minHeight={150}
         isVisible={selected}
         onResize={(event, params) => {
-          // 단순 리사이즈만
+          // 리사이즈 시작 시 초기 크기 저장
+          if (!isResizing) {
+            console.log('🔄 이미지 노드 리사이즈 시작:', id);
+            setIsResizing(true);
+            initialSizeRef.current = { width: data.width || 300, height: data.height || 200 };
+          }
+          
+          // 실시간 UI 업데이트만 (히스토리는 onResizeEnd에서 저장)
           updateNodeData(id, { 
             ...data, 
             width: params.width, 
             height: params.height 
           });
+        }}
+        onResizeEnd={(event, params) => {
+          console.log('🎯 NodeResizer 리사이즈 완료 감지:', { nodeId: id, finalSize: params });
+          
+          // 히스토리 저장
+          saveResizeHistory(params.width, params.height);
         }}
         handleStyle={{
           width: '8px',
@@ -651,7 +794,7 @@ const ImageNode = memo(({ data, selected, id }: ImageNodeProps) => {
       )}
     </>
   );
-});
+};
 
 ImageNode.displayName = 'ImageNode';
 

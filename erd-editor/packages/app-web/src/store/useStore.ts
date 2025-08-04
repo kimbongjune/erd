@@ -3862,9 +3862,21 @@ const useStore = create<RFState>((set, get) => ({
         });
       });
       
+      // 이미지 노드 복원 로깅
+      const imageNodes = restoredState.nodes.filter(node => node.type === 'image');
+      imageNodes.forEach((node, index) => {
+        console.log(`🖼️ 복원 이미지 노드 ${index + 1}:`, {
+          id: node.id,
+          label: node.data.label,
+          imageUrl: node.data.imageUrl ? `${node.data.imageUrl.substring(0, 50)}...` : 'None',
+          width: node.data.width,
+          height: node.data.height
+        });
+      });
+      
       set({
-        nodes: restoredState.nodes,
-        edges: restoredState.edges,
+        nodes: [...restoredState.nodes], // 강제 참조 변경
+        edges: [...restoredState.edges], // 강제 참조 변경
         nodeColors: restoredState.nodeColors,
         edgeColors: restoredState.edgeColors,
         commentColors: restoredState.commentColors,
@@ -3897,9 +3909,23 @@ const useStore = create<RFState>((set, get) => ({
       console.log('↪️ Redo 실행:', historyEntry.description);
       const restoredState = deserializeState(historyEntry.data);
       
+      console.log('📊 Redo 복원되는 노드 수:', restoredState.nodes.length);
+      
+      // 이미지 노드 복원 로깅
+      const imageNodes = restoredState.nodes.filter(node => node.type === 'image');
+      imageNodes.forEach((node, index) => {
+        console.log(`🖼️ Redo 복원 이미지 노드 ${index + 1}:`, {
+          id: node.id,
+          label: node.data.label,
+          imageUrl: node.data.imageUrl ? `${node.data.imageUrl.substring(0, 50)}...` : 'None',
+          width: node.data.width,
+          height: node.data.height
+        });
+      });
+      
       set({
-        nodes: restoredState.nodes,
-        edges: restoredState.edges,
+        nodes: [...restoredState.nodes], // 강제 참조 변경
+        edges: [...restoredState.edges], // 강제 참조 변경
         nodeColors: restoredState.nodeColors,
         edgeColors: restoredState.edgeColors,
         commentColors: restoredState.commentColors,

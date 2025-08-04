@@ -885,6 +885,9 @@ type RFState = {
   arrangeCompact: () => void;
   
   // localStorage 관련 함수들
+  hasSavedData: boolean;
+  setHasSavedData: (value: boolean) => void;
+  checkSavedData: () => void;
   saveToLocalStorage: (showToast?: boolean) => void;
   loadFromLocalStorage: () => void;
   clearLocalStorage: () => void;
@@ -935,6 +938,9 @@ const useStore = create<RFState>((set, get) => ({
   isLoading: false,
   loadingMessage: '',
   loadingProgress: 0,
+  
+  // localStorage 관련 상태
+  hasSavedData: false,
   
   // 색상 팔레트 관련 초기값
   nodeColors: new Map(),
@@ -3474,6 +3480,9 @@ const useStore = create<RFState>((set, get) => ({
       if (showToast) {
         toast.success('ERD 데이터가 성공적으로 저장되었습니다!');
       }
+      
+      // 저장 성공 후 hasSavedData 상태 업데이트
+      set({ hasSavedData: true });
     } catch (error) {
       if (showToast) {
         toast.error('데이터 저장에 실패했습니다.');
@@ -3563,6 +3572,9 @@ const useStore = create<RFState>((set, get) => ({
         state.updateHistoryFlags();
         
         toast.success('ERD 데이터를 성공적으로 불러왔습니다!');
+        
+        // 로드 성공 후 hasSavedData 상태 업데이트
+        set({ hasSavedData: true });
       }, 1800); // 1.8초 후 로딩 완료 (0.3초 추가)
     } catch (error) {
       set({ isLoading: false, loadingMessage: '', loadingProgress: 0 });
@@ -3636,6 +3648,7 @@ const useStore = create<RFState>((set, get) => ({
         isLoading: false,
         loadingMessage: '',
         loadingProgress: 0,
+        hasSavedData: false,
         showColorPalette: false,
         palettePosition: { x: 0, y: 0 },
         paletteTarget: null,
@@ -3673,6 +3686,25 @@ const useStore = create<RFState>((set, get) => ({
       toast.success('저장된 데이터가 삭제되고 초기 상태로 리셋되었습니다.');
     } catch (error) {
       toast.error('데이터 삭제에 실패했습니다.');
+    }
+  },
+  
+  // hasSavedData 관련 함수들
+  setHasSavedData: (value: boolean) => {
+    set({ hasSavedData: value });
+  },
+  
+  checkSavedData: () => {
+    const savedData = localStorage.getItem(getCurrentStorageKey());
+    if (!savedData || savedData === '{}') {
+      set({ hasSavedData: false });
+      return;
+    }
+    try {
+      const parsed = JSON.parse(savedData);
+      set({ hasSavedData: parsed.nodes && parsed.nodes.length > 0 });
+    } catch {
+      set({ hasSavedData: false });
     }
   },
   

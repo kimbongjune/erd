@@ -644,10 +644,18 @@ const Header = () => {
     undo,
     redo,
     canUndo,
-    canRedo
+    canRedo,
+    hasSavedData,
+    setHasSavedData,
+    checkSavedData
   } = useStore();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 컴포넌트 마운트 시 저장된 데이터 상태 확인
+  useEffect(() => {
+    checkSavedData();
+  }, [checkSavedData]);
 
   // Navigation 드롭다운 외부 클릭 감지
   useEffect(() => {
@@ -973,9 +981,17 @@ const Header = () => {
           $darkMode={theme === 'dark'} 
           onClick={(e) => {
             e.stopPropagation();
+            if (nodes.length === 0) {
+              return; // 노드가 없으면 저장하지 않음
+            }
             saveToLocalStorage();
           }}
-          title="Ctrl+S로도 저장할 수 있습니다"
+          title={nodes.length === 0 ? "저장할 노드가 없습니다" : "Ctrl+S로도 저장할 수 있습니다"}
+          disabled={nodes.length === 0}
+          style={{ 
+            opacity: nodes.length === 0 ? 0.5 : 1,
+            cursor: nodes.length === 0 ? 'not-allowed' : 'pointer'
+          }}
         >
           <FaSave />
           저장
@@ -1018,7 +1034,16 @@ const Header = () => {
         $darkMode={theme === 'dark'} 
         onClick={(e) => {
           e.stopPropagation();
+          if (!hasSavedData) {
+            return; // 저장된 데이터가 없으면 불러오지 않음
+          }
           loadFromLocalStorage();
+        }}
+        title={hasSavedData ? "저장된 데이터를 불러옵니다" : "불러올 데이터가 없습니다"}
+        disabled={!hasSavedData}
+        style={{ 
+          opacity: hasSavedData ? 1 : 0.5,
+          cursor: hasSavedData ? 'pointer' : 'not-allowed'
         }}
       >
         <FaFolderOpen />

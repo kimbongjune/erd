@@ -14,7 +14,14 @@ function AppContent() {
   const location = useLocation();
   const saveToLocalStorage = useStore((state) => state.saveToLocalStorage);
   const checkAndAutoLoad = useStore((state) => state.checkAndAutoLoad);
+  const checkSavedData = useStore((state) => state.checkSavedData);
   const theme = useStore((state) => state.theme);
+  const nodes = useStore((state) => state.nodes);
+
+  useEffect(() => {
+    // 앱 시작 시 저장된 데이터 상태 확인
+    checkSavedData();
+  }, [checkSavedData]);
 
   useEffect(() => {
     // ERD 에디터 페이지에서만 자동 로딩 실행
@@ -38,6 +45,11 @@ function AppContent() {
           return;
         }
         
+        // 노드가 없으면 저장하지 않음
+        if (nodes.length === 0) {
+          return;
+        }
+        
         saveToLocalStorage();
       }
     };
@@ -49,7 +61,7 @@ function AppContent() {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [saveToLocalStorage, location.pathname]);
+  }, [saveToLocalStorage, location.pathname, nodes]);
 
   return (
     <>

@@ -662,6 +662,24 @@ const Header = () => {
     }
   }, [isNavDropdownOpen]);
 
+  // 대시보드 모달 내 삭제 메뉴 외부 클릭 감지
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isDashboardModalOpen && activeDropdown) {
+        const target = event.target as Element;
+        // 삭제 버튼이나 삭제 메뉴 내부가 아닌 곳을 클릭했을 때만 닫기
+        if (!target.closest('[data-dropdown-menu]') && !target.closest('[data-dropdown-button]')) {
+          setActiveDropdown(null);
+        }
+      }
+    };
+
+    if (isDashboardModalOpen && activeDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isDashboardModalOpen, activeDropdown]);
+
   // 다이어그램 목록 로드
   useEffect(() => {
     const loadDiagrams = () => {
@@ -688,6 +706,7 @@ const Header = () => {
   const closeDashboardModal = () => {
     setIsDashboardModalOpen(false);
     setSearchTerm('');
+    setActiveDropdown(null); // 삭제 버튼 상태 리셋
   };
 
   const createNewDiagram = () => {
@@ -1369,6 +1388,7 @@ const Header = () => {
                       position: 'relative'
                     }}>
                       <button
+                        data-dropdown-button
                         onClick={(e) => {
                           e.stopPropagation();
                           setActiveDropdown(activeDropdown === diagram.id ? null : diagram.id);
@@ -1393,7 +1413,9 @@ const Header = () => {
                       </button>
                       
                       {activeDropdown === diagram.id && (
-                        <div style={{
+                        <div 
+                          data-dropdown-menu
+                          style={{
                           position: 'absolute',
                           top: '100%',
                           right: '0',
@@ -1405,9 +1427,16 @@ const Header = () => {
                           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
                         }}>
                           <button
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
-                              if (confirm(`"${diagram.name}" 다이어그램을 삭제하시겠습니까?`)) {
+                              const confirmed = await customConfirm(`"${diagram.name}" 다이어그램을 삭제하시겠습니까?`, {
+                                title: '다이어그램 삭제',
+                                confirmText: '삭제',
+                                cancelText: '취소',
+                                type: 'danger',
+                                darkMode: theme === 'dark'
+                              });
+                              if (confirmed) {
                                 deleteDiagram(diagram.id);
                                 setActiveDropdown(null);
                               }

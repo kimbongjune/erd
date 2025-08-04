@@ -25,6 +25,16 @@ const ERDEditor: React.FC = () => {
         return;
       }
 
+      // 다이어그램 목록에 등록된 ID인지 확인
+      const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
+      const isRegisteredDiagram = diagramsList.some((diagram: any) => diagram.id === id);
+      
+      if (!isRegisteredDiagram) {
+        // 등록되지 않은 다이어그램 ID로 접근 시 홈페이지로 리다이렉트
+        navigate('/home');
+        return;
+      }
+
       // 특정 ERD ID의 데이터 로드
       const savedData = localStorage.getItem(`erd-${id}`);
       if (savedData) {
@@ -45,7 +55,7 @@ const ERDEditor: React.FC = () => {
           navigate('/home');
         }
       } else {
-        // 새로운 ERD인 경우 빈 상태로 시작 (토스트 없이)
+        // 등록된 다이어그램이지만 데이터가 없는 경우 (새로운 ERD)
         useStore.setState({
           nodes: [],
           edges: [],

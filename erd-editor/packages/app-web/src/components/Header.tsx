@@ -628,6 +628,7 @@ const Header = () => {
     );
   };
   const navDropdownRef = useRef<HTMLDivElement>(null);
+  const diagramNameRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const { 
@@ -651,9 +652,15 @@ const Header = () => {
   // Navigation 드롭다운 외부 클릭 감지
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (navDropdownRef.current && !navDropdownRef.current.contains(event.target as Node)) {
-        setIsNavDropdownOpen(false);
+      const target = event.target as Element;
+      
+      // 드롭다운 메뉴 내부 클릭은 무시 (NavDropdownMenu만)
+      if (navDropdownRef.current?.querySelector('[role="menu"]')?.contains(target)) {
+        return;
       }
+      
+      // 드롭다운 닫기
+      setIsNavDropdownOpen(false);
     };
 
     if (isNavDropdownOpen) {
@@ -1130,7 +1137,7 @@ const Header = () => {
             </NavButton>
           </DiagramNameContainer>
 
-          <NavDropdownMenu $darkMode={theme === 'dark'} $isOpen={isNavDropdownOpen}>
+          <NavDropdownMenu $darkMode={theme === 'dark'} $isOpen={isNavDropdownOpen} role="menu">
             <NavDropdownItem $darkMode={theme === 'dark'} onClick={() => navigate('/home')}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FaHome />
@@ -1166,8 +1173,30 @@ const Header = () => {
                       key={diagram.id}
                       $darkMode={theme === 'dark'}
                       onClick={() => openDiagram(diagram.id)}
+                      style={{
+                        backgroundColor: currentErdId === diagram.id 
+                          ? (theme === 'dark' ? '#4a5568' : '#e6fffa') 
+                          : 'transparent'
+                      }}
                     >
-                      <FaEdit />
+                      {currentErdId === diagram.id ? (
+                        <div style={{
+                          width: '16px',
+                          height: '16px',
+                          backgroundColor: '#4ade80',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#000',
+                          fontSize: '10px',
+                          fontWeight: 'bold'
+                        }}>
+                          ●
+                        </div>
+                      ) : (
+                        <FaEdit />
+                      )}
                       <div>
                         <div>{diagram.name}</div>
                         <DiagramMeta>{formatDate(diagram.updatedAt)}</DiagramMeta>

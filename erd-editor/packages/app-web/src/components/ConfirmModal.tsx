@@ -222,7 +222,12 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
         </ModalHeader>
         
         <ModalBody $darkMode={darkMode}>
-          {message}
+          {message.split('\n').map((line, index) => (
+            <React.Fragment key={index}>
+              {line}
+              {index < message.split('\n').length - 1 && <br />}
+            </React.Fragment>
+          ))}
         </ModalBody>
         
         <ModalFooter $darkMode={darkMode}>

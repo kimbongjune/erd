@@ -595,6 +595,17 @@ const Header = () => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [diagramName, setDiagramName] = useState('제목 없는 다이어그램');
   const [tempName, setTempName] = useState('');
+
+  // 커스텀 네비게이션 함수 (변경사항 체크 포함)
+  const customNavigate = useCallback(async (path: string) => {
+    if ((window as any).customNavigate) {
+      await (window as any).customNavigate(path);
+    } else {
+      // 폴백: customNavigate가 없으면 기본 navigate 사용
+      navigate(path);
+    }
+  }, [navigate]);
+
   const [diagrams, setDiagrams] = useState<Array<{
     id: string;
     name: string;
@@ -724,10 +735,29 @@ const Header = () => {
     setActiveDropdown(null); // 삭제 버튼 상태 리셋
   };
 
-  const createNewDiagram = () => {
+  const createNewDiagram = async () => {
+    // 먼저 변경사항이 있는지 확인
+    const { hasUnsavedChanges } = useStore.getState();
+    const isOnERDPage = window.location.pathname.startsWith('/erd/');
+    
+    if (isOnERDPage && hasUnsavedChanges()) {
+      const confirmed = await customConfirm('저장하지 않은 변경사항이 있습니다. 새 다이어그램을 생성하시겠습니까?', {
+        title: '새 다이어그램 생성',
+        confirmText: '생성',
+        cancelText: '취소',
+        type: 'warning',
+        darkMode: theme === 'dark'
+      });
+      
+      if (!confirmed) {
+        setIsNavDropdownOpen(false);
+        return;
+      }
+    }
+    
     const id = `erd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // 새 다이어그램을 다이어그램 목록에 즉시 추가
+    // 새 다이어그램을 다이어그램 목록에 추가
     const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
     const newDiagram = {
       id: id,
@@ -738,19 +768,20 @@ const Header = () => {
     diagramsList.push(newDiagram);
     localStorage.setItem('erd-diagrams-list', JSON.stringify(diagramsList));
     
+    // navigate 대신 직접 이동 (이미 확인했으므로)
     navigate(`/erd/${id}`);
     setIsNavDropdownOpen(false);
     closeDashboardModal();
   };
 
-  const createSampleDiagram = () => {
+  const createSampleDiagram = async () => {
     // 샘플 다이어그램 생성 로직 (나중에 구현)
     const id = `sample_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    navigate(`/erd/${id}`);
+    await customNavigate(`/erd/${id}`);
     setIsNavDropdownOpen(false);
   };
 
-  const openDiagram = (id: string) => {
+  const openDiagram = async (id: string) => {
     // 다이어그램 이름 즉시 업데이트 (navigate 전에)
     const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
     const diagram = diagramsList.find((d: any) => d.id === id);
@@ -758,12 +789,12 @@ const Header = () => {
       setDiagramName(diagram.name);
     }
     
-    navigate(`/erd/${id}`);
+    await customNavigate(`/erd/${id}`);
     setIsNavDropdownOpen(false);
     closeDashboardModal();
   };
 
-  const deleteDiagram = (diagramId: string) => {
+  const deleteDiagram = async (diagramId: string) => {
     // 다이어그램 목록에서 삭제
     const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
     const updatedDiagrams = diagramsList.filter((d: any) => d.id !== diagramId);
@@ -774,7 +805,7 @@ const Header = () => {
     
     // 현재 다이어그램을 보고 있다면 홈으로 이동
     if (window.location.pathname === `/erd/${diagramId}`) {
-      navigate('/home');
+      await customNavigate('/home');
       closeDashboardModal();
     } else {
       // 목록 새로고침
@@ -900,7 +931,7 @@ const Header = () => {
       return;
     }
 
-    const confirmed = await customConfirm('저장된 모든 데이터를 삭제하시겠습니까?', {
+    const confirmed = await customConfirm('저장된 모든 데이터를 삭제하시겠습니까?\n\n⚠️ 경고: 삭제된 데이터는 복구할 수 없으며, 캔버스가 완전히 초기화됩니다.', {
       title: '데이터 삭제',
       confirmText: '삭제',
       cancelText: '취소',
@@ -981,17 +1012,9 @@ const Header = () => {
           $darkMode={theme === 'dark'} 
           onClick={(e) => {
             e.stopPropagation();
-            if (nodes.length === 0) {
-              return; // 노드가 없으면 저장하지 않음
-            }
             saveToLocalStorage();
           }}
-          title={nodes.length === 0 ? "저장할 노드가 없습니다" : "Ctrl+S로도 저장할 수 있습니다"}
-          disabled={nodes.length === 0}
-          style={{ 
-            opacity: nodes.length === 0 ? 0.5 : 1,
-            cursor: nodes.length === 0 ? 'not-allowed' : 'pointer'
-          }}
+          title="Ctrl+S로도 저장할 수 있습니다"
         >
           <FaSave />
           저장
@@ -1163,7 +1186,7 @@ const Header = () => {
           </DiagramNameContainer>
 
           <NavDropdownMenu $darkMode={theme === 'dark'} $isOpen={isNavDropdownOpen} role="menu">
-            <NavDropdownItem $darkMode={theme === 'dark'} onClick={() => navigate('/home')}>
+            <NavDropdownItem $darkMode={theme === 'dark'} onClick={async () => await customNavigate('/home')}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FaHome />
                 홈으로 가기
@@ -1177,7 +1200,7 @@ const Header = () => {
               </div>
             </NavDropdownItem>
             
-            <NavDropdownItem $darkMode={theme === 'dark'} onClick={createNewDiagram}>
+            <NavDropdownItem $darkMode={theme === 'dark'} onClick={async () => await createNewDiagram()}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FaPlus />
                 새 다이어그램
@@ -1197,7 +1220,7 @@ const Header = () => {
                     <SubMenuItem
                       key={diagram.id}
                       $darkMode={theme === 'dark'}
-                      onClick={() => openDiagram(diagram.id)}
+                      onClick={async () => await openDiagram(diagram.id)}
                       style={{
                         backgroundColor: currentErdId === diagram.id 
                           ? (theme === 'dark' ? '#4a5568' : '#e6fffa') 
@@ -1491,7 +1514,7 @@ const Header = () => {
                                 darkMode: theme === 'dark'
                               });
                               if (confirmed) {
-                                deleteDiagram(diagram.id);
+                                await deleteDiagram(diagram.id);
                                 setActiveDropdown(null);
                               }
                             }}

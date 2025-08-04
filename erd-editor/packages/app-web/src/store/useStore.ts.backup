@@ -1022,17 +1022,15 @@ const useStore = create<RFState>((set, get) => ({
     // 노드 추가 실행
     set({ nodes: [...get().nodes, newNode] });
     
-    // 히스토리 저장 (변경 후) - 상태 업데이트 후 즉시 실행
-    setTimeout(() => {
-      const state = get();
-      state.saveHistoryState(
-        type === 'entity' ? HISTORY_ACTIONS.CREATE_ENTITY :
-        type === 'comment' ? HISTORY_ACTIONS.CREATE_COMMENT :
-        type === 'image' ? HISTORY_ACTIONS.CREATE_IMAGE :
-        HISTORY_ACTIONS.CREATE_COMMENT, // 기본값
-        { name: newNode.data.label }
-      );
-    }, 0);
+    // 히스토리 저장 (변경 후)
+    const state = get();
+    state.saveHistoryState(
+      type === 'entity' ? HISTORY_ACTIONS.CREATE_ENTITY :
+      type === 'comment' ? HISTORY_ACTIONS.CREATE_COMMENT :
+      type === 'image' ? HISTORY_ACTIONS.CREATE_IMAGE :
+      HISTORY_ACTIONS.CREATE_COMMENT, // 기본값
+      { name: newNode.data.label }
+    );
     
     // 자동저장 제거 - 수동 저장만 사용
   },
@@ -1361,7 +1359,10 @@ const useStore = create<RFState>((set, get) => ({
     // 관계선 삭제 후 히스토리 저장
     get().saveHistoryState(HISTORY_ACTIONS.DELETE_RELATIONSHIP);
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 관계 삭제 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 1000);
   },
 
   deleteSelected: () => {
@@ -1375,15 +1376,26 @@ const useStore = create<RFState>((set, get) => ({
       hasChanges = true;
     }
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 선택된 요소 삭제 시 자동 저장
+    if (hasChanges) {
+      debounceAutoSave(() => {
+        get().saveToLocalStorage(false);
+      }, 500);
+    }
   },
   setNodes: (nodes) => {
     set({ nodes });
-    // 자동저장 제거 - 수동 저장만 사용
+    // 노드 배열 설정 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 500);
   },
   setEdges: (edges) => {
     set({ edges });
-    // 자동저장 제거 - 수동 저장만 사용
+    // 엣지 배열 설정 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 500);
   },
   onConnect: (connection) => {
     set((state) => {
@@ -1759,7 +1771,10 @@ const useStore = create<RFState>((set, get) => ({
       });
     }
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 관계 생성/수정 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 1000);
   },
   setConnectionMode: (mode) => {
     set({ connectionMode: mode });
@@ -2000,7 +2015,10 @@ const useStore = create<RFState>((set, get) => ({
       const newHidden = new Set([...state.hiddenEntities, entityId]);
       return { hiddenEntities: newHidden };
     });
-    // 자동저장 제거 - 수동 저장만 사용
+    // 엔티티 숨기기 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 500);
   },
   showEntity: (entityId: string) => {
     set((state) => {
@@ -2008,17 +2026,26 @@ const useStore = create<RFState>((set, get) => ({
       newHidden.delete(entityId);
       return { hiddenEntities: newHidden };
     });
-    // 자동저장 제거 - 수동 저장만 사용
+    // 엔티티 보이기 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 500);
   },
   hideAllEntities: () => {
     set((state) => ({
       hiddenEntities: new Set(state.nodes.filter(n => n.type === 'entity').map(n => n.id))
     }));
-    // 자동저장 제거 - 수동 저장만 사용
+    // 모든 엔티티 숨기기 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 500);
   },
   showAllEntities: () => {
     set({ hiddenEntities: new Set() });
-    // 자동저장 제거 - 수동 저장만 사용
+    // 모든 엔티티 보이기 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 500);
   },
   setSelectedSearchEntity: (entityId: string | null) => set({ selectedSearchEntity: entityId }),
   focusOnEntity: (entityId: string) => {
@@ -2762,7 +2789,10 @@ const useStore = create<RFState>((set, get) => ({
     // 에지 핸들 업데이트 (관계선 위치 및 연결 상태 갱신) - 즉시 실행
     get().updateEdgeHandles();
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 노드 데이터 변경 시 자동 저장 (디바운싱 적용)
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false); // 자동 저장 시 토스트 없음
+    }, 1000); // 1초 후 저장
   },
   
   // 기존 edges의 Handle을 올바르게 업데이트하는 함수 (문제 5 해결)
@@ -3186,7 +3216,10 @@ const useStore = create<RFState>((set, get) => ({
       return { nodes: updatedNodes };
     });
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 좌우 배치 변경 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 1000);
   },
   
   arrangeSnowflake: () => {
@@ -3278,7 +3311,10 @@ const useStore = create<RFState>((set, get) => ({
       return { nodes: updatedNodes };
     });
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 스노우플레이크 배치 변경 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 1000);
   },
   
   arrangeCompact: () => {
@@ -3386,7 +3422,10 @@ const useStore = create<RFState>((set, get) => ({
       return { nodes: updatedNodes };
     });
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 컴팩트 배치 변경 시 자동 저장
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 1000);
   },
   
   // localStorage 관련 함수들
@@ -3736,7 +3775,10 @@ const useStore = create<RFState>((set, get) => ({
     };
     
     set({ viewport: validViewport });
-    // 자동저장 제거 - 수동 저장만 사용
+    // viewport 변경 시 자동 저장 (디바운싱 적용)
+    debounceAutoSave(() => {
+      get().saveToLocalStorage(false);
+    }, 3000); // 3초 후 저장
   },
   
   // SQL import 함수
@@ -3774,7 +3816,10 @@ const useStore = create<RFState>((set, get) => ({
       // 노드 설정
       set({ nodes: newNodes, edges: [] });
       
-      // 자동저장 제거 - 수동 저장만 사용
+      // SQL 임포트 시 자동 저장
+      debounceAutoSave(() => {
+        get().saveToLocalStorage(false);
+      }, 500);
       
       // compact 정렬 후 zoom to fit
       setTimeout(() => {

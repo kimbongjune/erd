@@ -23,6 +23,9 @@ interface ParsedColumn {
   uq: boolean;
   ai: boolean;
   comment: string;
+  // 내부 관리용 속성들 (UI에 노출되지 않음)
+  keyType?: 'single' | 'composite';  // FK가 단일키 참조인지 복합키 참조인지
+  relationshipGroupId?: string;      // 같은 관계의 FK들을 그룹화
   logicalName?: string;
   defaultValue?: string;
 }
@@ -1306,34 +1309,61 @@ const useStore = create<RFState>((set, get) => ({
 
     // 엔티티인 경우 먼저 연쇄 삭제 처리
     if (nodeToDelete.type === 'entity') {
-      // 1. 삭제되는 엔티티의 모든 PK 컬럼에 대해 연쇄 삭제 처리
-      const deletedEntityColumns = nodeToDelete.data.columns || [];
-      const pkColumns = deletedEntityColumns.filter((col: any) => col.pk);
+      console.log(`🗑️ 엔티티 삭제: ${nodeToDelete.data.label} - 모든 관련 FK 일괄 삭제`);
       
-      // 각 PK 컬럼에 대해 propagateColumnDeletion 호출하고 결과 적용
-      pkColumns.forEach((pkColumn: any) => {
-        console.log(`🌊 엔티티 삭제로 인한 PK 컬럼 ${pkColumn.name} 연쇄 삭제 처리`);
-        const propagationResult = propagateColumnDeletion(
-          id,
-          pkColumn,
-          get().nodes,
-          get().edges
-        );
-        
-        // 연쇄 삭제 결과를 상태에 적용
-        if (propagationResult) {
-          set((state) => ({
-            nodes: propagationResult.updatedNodes,
-            edges: propagationResult.updatedEdges
-          }));
+      // 엔티티 삭제 시에는 복합키/단일키 구분 없이 해당 엔티티를 참조하는 모든 FK를 한 번에 삭제
+      let finalNodes = get().nodes;
+      let finalEdges = get().edges;
+      
+      // 해당 엔티티를 source로 하는 모든 관계선 찾기
+      const childEdges = finalEdges.filter(edge => edge.source === id);
+      const toastMessages: string[] = [];
+      
+      childEdges.forEach(edge => {
+        const childNode = finalNodes.find(n => n.id === edge.target);
+        if (childNode && childNode.type === 'entity') {
+          const childColumns = childNode.data.columns || [];
           
-          // 토스트 메시지 표시
-          if (propagationResult.toastMessages.length > 0) {
-            propagationResult.toastMessages.forEach(message => {
-              console.log(`📢 ${message}`);
+          // 해당 부모 엔티티를 참조하는 모든 FK 찾기
+          const relatedFkColumns = childColumns.filter((col: any) => 
+            col.fk && col.parentEntityId === id
+          );
+          
+          if (relatedFkColumns.length > 0) {
+            console.log(`🗑️ ${childNode.data.label}에서 ${relatedFkColumns.length}개 FK 삭제:`, relatedFkColumns.map((fk: any) => fk.name));
+            
+            // 해당 FK들을 모두 삭제
+            const updatedChildColumns = childColumns.filter((col: any) => 
+              !relatedFkColumns.some((fkCol: any) => fkCol.id === col.id)
+            );
+            
+            // 자식 노드 업데이트
+            finalNodes = finalNodes.map(node => 
+              node.id === edge.target 
+                ? { ...node, data: { ...node.data, columns: updatedChildColumns } }
+                : node
+            );
+            
+            // 토스트 메시지 추가
+            relatedFkColumns.forEach((fkCol: any) => {
+              toastMessages.push(`연쇄관계: ${childNode.data.label} 엔티티에서 외래키 컬럼 ${fkCol.name}이 삭제되었습니다.`);
             });
           }
         }
+      });
+      
+      // 모든 관련 관계선 삭제
+      finalEdges = finalEdges.filter(edge => edge.source !== id && edge.target !== id);
+      
+      // 결과 적용
+      set((state) => ({
+        nodes: finalNodes,
+        edges: finalEdges
+      }));
+      
+      // 토스트 메시지 표시
+      toastMessages.forEach(message => {
+        console.log(`📢 ${message}`);
       });
     }
     
@@ -1593,6 +1623,10 @@ const useStore = create<RFState>((set, get) => ({
 
         let newTargetColumns = [...(targetNode.data.columns || [])];
         
+        // FK 관계의 키타입 및 그룹 ID 결정
+        const keyType = sourcePkColumns.length > 1 ? 'composite' : 'single';
+        const relationshipGroupId = `rel_${sourceNode.id}_${targetNode.id}_${Date.now()}`;
+        
         // 여러 PK가 있는 경우 모두 FK로 추가
         sourcePkColumns.forEach((sourcePkColumn: any) => {
           const baseFkColumnName = `${sourceNode.data.label.toLowerCase()}_${sourcePkColumn.name}`;
@@ -1655,7 +1689,10 @@ const useStore = create<RFState>((set, get) => ({
                 logicalName: fkLogicalName,
                 // FK 관계 추적을 위한 메타데이터 추가 (문제 6 해결)
                 parentEntityId: sourceNode.id,
-                parentColumnId: sourcePkColumn.id || sourcePkColumn.name
+                parentColumnId: sourcePkColumn.id || sourcePkColumn.name,
+                // 키타입 및 관계 그룹 ID 추가
+                keyType: keyType,
+                relationshipGroupId: relationshipGroupId
               });
             } else {
               newTargetColumns[existingFkIndex] = { 
@@ -1668,7 +1705,10 @@ const useStore = create<RFState>((set, get) => ({
                 logicalName: fkLogicalName,
                 // FK 관계 추적을 위한 메타데이터 추가 (문제 6 해결)
                 parentEntityId: sourceNode.id,
-                parentColumnId: sourcePkColumn.id || sourcePkColumn.name
+                parentColumnId: sourcePkColumn.id || sourcePkColumn.name,
+                // 키타입 및 관계 그룹 ID 추가
+                keyType: keyType,
+                relationshipGroupId: relationshipGroupId
               };
             }
           } else {
@@ -1703,7 +1743,10 @@ const useStore = create<RFState>((set, get) => ({
                 logicalName: fkLogicalName,
                 // FK 관계 추적을 위한 메타데이터 추가 (문제 6 해결)
                 parentEntityId: sourceNode.id,
-                parentColumnId: sourcePkColumn.id || sourcePkColumn.name
+                parentColumnId: sourcePkColumn.id || sourcePkColumn.name,
+                // 키타입 및 관계 그룹 ID 추가
+                keyType: keyType,
+                relationshipGroupId: relationshipGroupId
               });
             } else {
               newTargetColumns[existingFkIndex] = { 
@@ -1715,7 +1758,10 @@ const useStore = create<RFState>((set, get) => ({
                 logicalName: fkLogicalName,
                 // FK 관계 추적을 위한 메타데이터 추가 (문제 6 해결)
                 parentEntityId: sourceNode.id,
-                parentColumnId: sourcePkColumn.id || sourcePkColumn.name
+                parentColumnId: sourcePkColumn.id || sourcePkColumn.name,
+                // 키타입 및 관계 그룹 ID 추가
+                keyType: keyType,
+                relationshipGroupId: relationshipGroupId
               };
             }
           }
@@ -1781,37 +1827,83 @@ const useStore = create<RFState>((set, get) => ({
           
           console.log('🔍 새로 생성된 FK 컬럼들:', newlyCreatedFkColumns.map((col: any) => col.name));
           
-          console.log('🔍 새로 생성된 FK 컬럼들:', newlyCreatedFkColumns);
-          console.log('🔍 FK 컬럼 개수:', newlyCreatedFkColumns.length);
+          // 관계선 생성을 위한 keyType 재계산
+          const edgeKeyType = sourcePkColumns.length > 1 ? 'composite' : 'single';
+          const edgeRelationshipGroupId = `rel_${sourceNode.id}_${targetNode.id}_${Date.now()}`;
           
-          // 각 새로 생성된 FK 컬럼마다 관계선 생성
-          newlyCreatedFkColumns.forEach((fkColumn: any, index: number) => {
-            console.log(`\n--- ${index + 1}번째 FK 컬럼 처리 시작 ---`);
-            console.log('🔗 처리 중인 FK 컬럼:', fkColumn);
+          console.log('🔍 FK keyType:', edgeKeyType);
+          
+          if (edgeKeyType === 'composite') {
+            // 복합키: 하나의 관계선만 생성
+            console.log('🎯 복합키 관계 - 하나의 관계선 생성');
             
-            // 해당 FK가 참조하는 PK 컬럼 찾기
-            const referencedPkColumn = sourcePkColumns.find((pkCol: any) => 
-              pkCol.id === fkColumn.parentColumnId || pkCol.name === fkColumn.parentColumnId
-            );
+            if (newlyCreatedFkColumns.length > 0) {
+              // 첫 번째 FK 컬럼을 대표로 사용
+              const representativeFk = newlyCreatedFkColumns[0];
+              const referencedPkColumn = sourcePkColumns.find((pkCol: any) => 
+                pkCol.id === representativeFk.parentColumnId || pkCol.name === representativeFk.parentColumnId
+              );
+              
+              if (referencedPkColumn) {
+                const sourceHandleId = createHandleId(referencedPkColumn.name, sourceHandle as 'left' | 'right');
+                const targetHandleId = createHandleId(representativeFk.name, targetHandle as 'left' | 'right');
+                
+                console.log('🎯 복합키 관계선 Handle:', { sourceHandleId, targetHandleId });
+                
+                const newEdge = {
+                  ...connection,
+                  id: `${connection.source}-${connection.target}-${edgeRelationshipGroupId}-${Date.now()}`,
+                  source: connection.source!,
+                  target: connection.target!,
+                  sourceHandle: sourceHandleId,
+                  targetHandle: targetHandleId,
+                  type: getEdgeType(state.connectionMode),
+                  markerStart: sourceMarker,
+                  markerEnd: targetMarker,
+                  data: {
+                    relationshipType: edgeKeyType,
+                    relationshipGroupId: edgeRelationshipGroupId,
+                    fkColumns: newlyCreatedFkColumns.map((fk: any) => fk.name)
+                  }
+                };
+                
+                console.log('✅ 복합키 관계선 생성:', newEdge);
+                updatedEdges = [...updatedEdges, newEdge];
+              }
+            }
+          } else {
+            // 단일키: 각 FK마다 개별 관계선 생성
+            console.log('🎯 단일키 관계 - 각 FK마다 관계선 생성');
             
-            console.log('🔗 참조하는 PK 컬럼:', referencedPkColumn);
-            
-            if (referencedPkColumn) {
-              console.log(`🔗 ${index + 1}번째 FK 컬럼 관계선 생성:`, fkColumn.name, '→', referencedPkColumn.name);
+            newlyCreatedFkColumns.forEach((fkColumn: any, index: number) => {
+              console.log(`\n--- ${index + 1}번째 FK 컬럼 처리 시작 ---`);
+              console.log('🔗 처리 중인 FK 컬럼:', fkColumn);
               
-              // 각 컬럼별로 개별 Handle ID 결정 (컬럼 위치에 맞게)
-              const sourceHandleId = createHandleId(referencedPkColumn.name, sourceHandle as 'left' | 'right');
-              const targetHandleId = createHandleId(fkColumn.name, targetHandle as 'left' | 'right');
+              // 해당 FK가 참조하는 PK 컬럼 찾기
+              const referencedPkColumn = sourcePkColumns.find((pkCol: any) => 
+                pkCol.id === fkColumn.parentColumnId || pkCol.name === fkColumn.parentColumnId
+              );
               
-              console.log('🎯 Handle 정보:', { sourceHandleId, targetHandleId });
+              console.log('🔗 참조하는 PK 컬럼:', referencedPkColumn);
               
-              // 개별 관계선 생성
-              const newEdge = {
-                ...connection,
-                id: `${connection.source}-${connection.target}-${fkColumn.name}-${Date.now()}-${Math.random()}`, // 고유 ID
-                sourceHandle: sourceHandleId,
-                targetHandle: targetHandleId,
-                type: getEdgeType(state.connectionMode),
+              if (referencedPkColumn) {
+                console.log(`🔗 ${index + 1}번째 FK 컬럼 관계선 생성:`, fkColumn.name, '→', referencedPkColumn.name);
+                
+                // 각 컬럼별로 개별 Handle ID 결정 (컬럼 위치에 맞게)
+                const sourceHandleId = createHandleId(referencedPkColumn.name, sourceHandle as 'left' | 'right');
+                const targetHandleId = createHandleId(fkColumn.name, targetHandle as 'left' | 'right');
+                
+                console.log('🎯 Handle 정보:', { sourceHandleId, targetHandleId });
+                
+                // 개별 관계선 생성
+                const newEdge = {
+                  ...connection,
+                  id: `${connection.source}-${connection.target}-${fkColumn.name}-${Date.now()}-${Math.random()}`, // 고유 ID
+                  source: connection.source!,
+                  target: connection.target!,
+                  sourceHandle: sourceHandleId,
+                  targetHandle: targetHandleId,
+                  type: getEdgeType(state.connectionMode),
                 markerStart: sourceMarker,
                 markerEnd: targetMarker,
                 // 관계선 시각적 구분을 위한 스타일 
@@ -1832,11 +1924,12 @@ const useStore = create<RFState>((set, get) => ({
               
               updatedEdges = addEdge(newEdge, updatedEdges);
               console.log('📊 현재 전체 관계선 개수:', updatedEdges.length);
-            } else {
-              console.log('❌ 참조하는 PK 컬럼을 찾을 수 없음');
-            }
-            console.log(`--- ${index + 1}번째 FK 컬럼 처리 완료 ---\n`);
-          });
+              } else {
+                console.log('❌ 참조하는 PK 컬럼을 찾을 수 없음');
+              }
+              console.log(`--- ${index + 1}번째 FK 컬럼 처리 완료 ---\n`);
+            });
+          }
         }
         
         console.log('📊 최종 관계선 개수:', updatedEdges.length);
@@ -2568,6 +2661,15 @@ const useStore = create<RFState>((set, get) => ({
         return { oldColumn: oldCol, newColumn: newCol };
       });
 
+      // PK 상태 변경 감지 (키타입 업데이트를 위함)
+      const pkStatusChangedColumns = oldColumns.filter((oldCol: any) => {
+        const newCol = newColumns.find((newCol: any) => newCol.id === oldCol.id);
+        return newCol && (oldCol.pk !== newCol.pk);
+      }).map((oldCol: any) => {
+        const newCol = newColumns.find((newCol: any) => newCol.id === oldCol.id);
+        return { oldColumn: oldCol, newColumn: newCol };
+      });
+
             let finalNodes = updatedNodes;
       let finalEdges = state.edges;
 
@@ -2673,28 +2775,168 @@ const useStore = create<RFState>((set, get) => ({
       // 부모 엔티티의 PK 컬럼 삭제에 따른 하위 계층으로의 연쇄 삭제
       if (deletedPkColumns.length > 0) {
         deletedPkColumns.forEach((deletedPkCol: any) => {
-          // PK 컬럼의 현재 상태 정보 구성 (이름 변경된 경우 대응)
-          const currentParentColumn = {
-            ...deletedPkCol,
-            // 현재 finalNodes에서 해당 컬럼의 최신 정보 확인
-            currentName: finalNodes.find(n => n.id === nodeId)?.data?.columns?.find((col: any) => col.id === deletedPkCol.id)?.name || deletedPkCol.name
-          };
+          console.log(`🗑️ PK 삭제 감지: ${deletedPkCol.name}`, deletedPkCol);
           
-          // 재귀적으로 하위 계층까지 전파하여 삭제
-          const propagationResult = propagateColumnDeletion(
-            nodeId, 
-            currentParentColumn, 
-            finalNodes, 
-            finalEdges,
-            []
-          );
-          finalNodes = propagationResult.updatedNodes;
-          finalEdges = propagationResult.updatedEdges;
+          // 해당 부모를 참조하는 모든 자식 엔티티에서 복합키 관계인지 확인
+          const childEdges = finalEdges.filter(edge => edge.source === nodeId);
+          let isCompositeKeyRelation = false;
           
-          // 연쇄 삭제 토스트 메시지 표시
-          if (propagationResult.toastMessages.length > 0) {
-            propagationResult.toastMessages.forEach((message, index) => {
-              setTimeout(() => toast.info(message), 200 + (index * 100));
+          // 모든 자식 엔티티에서 복합키 관계 확인
+          childEdges.forEach(edge => {
+            const childNode = finalNodes.find(n => n.id === edge.target);
+            if (childNode && childNode.type === 'entity') {
+              // 해당 부모 엔티티를 참조하는 모든 FK 찾기
+              const allRelatedFks = childNode.data.columns?.filter((col: any) => 
+                col.fk && col.parentEntityId === nodeId
+              ) || [];
+              
+              // 간단한 판단: FK가 2개 이상이면 복합키 관계로 간주
+              if (allRelatedFks.length > 1) {
+                isCompositeKeyRelation = true;
+              }
+            }
+          });
+          
+          console.log(`🔍 복합키 관계 판단: ${isCompositeKeyRelation}`);
+          
+          if (isCompositeKeyRelation) {
+            // 복합키 관계: 선택적 FK 삭제 (해당 PK를 참조하는 FK만 삭제)
+            childEdges.forEach(edge => {
+              const childNode = finalNodes.find(n => n.id === edge.target);
+              if (childNode && childNode.type === 'entity') {
+                const childColumns = childNode.data.columns || [];
+                
+                // 해당 특정 PK를 참조하는 FK만 찾기
+                const targetFkColumns = childColumns.filter((col: any) => 
+                  col.fk && 
+                  col.parentEntityId === nodeId && 
+                  (col.parentColumnId === deletedPkCol.id || col.parentColumnId === deletedPkCol.name)
+                );
+                
+                if (targetFkColumns.length > 0) {
+                  // 해당 FK들만 삭제
+                  const updatedChildColumns = childColumns.filter((col: any) => 
+                    !targetFkColumns.some((fkCol: any) => fkCol.id === col.id)
+                  );
+                  
+                  // 남은 FK들의 keyType 재계산
+                  const remainingFkColumns = updatedChildColumns.filter((col: any) => 
+                    col.fk && col.parentEntityId === nodeId
+                  );
+                  
+                  // 남은 FK가 1개면 single, 2개 이상이면 composite
+                  const newKeyType = remainingFkColumns.length > 1 ? 'composite' : 'single';
+                  
+                  // 남은 FK들의 keyType 업데이트
+                  const finalChildColumns = updatedChildColumns.map((col: any) => {
+                    if (remainingFkColumns.some((fkCol: any) => fkCol.id === col.id)) {
+                      return { 
+                        ...col, 
+                        keyType: newKeyType
+                      };
+                    }
+                    return col;
+                  });
+                  
+                  // 자식 노드 업데이트
+                  finalNodes = finalNodes.map(node => 
+                    node.id === edge.target 
+                      ? { ...node, data: { ...node.data, columns: finalChildColumns } }
+                      : node
+                  );
+                  
+                  // 모든 FK가 삭제된 경우에만 관계선 제거
+                  if (remainingFkColumns.length === 0) {
+                    finalEdges = finalEdges.filter(e => e.id !== edge.id);
+                  }
+                }
+              }
+            });
+          } else {
+            // 단일키 관계: 기존 로직 사용 (전체 FK 삭제)
+            const currentParentColumn = {
+              ...deletedPkCol,
+              currentName: finalNodes.find(n => n.id === nodeId)?.data?.columns?.find((col: any) => col.id === deletedPkCol.id)?.name || deletedPkCol.name
+            };
+            
+            const propagationResult = propagateColumnDeletion(
+              nodeId, 
+              currentParentColumn, 
+              finalNodes, 
+              finalEdges,
+              []
+            );
+            finalNodes = propagationResult.updatedNodes;
+            finalEdges = propagationResult.updatedEdges;
+            
+            // 연쇄 삭제 토스트 메시지 표시
+            if (propagationResult.toastMessages.length > 0) {
+              propagationResult.toastMessages.forEach((message, index) => {
+                setTimeout(() => toast.info(message), 200 + (index * 100));
+              });
+            }
+          }
+        });
+      }
+
+      // 특정 PK 제거/상태변경에 따른 선택적 FK 삭제 및 keyType 업데이트
+      if (pkStatusChangedColumns.length > 0) {
+        pkStatusChangedColumns.forEach(({ oldColumn, newColumn }: any) => {
+          // PK에서 일반 컬럼으로 변경된 경우 (pk: true → false)
+          if (oldColumn.pk && !newColumn.pk) {
+            // 해당 PK를 참조하는 자식 엔티티의 FK들을 선택적으로 삭제
+            const childEdges = finalEdges.filter(edge => edge.source === nodeId);
+            
+            childEdges.forEach(edge => {
+              const childNode = finalNodes.find(n => n.id === edge.target);
+              if (childNode && childNode.type === 'entity') {
+                const childColumns = childNode.data.columns || [];
+                
+                // 해당 특정 PK 컬럼을 참조하는 FK만 찾기
+                const targetFkColumns = childColumns.filter((col: any) => 
+                  col.fk && 
+                  col.parentEntityId === nodeId && 
+                  (col.parentColumnId === oldColumn.id || col.parentColumnId === oldColumn.name)
+                );
+                
+                if (targetFkColumns.length > 0) {
+                  // 해당 FK들만 삭제
+                  const updatedChildColumns = childColumns.filter((col: any) => 
+                    !targetFkColumns.some((fkCol: any) => fkCol.id === col.id)
+                  );
+                  
+                  // 남은 FK들의 keyType 재계산
+                  const remainingFkColumns = updatedChildColumns.filter((col: any) => 
+                    col.fk && col.parentEntityId === nodeId
+                  );
+                  
+                  // 남은 FK가 1개면 single, 2개 이상이면 composite
+                  const newKeyType = remainingFkColumns.length > 1 ? 'composite' : 'single';
+                  
+                  // 남은 FK들의 keyType 업데이트
+                  const finalChildColumns = updatedChildColumns.map((col: any) => {
+                    if (remainingFkColumns.some((fkCol: any) => fkCol.id === col.id)) {
+                      return { 
+                        ...col, 
+                        keyType: newKeyType
+                      };
+                    }
+                    return col;
+                  });
+                  
+                  // 자식 노드 업데이트
+                  finalNodes = finalNodes.map(node => 
+                    node.id === edge.target 
+                      ? { ...node, data: { ...node.data, columns: finalChildColumns } }
+                      : node
+                  );
+                  
+                  // 모든 FK가 삭제된 경우 관계선도 제거
+                  if (remainingFkColumns.length === 0) {
+                    finalEdges = finalEdges.filter(e => e.id !== edge.id);
+                  }
+                }
+              }
             });
           }
         });
@@ -2715,6 +2957,56 @@ const useStore = create<RFState>((set, get) => ({
             []
           );
           finalNodes = propagationResult.updatedNodes;
+        });
+      }
+
+      // PK 상태 변경에 따른 자식 엔티티들의 FK keyType 업데이트 (PK 삭제 제외, 상태 토글만)
+      if (pkStatusChangedColumns.length > 0) {
+        // 현재 엔티티의 PK 개수 계산
+        const currentPkColumns = newColumns.filter((col: any) => col.pk);
+        const newKeyType = currentPkColumns.length > 1 ? 'composite' : 'single';
+        
+        // 해당 엔티티를 부모로 하는 모든 자식 엔티티의 FK들 업데이트
+        const childEdges = finalEdges.filter(edge => edge.source === nodeId);
+        
+        pkStatusChangedColumns.forEach(({ oldColumn, newColumn }: any) => {
+          // PK 삭제는 deletedPkColumns에서 처리하므로, 여기서는 제외
+          // 컬럼이 아직 존재하면서 PK 상태만 변경된 경우만 처리
+          const columnStillExists = newColumns.find((col: any) => col.id === oldColumn.id);
+          
+          if (columnStillExists) {
+            childEdges.forEach(edge => {
+              const childNode = finalNodes.find(n => n.id === edge.target);
+              if (childNode && childNode.type === 'entity') {
+                const childColumns = childNode.data.columns || [];
+                
+                // 해당 부모 엔티티를 참조하는 FK 컬럼들 찾기
+                const relatedFkColumns = childColumns.filter((col: any) => 
+                  col.fk && col.parentEntityId === nodeId
+                );
+                
+                if (relatedFkColumns.length > 0) {
+                  // FK 컬럼들의 keyType 업데이트
+                  const updatedChildColumns = childColumns.map((col: any) => {
+                    if (relatedFkColumns.some((fkCol: any) => fkCol.id === col.id)) {
+                      return { 
+                        ...col, 
+                        keyType: newKeyType
+                      };
+                    }
+                    return col;
+                  });
+                  
+                  // 자식 노드 업데이트
+                  finalNodes = finalNodes.map(node => 
+                    node.id === edge.target 
+                      ? { ...node, data: { ...node.data, columns: updatedChildColumns } }
+                      : node
+                  );
+                }
+              }
+            });
+          }
         });
       }
 

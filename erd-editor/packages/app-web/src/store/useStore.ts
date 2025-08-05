@@ -1552,6 +1552,27 @@ const useStore = create<RFState>((set, get) => ({
         const keyType = sourcePkColumns.length > 1 ? 'composite' : 'single';
         const relationshipGroupId = `rel_${sourceNode.id}_${targetNode.id}_${Date.now()}`;
         
+        // 🚨 자기참조 관계에서 중복 FK 생성 사전 검사
+        if (connection.source === connection.target) {
+          const alreadyExistingFks = sourcePkColumns.filter((sourcePkColumn: any) => {
+            return newTargetColumns.find(col => 
+              col.fk && 
+              col.parentEntityId === sourceNode.id && 
+              (col.parentColumnId === sourcePkColumn.id || col.parentColumnId === sourcePkColumn.name)
+            );
+          });
+          
+          if (alreadyExistingFks.length > 0) {
+            console.log('🚨 자기참조 FK 중복 생성 전체 방지:', {
+              attemptedPkColumns: sourcePkColumns.map((col: any) => col.name),
+              alreadyExistingFks: alreadyExistingFks.map((col: any) => col.name)
+            });
+            // 자기참조 관계에서 이미 FK가 존재하면 전체 관계 생성을 중단
+            toast.error('이미 동일한 자기참조 관계가 존재합니다.');
+            return state; // 상태 변경 없이 반환
+          }
+        }
+
         // 여러 PK가 있는 경우 모두 FK로 추가
         sourcePkColumns.forEach((sourcePkColumn: any) => {
           const baseFkColumnName = `${sourceNode.data.label.toLowerCase()}_${sourcePkColumn.name}`;
@@ -2541,8 +2562,46 @@ const useStore = create<RFState>((set, get) => ({
 
       // 컬럼 변경 분석 - 개선된 로직
       const oldColumns = oldNode.data.columns || [];
-      const newColumns = newData.columns || [];
+      let newColumns = newData.columns || [];
       const toastMessages: string[] = [];
+      
+      // 🚨 자기참조 FK PK 변경 사전 차단 (다른 모든 로직보다 우선 처리)
+      const selfReferencingFkPkAttempts = newColumns.filter((newCol: any) => {
+        if (!newCol.fk || !newCol.pk || newCol.parentEntityId !== nodeId) return false;
+        const oldCol = oldColumns.find((oldCol: any) => oldCol.id === newCol.id);
+        return oldCol && !oldCol.pk; // 이전에는 PK가 아니었는데 지금 PK로 변경하려는 경우
+      });
+      
+      if (selfReferencingFkPkAttempts.length > 0) {
+        console.log('🚨 자기참조 FK PK 변경 사전 차단:', selfReferencingFkPkAttempts.map((col: any) => col.name));
+        
+        // 자기참조 FK의 PK 상태를 강제로 false로 되돌림
+        newColumns = newColumns.map((col: any) => {
+          if (selfReferencingFkPkAttempts.some((attempt: any) => attempt.id === col.id)) {
+            console.log(`🔄 자기참조 FK "${col.name}" PK 사전 차단: true → false`);
+            return { 
+              ...col, 
+              pk: false,
+              nn: false // PK 해제 시 NN도 해제
+            };
+          }
+          return col;
+        });
+        
+        // newData.columns도 업데이트
+        newData = { ...newData, columns: newColumns };
+        
+        // 사용자에게 알림 메시지 표시 (중복 방지)
+        selfReferencingFkPkAttempts.forEach((col: any) => {
+          const toastId = `self-ref-pk-prevention-early-${nodeId}-${col.name}`;
+          setTimeout(() => {
+            toast.warning(`자기관계에서는 FK 컬럼(${col.name})을 PK로 설정할 수 없습니다. 항상 비식별자 관계를 유지합니다.`, {
+              toastId: toastId,
+              autoClose: 3000
+            });
+          }, 100);
+        });
+      }
       
       // PK 컬럼 이름 변경 감지 (자식 FK의 parentColumnId 업데이트를 위함)
       const renamedPkColumns = oldColumns.filter((oldCol: any) => {
@@ -2982,11 +3041,32 @@ const useStore = create<RFState>((set, get) => ({
 
       // FK 컬럼의 PK 상태 변경에 따른 관계 타입 업데이트
       if (fkPkChangedColumns.length > 0) {
+        console.log('🔄 FK-PK 상태 변경된 컬럼들:', fkPkChangedColumns.map((col: any) => ({ 
+          name: col.name, 
+          pk: col.pk, 
+          parentEntityId: col.parentEntityId,
+          isSelf: col.parentEntityId === nodeId 
+        })));
+        
         fkPkChangedColumns.forEach((changedCol: any) => {
           const parentEntityId = changedCol.parentEntityId;
           const newCol = newColumns.find((col: any) => col.id === changedCol.id);
           
           if (newCol && parentEntityId) {
+            // 🚨 자기관계(self-referencing) 완전 스킵 - Layout.tsx에서 이미 차단됨
+            const isSelfRef = parentEntityId === nodeId;
+            
+            if (isSelfRef) {
+              console.log('🚨 자기관계 FK PK 변경 감지 - useStore.ts에서 스킵:', {
+                columnName: newCol.name,
+                parentEntityId: parentEntityId,
+                targetNodeId: nodeId,
+                note: 'Layout.tsx에서 이미 차단되어야 함'
+              });
+              return; // 자기관계는 완전히 스킵
+            }
+            
+            // 일반 관계 (자기관계가 아닌 경우)의 기존 로직
             // 해당 부모 엔티티와의 관계선 찾기
             const relatedEdge = finalEdges.find(edge => 
               edge.source === parentEntityId && edge.target === nodeId
@@ -3013,14 +3093,30 @@ const useStore = create<RFState>((set, get) => ({
                   otherFkColumns.map((col: any) => col.parentColumnId).filter(Boolean)
                 );
                 
-                // 복합키 관계 판별: 현재 컬럼의 parentColumnId가 다른 FK들의 parentColumnId와 다르고, 
-                // 다른 FK들도 서로 다른 부모 컬럼을 참조하는 경우
-                const isCompositeKeyRelation = 
-                  otherFkColumns.length > 0 && 
-                  currentParentColumnId &&
-                  (!otherParentColumnIds.has(currentParentColumnId) || otherParentColumnIds.size > 1);
+                // 🔥 복합키 관계 정확한 판별:
+                // 1. 다른 FK들이 존재해야 함 (otherFkColumns.length > 0)
+                // 2. 현재 컬럼과 다른 FK들이 서로 다른 부모 PK를 참조해야 함
+                // 3. 또는 다른 FK들끼리도 서로 다른 부모 PK를 참조해야 함
+                const isRealCompositeKeyRelation = 
+                  otherFkColumns.length > 0 && (
+                    (currentParentColumnId && !otherParentColumnIds.has(currentParentColumnId)) ||
+                    otherParentColumnIds.size > 1
+                  );
                 
-                if (isCompositeKeyRelation) {
+                console.log('🔍 복합키 관계 정밀 판별:', {
+                  currentColumn: newCol.name,
+                  currentParentColumnId,
+                  otherFkCount: otherFkColumns.length,
+                  otherParentColumnIds: Array.from(otherParentColumnIds),
+                  isRealCompositeKey: isRealCompositeKeyRelation,
+                  判별근거: isRealCompositeKeyRelation ? '진짜 복합키 (서로 다른 부모 PK 참조)' : '단일키 다중참조 (같은 부모 PK 참조)',
+                  조건1_다른FK존재: otherFkColumns.length > 0,
+                  조건2_현재컬럼_다른부모PK: currentParentColumnId && !otherParentColumnIds.has(currentParentColumnId),
+                  조건3_다른FK들_서로다른부모PK: otherParentColumnIds.size > 1,
+                  otherFkColumns상세: otherFkColumns.map((col: any) => ({name: col.name, parentColumnId: col.parentColumnId}))
+                });
+                
+                if (isRealCompositeKeyRelation) {
                   // 진짜 복합키 관계: FK 하나라도 PK 해제되면 모든 관련 FK의 PK 해제 + 비식별자 관계로 변경
                   if (!newCol.pk) {
                     // 제거될 PK+FK 컬럼들을 미리 찾기 (연쇄 처리용)
@@ -3115,14 +3211,40 @@ const useStore = create<RFState>((set, get) => ({
                     }
                   }
                 } else {
-                  // 단일PK 다중참조: 각 FK별로 독립적으로 관계 타입 변경
-                  // 해당 FK에 대한 관계선만 찾아서 변경
-                  const specificEdge = finalEdges.find(edge => 
+                  // 🔗 단일키 다중참조: 각 FK별로 완전히 독립적으로 처리
+                  console.log('🔗 단일키 다중참조 처리:', {
+                    columnName: newCol.name,
+                    newPkValue: newCol.pk,
+                    otherFkCount: otherFkColumns.length,
+                    note: '개별 FK만 독립적으로 처리'
+                  });
+                  
+                  // 🎯 단일키 다중참조에서는 각 FK의 PK 변경이 다른 FK에 영향을 주지 않음
+                  // 오직 해당 FK에 대한 관계선만 개별적으로 변경
+                  
+                  // 해당 FK와 연결된 관계선 찾기 (targetHandle 기반)
+                  let specificEdge = finalEdges.find(edge => 
                     edge.source === parentEntityId && 
                     edge.target === nodeId &&
                     edge.targetHandle && 
                     edge.targetHandle.includes(newCol.name)
                   );
+                  
+                  // targetHandle로 찾지 못한 경우, 일반적인 방법으로 찾기
+                  if (!specificEdge) {
+                    const relatedEdges = finalEdges.filter(edge => 
+                      edge.source === parentEntityId && edge.target === nodeId
+                    );
+                    
+                    if (relatedEdges.length === 1) {
+                      // 관계선이 하나뿐이면 그것을 사용
+                      specificEdge = relatedEdges[0];
+                    } else if (relatedEdges.length > 1) {
+                      // 여러 관계선이 있으면 첫 번째 것을 사용 (단일키 다중참조에서는 보통 하나의 관계선)
+                      specificEdge = relatedEdges[0];
+                      console.log('⚠️ 단일키 다중참조에서 여러 관계선 발견, 첫 번째 사용:', relatedEdges.length);
+                    }
+                  }
                   
                   if (specificEdge) {
                     let newEdgeType = specificEdge.type;
@@ -3151,7 +3273,21 @@ const useStore = create<RFState>((set, get) => ({
                       // 개별 관계 변경 토스트 (단일 FK만, 중복 방지)
                       const toastMessage = `관계변경: ${newCol.name} 컬럼이 ${relationshipType} 관계로 변경되었습니다.`;
                       setTimeout(() => toast.info(toastMessage), 100);
+                      
+                      console.log('✅ 단일키 다중참조 관계 타입 변경:', {
+                        columnName: newCol.name,
+                        edgeId: specificEdge.id,
+                        oldType: specificEdge.type,
+                        newType: newEdgeType,
+                        note: '개별 FK만 독립적으로 처리됨'
+                      });
                     }
+                  } else {
+                    console.log('⚠️ 단일키 다중참조에서 관계선을 찾을 수 없음:', {
+                      columnName: newCol.name,
+                      parentEntityId,
+                      targetNodeId: nodeId
+                    });
                   }
                 }
               }

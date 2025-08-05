@@ -2373,6 +2373,21 @@ const Layout = () => {
   const updateColumnField = (columnId: string, field: string, value: any, skipHistory: boolean = false) => {
     console.log('updateColumnField 호출:', { columnId, field, value });
     
+    // 🚨 자기참조 FK PK 체크 차단 (가장 먼저 실행)
+    if (field === 'pk' && value === true) {
+      const targetNodeId = currentPanelNodeId || selectedNodeId;
+      const columnToUpdate = columns.find(col => col.id === columnId);
+      
+      if (columnToUpdate && columnToUpdate.fk && columnToUpdate.parentEntityId === targetNodeId) {
+        console.log('🚨 자기참조 FK PK 체크 차단:', columnToUpdate.name);
+        toast.warning(`자기관계 FK 컬럼은 PK로 설정할 수 없습니다.`, {
+          toastId: `self-ref-pk-block-${columnId}`,
+          autoClose: 2000
+        });
+        return; // 즉시 종료
+      }
+    }
+    
     // PK 해제 특별 처리 - 다른 로직보다 먼저 실행
     if (field === 'pk' && value === false) {
       console.log('🔥 PK 해제 특별 처리 시작');
@@ -2389,8 +2404,30 @@ const Layout = () => {
             col.fk && col.parentEntityId === columnToUpdate.parentEntityId
           );
           
-          if (sameFkColumns.length > 1) {
-            console.log(`🔥 복합키 관계 - ${sameFkColumns.length}개 FK의 PK 모두 해제`);
+          // 🔥 정교한 복합키 판별: useStore.ts와 동일한 로직 적용
+          const currentParentColumnId = columnToUpdate.parentColumnId;
+          const otherFkColumns = sameFkColumns.filter(col => col.id !== columnToUpdate.id);
+          const otherParentColumnIds = new Set(
+            otherFkColumns.map(col => col.parentColumnId).filter(Boolean)
+          );
+          
+          const isRealCompositeKeyRelation = 
+            otherFkColumns.length > 0 && (
+              (currentParentColumnId && !otherParentColumnIds.has(currentParentColumnId)) ||
+              otherParentColumnIds.size > 1
+            );
+          
+          console.log('🔍 Layout.tsx 복합키 판별:', {
+            currentColumn: columnToUpdate.name,
+            currentParentColumnId,
+            otherFkCount: otherFkColumns.length,
+            otherParentColumnIds: Array.from(otherParentColumnIds),
+            isRealCompositeKey: isRealCompositeKeyRelation,
+            판별근거: isRealCompositeKeyRelation ? '진짜 복합키 (서로 다른 부모 PK 참조)' : '단일키 다중참조 (같은 부모 PK 참조)'
+          });
+          
+          if (isRealCompositeKeyRelation) {
+            console.log(`🔥 진짜 복합키 관계 - ${sameFkColumns.length}개 FK의 PK 모두 해제`);
             
             // 모든 관련 FK의 PK와 NN 해제
             const updatedColumns = columns.map(col => {
@@ -2417,7 +2454,7 @@ const Layout = () => {
               
               // 히스토리 저장
               if (!skipHistory) {
-                console.log(`💾 PK 해제로 인한 복합키 해제 히스토리 저장:`, columnToUpdate.name);
+                console.log(`💾 PK 해제로 인한 진짜 복합키 해제 히스토리 저장:`, columnToUpdate.name);
                 useStore.getState().saveHistoryState('CHANGE_COLUMN_PK' as any, {
                   columnName: columnToUpdate.name,
                   value: false,
@@ -2427,6 +2464,9 @@ const Layout = () => {
               
               return; // 전체 함수 종료
             }
+          } else {
+            console.log(`🔗 단일키 다중참조 - 개별 FK만 처리: ${columnToUpdate.name}`);
+            // 단일키 다중참조의 경우 개별 컬럼만 처리하고 계속 진행
           }
         }
         
@@ -2469,12 +2509,125 @@ const Layout = () => {
       }
     }
     
-    // UQ 체크 특별 처리 - FK에서 UQ 체크 시 같은 부모 FK들의 PK 일괄 해제
+    // UQ 체크 특별 처리 - FK에서 UQ 체크 시 같은 부모 FK들의 PK 일괄 해제 + 자기관계 FK 삭제 처리
     if (field === 'uq' && value === true) {
       console.log('🔥 UQ 체크 특별 처리 시작');
       const targetNodeId = currentPanelNodeId || selectedNodeId;
       const columnToUpdate = columns.find(col => col.id === columnId);
       
+      // 1. PK 컬럼에서 UQ 체크 시 자기관계 FK 삭제 처리
+      if (columnToUpdate && columnToUpdate.pk && targetNodeId) {
+        console.log('🔥 PK 컬럼에서 UQ 체크 - 자기관계 FK 삭제 처리');
+        
+        // 자기 자신을 참조하는 FK 컬럼들 찾기
+        const selfReferencingFks = columns.filter(col => 
+          col.fk && 
+          col.parentEntityId === targetNodeId && 
+          (col.parentColumnId === columnToUpdate.id || col.parentColumnId === columnToUpdate.name)
+        );
+        
+        if (selfReferencingFks.length > 0) {
+          console.log(`🔥 자기관계 FK ${selfReferencingFks.length}개 삭제: ${selfReferencingFks.map(fk => fk.name).join(', ')}`);
+          
+          // 자기관계 FK들 삭제
+          const updatedColumns = columns.filter(col => 
+            !selfReferencingFks.some(fk => fk.id === col.id)
+          ).map(col => {
+            if (col.id === columnId) {
+              // 현재 PK 컬럼: UQ 체크, PK 해제
+              return { ...col, uq: true, pk: false, nn: false };
+            }
+            return col;
+          });
+          
+          console.log(`🔧 updatedColumns 생성 완료, 개수: ${updatedColumns.length}`);
+          setColumns(updatedColumns);
+          
+          // 노드 데이터 업데이트
+          const selectedNode = nodes.find(node => node.id === targetNodeId);
+          console.log(`🔍 selectedNode 찾기 결과:`, { targetNodeId, selectedNode: !!selectedNode });
+          
+          if (selectedNode) {
+            // 히스토리 저장을 updateNodeData 호출 후에 처리 (변경 적용 후 상태 저장)
+            console.log(`� UQ 체크로 인한 자기관계 FK 삭제 히스토리 저장 시작:`, columnToUpdate.name);
+            console.log(`💾 히스토리 저장 데이터:`, {
+              columnName: columnToUpdate.name,
+              value: true,
+              deletedSelfReferencingFks: selfReferencingFks.map(fk => fk.name),
+              changeType: 'self_referencing_fk_deletion'
+            });
+            
+            try {
+              useStore.getState().saveHistoryState(HISTORY_ACTIONS.CHANGE_COLUMN_UQ, {
+                columnName: columnToUpdate.name,
+                value: true,
+                deletedSelfReferencingFks: selfReferencingFks.map(fk => fk.name),
+                changeType: 'self_referencing_fk_deletion'
+              });
+              console.log(`✅ 히스토리 저장 성공!`);
+            } catch (error) {
+              console.error(`❌ 히스토리 저장 실패:`, error);
+            }
+            
+            console.log(`�🔧 updateNodeData 호출 시작...`);
+            updateNodeData(targetNodeId, {
+              ...selectedNode.data,
+              columns: updatedColumns,
+              label: tableName
+            });
+            console.log(`✅ updateNodeData 호출 완료`);
+            
+            // 히스토리 저장을 updateNodeData 호출 후에 처리 (변경 적용 후 상태 저장)
+            console.log(`💾 UQ 체크로 인한 자기관계 FK 삭제 히스토리 저장 시작:`, columnToUpdate.name);
+            console.log(`💾 히스토리 저장 데이터:`, {
+              columnName: columnToUpdate.name,
+              value: true,
+              deletedSelfReferencingFks: selfReferencingFks.map(fk => fk.name),
+              changeType: 'self_referencing_fk_deletion'
+            });
+            
+            try {
+              useStore.getState().saveHistoryState(HISTORY_ACTIONS.CHANGE_COLUMN_UQ, {
+                columnName: columnToUpdate.name,
+                value: true,
+                deletedSelfReferencingFks: selfReferencingFks.map(fk => fk.name),
+                changeType: 'self_referencing_fk_deletion'
+              });
+              console.log(`✅ 히스토리 저장 성공!`);
+            } catch (error) {
+              console.error(`❌ 히스토리 저장 실패:`, error);
+            }
+            
+            // 자기관계 엣지 삭제 (필요한 경우)
+            const currentState = useStore.getState();
+            const selfEdges = currentState.edges.filter((edge: any) => 
+              edge.source === targetNodeId && edge.target === targetNodeId
+            );
+            
+            console.log(`🔍 자기관계 엣지 확인: ${selfEdges.length}개`);
+            
+            if (selfEdges.length > 0 && updatedColumns.filter(col => 
+              col.fk && col.parentEntityId === targetNodeId
+            ).length === 0) {
+              // 모든 자기관계 FK가 삭제되었으면 자기관계 엣지도 삭제
+              selfEdges.forEach((edge: any) => {
+                currentState.deleteEdge(edge.id, true);
+              });
+              console.log(`🗑️ 자기관계 엣지 삭제: ${selfEdges.length}개`);
+            }
+            
+            setTimeout(() => {
+              currentState.updateEdgeHandles();
+            }, 200);
+            
+            return; // 전체 함수 종료
+          } else {
+            console.error(`❌ selectedNode를 찾을 수 없음: targetNodeId=${targetNodeId}`);
+          }
+        }
+      }
+      
+      // 2. FK 컬럼에서 UQ 체크 시 같은 부모 FK들의 PK 일괄 해제
       if (columnToUpdate && columnToUpdate.fk && columnToUpdate.parentEntityId && targetNodeId) {
         console.log('🔥 FK 컬럼에서 UQ 체크 - 복합키 일관성 처리');
         
@@ -2483,8 +2636,30 @@ const Layout = () => {
           col.fk && col.parentEntityId === columnToUpdate.parentEntityId
         );
         
-        if (sameFkColumns.length > 1) {
-          console.log(`🔥 복합키 관계 - ${sameFkColumns.length}개 FK의 PK 모두 해제`);
+        // 🔥 정교한 복합키 판별: useStore.ts와 동일한 로직 적용
+        const currentParentColumnId = columnToUpdate.parentColumnId;
+        const otherFkColumns = sameFkColumns.filter(col => col.id !== columnToUpdate.id);
+        const otherParentColumnIds = new Set(
+          otherFkColumns.map(col => col.parentColumnId).filter(Boolean)
+        );
+        
+        const isRealCompositeKeyRelation = 
+          otherFkColumns.length > 0 && (
+            (currentParentColumnId && !otherParentColumnIds.has(currentParentColumnId)) ||
+            otherParentColumnIds.size > 1
+          );
+        
+        console.log('🔍 Layout.tsx UQ 체크 복합키 판별:', {
+          currentColumn: columnToUpdate.name,
+          currentParentColumnId,
+          otherFkCount: otherFkColumns.length,
+          otherParentColumnIds: Array.from(otherParentColumnIds),
+          isRealCompositeKey: isRealCompositeKeyRelation,
+          판별근거: isRealCompositeKeyRelation ? '진짜 복합키 (서로 다른 부모 PK 참조)' : '단일키 다중참조 (같은 부모 PK 참조)'
+        });
+        
+        if (isRealCompositeKeyRelation) {
+          console.log(`🔥 진짜 복합키 관계 - ${sameFkColumns.length}개 FK의 PK 모두 해제`);
           
           // 모든 관련 FK의 PK와 NN 해제, UQ만 현재 컬럼에 설정
           const updatedColumns = columns.map(col => {
@@ -2517,7 +2692,7 @@ const Layout = () => {
             
             // 히스토리 저장
             if (!skipHistory) {
-              console.log(`💾 UQ 체크로 인한 복합키 해제 히스토리 저장:`, columnToUpdate.name);
+              console.log(`💾 UQ 체크로 인한 진짜 복합키 해제 히스토리 저장:`, columnToUpdate.name);
               useStore.getState().saveHistoryState('CHANGE_COLUMN_UQ' as any, {
                 columnName: columnToUpdate.name,
                 value: true,
@@ -2527,6 +2702,9 @@ const Layout = () => {
             
             return; // 전체 함수 종료
           }
+        } else {
+          console.log(`🔗 단일키 다중참조 UQ 체크 - 개별 FK만 처리: ${columnToUpdate.name}`);
+          // 단일키 다중참조의 경우 개별 컬럼만 처리하고 계속 진행
         }
       }
     }
@@ -2738,23 +2916,42 @@ const Layout = () => {
           col.id !== columnId
         );
         
-        // 진짜 복합키인지 확인: 서로 다른 부모 PK 컬럼을 참조하는지 체크
-        const allRelatedFks = [...sameFkColumns, columnToUpdate];
-        const uniqueParentColumnIds = new Set(
-          allRelatedFks.map(col => col.parentColumnId).filter(Boolean)
-        );
-        
-        console.log('🔍 복합키 판별:', {
-          allRelatedFks: allRelatedFks.map(fk => ({ name: fk.name, parentColumnId: fk.parentColumnId })),
-          uniqueParentColumnIds: Array.from(uniqueParentColumnIds),
-          isCompositeKey: uniqueParentColumnIds.size > 1
+        console.log('🔍 sameFkColumns 상세:', {
+          allColumns: columns.map(col => ({name: col.name, fk: col.fk, parentEntityId: col.parentEntityId, parentColumnId: col.parentColumnId, id: col.id})),
+          columnToUpdate: {name: columnToUpdate.name, parentEntityId: columnToUpdate.parentEntityId, parentColumnId: columnToUpdate.parentColumnId, id: columnToUpdate.id},
+          currentColumnId: columnId,
+          sameFkColumns: sameFkColumns.map(col => ({name: col.name, parentColumnId: col.parentColumnId, id: col.id}))
         });
         
-        // 복합키 관계인지 확인 (서로 다른 부모 PK 컬럼을 참조하는 경우)
-        const isCompositeKeyRelation = uniqueParentColumnIds.size > 1;
+        // 🔥 복합키 관계 정확한 판별 개선:
+        // 1. 다른 FK들이 존재해야 함 (sameFkColumns.length > 0)
+        // 2. 현재 컬럼과 다른 FK들이 서로 다른 부모 PK를 참조해야 함
+        // 3. 또는 다른 FK들끼리도 서로 다른 부모 PK를 참조해야 함
+        const currentParentColumnId = columnToUpdate.parentColumnId;
+        const otherParentColumnIds = new Set(
+          sameFkColumns.map(col => col.parentColumnId).filter(Boolean)
+        );
         
-        if (isCompositeKeyRelation) {
-          console.log('🔥 복합키 관계 - 모든 FK PK 동시 변경');
+        const isRealCompositeKeyRelation = 
+          sameFkColumns.length > 0 && (
+            (currentParentColumnId && !otherParentColumnIds.has(currentParentColumnId)) ||
+            otherParentColumnIds.size > 1
+          );
+        
+        console.log('🔍 복합키 판별 개선:', {
+          currentColumn: columnToUpdate.name,
+          currentParentColumnId,
+          otherFkCount: sameFkColumns.length,
+          otherParentColumnIds: Array.from(otherParentColumnIds),
+          isRealCompositeKey: isRealCompositeKeyRelation,
+          판별근거: isRealCompositeKeyRelation ? '진짜 복합키 (서로 다른 부모 PK 참조)' : '단일키 다중참조 (같은 부모 PK 참조)',
+          조건1_다른FK존재: sameFkColumns.length > 0,
+          조건2_현재컬럼_다른부모PK: currentParentColumnId && !otherParentColumnIds.has(currentParentColumnId),
+          조건3_다른FK들_서로다른부모PK: otherParentColumnIds.size > 1
+        });
+        
+        if (isRealCompositeKeyRelation) {
+          console.log('🔥 진짜 복합키 관계 - 모든 FK PK 동시 변경');
           // 진짜 복합키 관계에서 FK PK 설정/해제 시: 모든 FK의 PK를 동일하게 설정/해제
           sameFkColumns.forEach((fkCol, index) => {
             const fkIndex = newColumns.findIndex(c => c.id === fkCol.id);
@@ -2802,15 +2999,41 @@ const Layout = () => {
           });
           
         } else {
-          console.log('🔗 단일PK 다중참조 - 개별 FK만 변경');
-          // 단일PK 다중참조: 해당 FK에 대한 관계선만 변경
+          console.log('🔗 단일키 다중참조 - 개별 FK만 독립적으로 변경');
+          console.log('🔗 단일키 다중참조 상세:', {
+            변경컬럼: columnToUpdate.name,
+            새PK값: value,
+            같은부모FK개수: sameFkColumns.length + 1,
+            독립처리: true,
+            note: '각 FK는 서로 영향을 주지 않음'
+          });
+          
+          // 🎯 단일키 다중참조: 오직 해당 FK만 개별적으로 처리
+          // 다른 FK들에게는 전혀 영향을 주지 않음
+          
+          // 해당 FK와 연결된 관계선 찾기
           const allEdges = useStore.getState().edges;
-          const specificEdge = allEdges.find(edge => 
+          let specificEdge = allEdges.find(edge => 
             edge.source === columnToUpdate.parentEntityId && 
             edge.target === targetNodeId &&
             edge.targetHandle && 
             edge.targetHandle.includes(columnToUpdate.name)
           );
+          
+          // targetHandle로 찾지 못한 경우 일반적인 방법 사용
+          if (!specificEdge) {
+            const relatedEdges = allEdges.filter(edge => 
+              edge.source === columnToUpdate.parentEntityId && edge.target === targetNodeId
+            );
+            
+            if (relatedEdges.length === 1) {
+              specificEdge = relatedEdges[0];
+            } else if (relatedEdges.length > 1) {
+              // 여러 관계선이 있는 경우 첫 번째 사용 (단일키 다중참조에서는 보통 하나)
+              specificEdge = relatedEdges[0];
+              console.log('⚠️ 단일키 다중참조에서 여러 관계선 발견:', relatedEdges.length);
+            }
+          }
           
           if (specificEdge) {
             let newType = specificEdge.type;
@@ -2838,9 +3061,20 @@ const Layout = () => {
               );
               useStore.getState().setEdges(updatedEdges);
               
-              const relationshipType = value ? '식별자' : '비식별자';
-              toast.info(`관계변경: ${columnToUpdate.name} 컬럼이 ${relationshipType} 관계로 변경되었습니다.`);
+              console.log('✅ 단일키 다중참조 관계 타입 변경 (Layout.tsx):', {
+                columnName: columnToUpdate.name,
+                edgeId: specificEdge.id,
+                oldType: specificEdge.type,
+                newType: newType,
+                독립처리: true
+              });
             }
+          } else {
+            console.log('⚠️ 단일키 다중참조에서 관계선을 찾을 수 없음 (Layout.tsx):', {
+              columnName: columnToUpdate.name,
+              parentEntityId: columnToUpdate.parentEntityId,
+              targetNodeId: targetNodeId
+            });
           }
         }
       }

@@ -1883,6 +1883,35 @@ const Layout = () => {
               updateEdgeHandles();
             }, 200);
             
+            // 복합키 관계에서 FK+PK 컬럼들의 손자로 전파 (문제 1 해결)
+            const deletedFkPkColumns = sameParentFks.filter(fk => fk.pk);
+            if (deletedFkPkColumns.length > 0) {
+              console.log(`🔄 복합키 FK+PK 컬럼들 삭제 - 손자로 전파: ${deletedFkPkColumns.map(fk => fk.name).join(', ')}`);
+              
+              deletedFkPkColumns.forEach((deletedFkPk) => {
+                const currentState = useStore.getState();
+                const propagationResult = propagateColumnDeletion(
+                  targetNodeId,
+                  deletedFkPk,
+                  currentState.nodes,
+                  currentState.edges,
+                  []
+                );
+                
+                console.log(`🔄 복합키 propagation 결과 (${deletedFkPk.name}): 노드 ${propagationResult.updatedNodes.length}개, 엣지 ${propagationResult.updatedEdges.length}개`);
+                
+                // 전파 결과 적용
+                useStore.getState().setNodes(propagationResult.updatedNodes);
+                useStore.getState().setEdges(propagationResult.updatedEdges);
+                
+                if (propagationResult.toastMessages.length > 0) {
+                  propagationResult.toastMessages.forEach((msg, index) => {
+                    setTimeout(() => toast.info(msg), 400 + (index * 100));
+                  });
+                }
+              });
+            }
+            
             // 복합키 FK 삭제 히스토리 저장
             setTimeout(() => {
               console.log('💾 복합키 FK 삭제 히스토리 저장:', columnToDelete.name);
@@ -2008,6 +2037,31 @@ const Layout = () => {
               setTimeout(() => {
                 updateEdgeHandles();
               }, 200);
+              
+              // FK+PK 컬럼 삭제 시 손자로 전파 (문제 1 해결)
+              if (columnToDelete.pk && columnToDelete.fk) {
+                console.log(`🔄 FK+PK 컬럼 삭제 - 손자로 전파: ${columnToDelete.name}`);
+                const currentState = useStore.getState();
+                const propagationResult = propagateColumnDeletion(
+                  targetNodeId,
+                  columnToDelete,
+                  currentState.nodes,
+                  currentState.edges,
+                  []
+                );
+                
+                console.log(`🔄 propagation 결과: 노드 ${propagationResult.updatedNodes.length}개, 엣지 ${propagationResult.updatedEdges.length}개`);
+                
+                // 전파 결과 적용
+                useStore.getState().setNodes(propagationResult.updatedNodes);
+                useStore.getState().setEdges(propagationResult.updatedEdges);
+                
+                if (propagationResult.toastMessages.length > 0) {
+                  propagationResult.toastMessages.forEach((msg, index) => {
+                    setTimeout(() => toast.info(msg), 300 + (index * 100));
+                  });
+                }
+              }
               
               // FK 삭제 히스토리 저장
               setTimeout(() => {
@@ -2326,27 +2380,71 @@ const Layout = () => {
       const columnToUpdate = columns.find(col => col.id === columnId);
       
       if (columnToUpdate && targetNodeId) {
-        // 삭제될 컬럼 정보 (원래 PK였던 상태)
-        const deletedColumn = { ...columnToUpdate, pk: true };
+        // FK 컬럼에서 PK 해제 시 복합키 일관성 처리
+        if (columnToUpdate.fk && columnToUpdate.parentEntityId) {
+          console.log('🔥 FK 컬럼에서 PK 해제 - 복합키 일관성 처리');
+          
+          // 같은 부모를 참조하는 모든 FK 찾기
+          const sameFkColumns = columns.filter(col => 
+            col.fk && col.parentEntityId === columnToUpdate.parentEntityId
+          );
+          
+          if (sameFkColumns.length > 1) {
+            console.log(`🔥 복합키 관계 - ${sameFkColumns.length}개 FK의 PK 모두 해제`);
+            
+            // 모든 관련 FK의 PK와 NN 해제
+            const updatedColumns = columns.map(col => {
+              if (col.fk && col.parentEntityId === columnToUpdate.parentEntityId) {
+                return { ...col, pk: false, nn: false };
+              }
+              return col;
+            });
+            
+            setColumns(updatedColumns);
+            
+            // 노드 데이터 업데이트
+            const selectedNode = nodes.find(node => node.id === targetNodeId);
+            if (selectedNode) {
+              updateNodeData(targetNodeId, {
+                ...selectedNode.data,
+                columns: updatedColumns,
+                label: tableName
+              });
+              
+              setTimeout(() => {
+                updateEdgeHandles();
+              }, 200);
+              
+              // 히스토리 저장
+              if (!skipHistory) {
+                console.log(`💾 PK 해제로 인한 복합키 해제 히스토리 저장:`, columnToUpdate.name);
+                useStore.getState().saveHistoryState('CHANGE_COLUMN_PK' as any, {
+                  columnName: columnToUpdate.name,
+                  value: false,
+                  affectedColumns: sameFkColumns.map(fk => fk.name)
+                });
+              }
+              
+              return; // 전체 함수 종료
+            }
+          }
+        }
         
-        // 업데이트된 컬럼 (PK와 NN 해제)
+        // 일반 PK 해제 처리 (FK가 아니거나 단일 FK인 경우)
+        const deletedColumn = { ...columnToUpdate, pk: true };
         const updatedColumn = { 
           ...columnToUpdate, 
           pk: false, 
           nn: false 
         };
-        
-        // 컬럼 배열 업데이트
         const updatedColumns = columns.map(col => 
           col.id === columnId ? updatedColumn : col
         );
         
-        // 노드 찾기
         const selectedNode = nodes.find(node => node.id === targetNodeId);
         if (selectedNode) {
-          console.log('🔥 updateNodeData 호출 with deletedColumn:', deletedColumn.name);
+          console.log('🔥 일반 PK 해제 - updateNodeData 호출 with deletedColumn:', deletedColumn.name);
           
-          // updateNodeData 호출 with deletedColumn
           updateNodeData(targetNodeId, {
             ...selectedNode.data,
             columns: updatedColumns,
@@ -2367,6 +2465,68 @@ const Layout = () => {
           }
           
           return; // 전체 함수 종료
+        }
+      }
+    }
+    
+    // UQ 체크 특별 처리 - FK에서 UQ 체크 시 같은 부모 FK들의 PK 일괄 해제
+    if (field === 'uq' && value === true) {
+      console.log('🔥 UQ 체크 특별 처리 시작');
+      const targetNodeId = currentPanelNodeId || selectedNodeId;
+      const columnToUpdate = columns.find(col => col.id === columnId);
+      
+      if (columnToUpdate && columnToUpdate.fk && columnToUpdate.parentEntityId && targetNodeId) {
+        console.log('🔥 FK 컬럼에서 UQ 체크 - 복합키 일관성 처리');
+        
+        // 같은 부모를 참조하는 모든 FK 찾기
+        const sameFkColumns = columns.filter(col => 
+          col.fk && col.parentEntityId === columnToUpdate.parentEntityId
+        );
+        
+        if (sameFkColumns.length > 1) {
+          console.log(`🔥 복합키 관계 - ${sameFkColumns.length}개 FK의 PK 모두 해제`);
+          
+          // 모든 관련 FK의 PK와 NN 해제, UQ만 현재 컬럼에 설정
+          const updatedColumns = columns.map(col => {
+            if (col.fk && col.parentEntityId === columnToUpdate.parentEntityId) {
+              if (col.id === columnId) {
+                // 현재 컬럼: UQ 체크, PK/NN 해제
+                return { ...col, uq: true, pk: false, nn: false };
+              } else {
+                // 다른 FK들: 모든 제약 해제
+                return { ...col, uq: false, pk: false, nn: false };
+              }
+            }
+            return col;
+          });
+          
+          setColumns(updatedColumns);
+          
+          // 노드 데이터 업데이트
+          const selectedNode = nodes.find(node => node.id === targetNodeId);
+          if (selectedNode) {
+            updateNodeData(targetNodeId, {
+              ...selectedNode.data,
+              columns: updatedColumns,
+              label: tableName
+            });
+            
+            setTimeout(() => {
+              updateEdgeHandles();
+            }, 200);
+            
+            // 히스토리 저장
+            if (!skipHistory) {
+              console.log(`💾 UQ 체크로 인한 복합키 해제 히스토리 저장:`, columnToUpdate.name);
+              useStore.getState().saveHistoryState('CHANGE_COLUMN_UQ' as any, {
+                columnName: columnToUpdate.name,
+                value: true,
+                affectedColumns: sameFkColumns.map(fk => fk.name)
+              });
+            }
+            
+            return; // 전체 함수 종료
+          }
         }
       }
     }

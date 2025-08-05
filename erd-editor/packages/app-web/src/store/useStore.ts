@@ -3160,6 +3160,63 @@ const useStore = create<RFState>((set, get) => ({
         });
       }
 
+      // 🔧 복합키 관계 일관성 처리 (문제 2 해결) - Layout.tsx에서 처리하므로 비활성화
+      // Layout.tsx의 updateColumnField에서 UQ체크/PK해제 시 직접 처리하므로 여기서는 스킵
+      /* 
+      if (fkPkChangedColumns.length > 0) {
+        fkPkChangedColumns.forEach((changedCol: any) => {
+          const parentEntityId = changedCol.parentEntityId;
+          const newCol = newColumns.find((col: any) => col.id === changedCol.id);
+          
+          if (newCol && parentEntityId) {
+            // 같은 부모를 참조하는 모든 FK 찾기
+            const sameFkColumns = finalNodes.find(n => n.id === nodeId)?.data.columns?.filter((col: any) => 
+              col.fk && col.parentEntityId === parentEntityId
+            ) || [];
+            
+            // 진짜 복합키 관계인지 정교하게 판별: 서로 다른 부모 PK 컬럼을 참조하는지 확인
+            const uniqueParentColumnIds = new Set(
+              sameFkColumns.map((fk: any) => fk.parentColumnId).filter(Boolean)
+            );
+            
+            const isRealCompositeKeyRelation = sameFkColumns.length > 1 && uniqueParentColumnIds.size > 1;
+            
+            // 진짜 복합키 관계에서만 일관성 처리 적용
+            if (isRealCompositeKeyRelation) {
+              console.log(`🔧 진짜 복합키 일관성 처리: ${parentEntityId}를 참조하는 ${sameFkColumns.length}개 FK, ${uniqueParentColumnIds.size}개 부모컬럼`);
+              
+              // 변경된 컬럼의 PK 상태에 따라 모든 FK의 PK 상태 일괄 변경
+              const shouldAllBePk = newCol.pk; 
+              
+              finalNodes = finalNodes.map(node => {
+                if (node.id === nodeId) {
+                  const updatedColumns = node.data.columns.map((col: any) => {
+                    // 같은 부모를 참조하는 FK들의 PK 상태를 일괄 변경
+                    if (col.fk && col.parentEntityId === parentEntityId) {
+                      console.log(`🔄 복합키 FK ${col.name} PK 상태: ${col.pk} → ${shouldAllBePk}`);
+                      return { 
+                        ...col, 
+                        pk: shouldAllBePk,
+                        nn: shouldAllBePk ? true : col.nn // PK 설정 시 NN도 설정
+                      };
+                    }
+                    return col;
+                  });
+                  
+                  return { ...node, data: { ...node.data, columns: updatedColumns } };
+                }
+                return node;
+              });
+              
+              console.log(`✅ 복합키 일관성 처리 완료: 모든 FK PK=${shouldAllBePk}`);
+            } else {
+              console.log(`⚠️ 복합키 일관성 처리 스킵: 단일PK 다중참조 관계 (FK: ${sameFkColumns.length}, 부모컬럼: ${uniqueParentColumnIds.size})`);
+            }
+          }
+        });
+      }
+      */
+
       return { nodes: finalNodes, edges: finalEdges };
     });
     

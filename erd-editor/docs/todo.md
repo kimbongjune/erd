@@ -191,5 +191,6 @@
 157. ✅ 처음 연결한 FK 삭제 시 나머지 FK도 삭제되는 문제 해결 - Layout.tsx deleteColumn 함수에서 FK 부모 엔티티 찾기 로직 개선
 158. ✅ 관계선 우클릭 삭제 시 동일한 부모의 모든 FK가 삭제되는 문제 해결 - deleteEdge 함수에서 특정 FK만 삭제하도록 수정
 159. ✅ 부모 PK를 참조하는 여러 FK 중 하나만 삭제 시 나머지 FK도 삭제되는 문제 완전 해결 - Layout.tsx에서 복합키 판별 로직 제거하고 개별 FK 삭제 로직으로 통일
-160. ✅ 엔티티 직접 삭제 시 손자까지 연쇄 삭제가 안 되는 문제 해결 - useStore.ts deleteNode 함수에서 삭제되는 엔티티의 PK 컬럼들에 대해 propagateColumnDeletion 호출 추가
+160. ✅ 엔티티 직접 삭제 시 손자까지 연쇄 삭제가 안 되는 문제 해결 - deleteNode에서 삭제된 FK가 PK인 경우 propagateColumnDeletion 호출하여 손자까지 전파
+161. ✅ 복합키에서 일부 PK 해제 시 자식/손자 FK 삭제가 안 되는 문제 해결 - Layout.tsx에서 PK 해제 시 propagateColumnDeletion 호출하여 손자까지 전파
 ```

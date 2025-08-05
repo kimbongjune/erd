@@ -8,6 +8,7 @@ import useStore, { propagateColumnAddition, propagateColumnDeletion, propagateDa
 import { toast } from 'react-toastify';
 import { MYSQL_DATATYPES, validateEnglishOnly, validateDataType, validatePhysicalName, validateDataTypeForSQL } from '../utils/mysqlTypes';
 import { HISTORY_ACTIONS } from '../utils/historyManager';
+import { createHandleId } from '../utils/handleUtils';
 import Tooltip from './Tooltip';
 
 const Container = styled.div<{ $darkMode?: boolean }>`
@@ -1974,7 +1975,7 @@ const Layout = () => {
                 });
                 
                 // createHandleId를 사용하여 정확한 targetHandle 계산
-                const { createHandleId } = require('../utils/handleUtils');
+
                 const expectedTargetHandle = createHandleId(columnToDelete.name, 'left');
                 
                 console.log('🔍 매칭 조건:', {
@@ -2047,7 +2048,7 @@ const Layout = () => {
                 col.fk && col.parentEntityId === currentNodeId
               ) || [];
               
-              console.log(`🔍 해당 부모를 참조하는 FK 개수: ${allRelatedFks.length}`, allRelatedFks.map(fk => `${fk.name}(${fk.parentColumnId})`));
+              console.log(`🔍 해당 부모를 참조하는 FK 개수: ${allRelatedFks.length}`, allRelatedFks.map((fk: any) => `${fk.name}(${fk.parentColumnId})`));
               
               // 간단한 판단: FK가 2개 이상이면 복합키 관계로 간주
               if (allRelatedFks.length > 1) {
@@ -2304,7 +2305,7 @@ const Layout = () => {
   };
 
   // 히스토리 저장을 위한 debounce 타이머들
-  const [historyTimeouts, setHistoryTimeouts] = useState<{[key: string]: NodeJS.Timeout}>({});
+  const [historyTimeouts, setHistoryTimeouts] = useState<{[key: string]: any}>({});
 
   // 컴포넌트 언마운트 시 히스토리 타이머 정리
   useEffect(() => {
@@ -2317,6 +2318,59 @@ const Layout = () => {
 
   const updateColumnField = (columnId: string, field: string, value: any, skipHistory: boolean = false) => {
     console.log('updateColumnField 호출:', { columnId, field, value });
+    
+    // PK 해제 특별 처리 - 다른 로직보다 먼저 실행
+    if (field === 'pk' && value === false) {
+      console.log('🔥 PK 해제 특별 처리 시작');
+      const targetNodeId = currentPanelNodeId || selectedNodeId;
+      const columnToUpdate = columns.find(col => col.id === columnId);
+      
+      if (columnToUpdate && targetNodeId) {
+        // 삭제될 컬럼 정보 (원래 PK였던 상태)
+        const deletedColumn = { ...columnToUpdate, pk: true };
+        
+        // 업데이트된 컬럼 (PK와 NN 해제)
+        const updatedColumn = { 
+          ...columnToUpdate, 
+          pk: false, 
+          nn: false 
+        };
+        
+        // 컬럼 배열 업데이트
+        const updatedColumns = columns.map(col => 
+          col.id === columnId ? updatedColumn : col
+        );
+        
+        // 노드 찾기
+        const selectedNode = nodes.find(node => node.id === targetNodeId);
+        if (selectedNode) {
+          console.log('🔥 updateNodeData 호출 with deletedColumn:', deletedColumn.name);
+          
+          // updateNodeData 호출 with deletedColumn
+          updateNodeData(targetNodeId, {
+            ...selectedNode.data,
+            columns: updatedColumns,
+            label: tableName
+          }, deletedColumn);
+          
+          setTimeout(() => {
+            updateEdgeHandles();
+          }, 200);
+          
+          // 히스토리 저장
+          if (!skipHistory) {
+            console.log(`💾 컬럼 PK 변경 히스토리 저장:`, columnToUpdate.name, '해제');
+            useStore.getState().saveHistoryState(HISTORY_ACTIONS.CHANGE_COLUMN_PK, {
+              columnName: columnToUpdate.name,
+              value: false
+            });
+          }
+          
+          return; // 전체 함수 종료
+        }
+      }
+    }
+    
     // 한국어 필터링 제거 - onKeyPress에서 이미 차단됨
     const targetNodeId = currentPanelNodeId || selectedNodeId;
 
@@ -2375,9 +2429,64 @@ const Layout = () => {
         } else if (field === 'pk' && value === false) {
           // PK 해제 시 NN도 해제
           updatedCol.nn = false;
+          
+          // 삭제될 컬럼 정보를 updateNodeData에 전달
+        } else if (field === 'pk' && value === false) {
+          // PK 해제 시 NN도 해제
+          updatedCol.nn = false;
+          
+          // 삭제될 컬럼 정보를 updateNodeData에 전달
+          const deletedColumn = { ...col, pk: true }; // 원래 PK였던 상태로 전달
+          
+          // updateNodeData 호출 시 deletedColumn 정보 포함
+          if (targetNodeId) {
+            const selectedNode = nodes.find(node => node.id === targetNodeId);
+            if (selectedNode) {
+              const updatedColumns = columns.map(column => 
+                column.id === col.id 
+                  ? updatedCol 
+                  : column
+              );
+              
+              updateNodeData(targetNodeId, {
+                ...selectedNode.data,
+                columns: updatedColumns,
+                label: tableName
+              }, deletedColumn);
+              
+              setTimeout(() => {
+                updateEdgeHandles();
+              }, 200);
+            }
+          }
         } else if (field === 'uq' && value === true && col.pk === true) {
           updatedCol.pk = false; // UQ 체크하면 PK 해제
           updatedCol.nn = false; // PK 해제 시 NN도 해제 가능하게
+          
+          // 삭제될 컬럼 정보를 updateNodeData에 전달
+          const deletedColumn = { ...col, pk: true }; // 원래 PK였던 상태로 전달
+          
+          // updateNodeData 호출 시 deletedColumn 정보 포함
+          if (targetNodeId) {
+            const selectedNode = nodes.find(node => node.id === targetNodeId);
+            if (selectedNode) {
+              const updatedColumns = columns.map(column => 
+                column.id === col.id 
+                  ? updatedCol 
+                  : column
+              );
+              
+              updateNodeData(targetNodeId, {
+                ...selectedNode.data,
+                columns: updatedColumns,
+                label: tableName
+              }, deletedColumn);
+              
+              setTimeout(() => {
+                updateEdgeHandles();
+              }, 200);
+            }
+          }
         }
         
         // AI 설정 시 체크 (PK이면서 INT 타입인지 확인)
@@ -2678,6 +2787,18 @@ const Layout = () => {
           ...prev,
           [timeoutKey]: newTimeout
         }));
+      }
+    }
+    
+    // 일반적인 경우 updateNodeData 호출 (PK 해제, UQ 체크가 아닌 경우)
+    if (targetNodeId) {
+      const selectedNode = nodes.find(node => node.id === targetNodeId);
+      if (selectedNode) {
+        updateNodeData(targetNodeId, {
+          ...selectedNode.data,
+          columns: newColumns,
+          label: tableName
+        });
       }
     }
   };

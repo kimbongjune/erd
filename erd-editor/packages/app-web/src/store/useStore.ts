@@ -1723,20 +1723,45 @@ const useStore = create<RFState>((set, get) => ({
         // 타겟 엔티티의 컬럼들 가져오기
         const targetColumns = targetNode.data.columns || [];
         
-        // 🎯 복합키 관계 처리: 같은 부모-자식 관계의 모든 FK 컬럼 찾기
-        const allRelatedFks = targetColumns.filter((col: any) => 
-          col.fk && col.parentEntityId === edgeToDelete.source
+        // 🎯 삭제하려는 관계선과 연관된 FK만 찾기 (relationshipGroupId 기반)
+        let targetFkColumnName = null;
+        if (edgeToDelete.targetHandle && edgeToDelete.targetHandle !== 'left' && edgeToDelete.targetHandle !== 'right') {
+          const handleParts = edgeToDelete.targetHandle.split('-');
+          if (handleParts.length >= 2) {
+            targetFkColumnName = handleParts.slice(0, -1).join('-');
+          }
+        }
+        
+        // 대상 FK를 찾고, 같은 relationshipGroupId를 가진 FK들만 선택
+        const targetFk = targetColumns.find((col: any) => 
+          col.fk && col.name === targetFkColumnName
         );
         
-        console.log('🗑️ 관계선 삭제 - FK 분석:', {
+        const allRelatedFks = targetFk && targetFk.relationshipGroupId 
+          ? targetColumns.filter((col: any) => 
+              col.fk && col.relationshipGroupId === targetFk.relationshipGroupId
+            )
+          : targetColumns.filter((col: any) => 
+              col.fk && col.parentEntityId === edgeToDelete.source
+            );
+        
+        console.log('🗑️ 관계선 삭제 - FK 분석 (개선):', {
           edgeId: id,
           sourceEntity: sourceNode.data.label,
           targetEntity: targetNode.data.label,
           targetHandle: edgeToDelete.targetHandle,
-          allRelatedFks: allRelatedFks.map((fk: any) => ({ name: fk.name, parentColumnId: fk.parentColumnId }))
+          targetFkName: targetFkColumnName,
+          targetFkGroupId: targetFk?.relationshipGroupId,
+          선택된_FK들: allRelatedFks.map((fk: any) => ({ 
+            name: fk.name, 
+            parentColumnId: fk.parentColumnId,
+            relationshipGroupId: fk.relationshipGroupId 
+          })),
+          전체_FK_개수: targetColumns.filter((c: any) => c.fk).length,
+          선택된_FK_개수: allRelatedFks.length
         });
         
-        // 복합키 vs 단일키 다중참조 판별
+        // 복합키 vs 단일키 다중참조 판별 (개선된 로직)
         const parentColumnGroups = allRelatedFks.reduce((groups: any, fk: any) => {
           const key = fk.parentColumnId;
           groups[key] = (groups[key] || 0) + 1;
@@ -1744,12 +1769,14 @@ const useStore = create<RFState>((set, get) => ({
         }, {});
         
         const groupSizes = Object.values(parentColumnGroups) as number[];
-        const isCompositeKey = groupSizes.every((size: number) => size === 1) && groupSizes.length > 1;
+        // 🔧 수정: 부모 PK가 2개 이상이고 각 PK마다 동일한 개수의 FK가 있으면 복합키
+        const isCompositeKey = groupSizes.length > 1 && groupSizes.every(size => size === groupSizes[0]);
         
-        console.log('🗑️ 관계 타입 판별:', {
+        console.log('🗑️ 관계 타입 판별 (개선):', {
           parentColumnGroups,
           groupSizes,
-          isCompositeKey
+          isCompositeKey: isCompositeKey ? '복합키 관계' : '단일키 다중참조',
+          판별조건: `PK개수: ${groupSizes.length}, 각 PK별 FK개수: [${groupSizes.join(', ')}]`
         });
         
         let fkColumnsToRemove: any[] = [];

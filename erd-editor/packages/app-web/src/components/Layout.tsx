@@ -2266,12 +2266,15 @@ const Layout = () => {
             useStore.getState().setNodes(propagationResult.updatedNodes);
             useStore.getState().setEdges(propagationResult.updatedEdges);
             
-            // 🔥 중요: 실제 PK 컬럼도 삭제해야 함
-            const updatedColumns = columns.filter(col => col.id !== columnId);
-            setColumns(updatedColumns);
-            updateNodeData(currentNodeId, {
-              columns: updatedColumns
-            });
+            // 자기참조 FK가 처리된 경우 추가 컬럼 삭제 생략
+            if (!propagationResult.selfReferencingHandled) {
+              // 🔥 중요: 실제 PK 컬럼도 삭제해야 함
+              const updatedColumns = columns.filter(col => col.id !== columnId);
+              setColumns(updatedColumns);
+              updateNodeData(currentNodeId, {
+                columns: updatedColumns
+              });
+            }
             
             // 토스트 메시지 표시
             if (propagationResult.toastMessages.length > 0) {

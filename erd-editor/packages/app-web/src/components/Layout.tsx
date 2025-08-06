@@ -1968,70 +1968,26 @@ const Layout = () => {
                 setSelectedColumn(newColumns[0] || null);
               }
               
-              // 관계선 처리
+              // 관계선 처리 - 항상 유지 원칙
+              console.log('� 관계선 유지 정책: FK 삭제와 상관없이 관계선은 항상 유지됩니다.');
+              
               if (remainingFKs.length === 0) {
-                // 모든 FK가 삭제되었으면 모든 관계선 삭제
-                console.log('🚫 모든 FK 삭제됨 - 관계선도 삭제');
-                const allRelatedEdges = useStore.getState().edges.filter(edge => 
-                  edge.source === parentEntity.id && edge.target === targetNodeId
-                );
-                allRelatedEdges.forEach(edge => {
-                  useStore.getState().deleteEdge(edge.id, true);
-                });
-                toast.success(`관계가 해제되었습니다. (${parentEntity.data.label} ↔ ${currentEntity.data.label})`);
+                console.log('🔗 모든 FK 삭제됨 - 하지만 관계선은 유지');
+                toast.info(`FK 컬럼이 모두 삭제되었지만 관계는 유지됩니다. (${parentEntity.data.label} ↔ ${currentEntity.data.label})`);
               } else {
-                // 다른 FK가 남아있으면 해당 FK에 대한 관계선만 삭제
-                console.log('🔗 해당 FK 관계선만 삭제');
-                
-                // 디버깅: 현재 모든 관계선 출력
-                const allEdges = useStore.getState().edges;
-                console.log('🔍 전체 관계선들:');
-                allEdges.forEach((edge, index) => {
-                  console.log(`  ${index}: {
-                    id: "${edge.id}",
-                    source: "${edge.source}",
-                    target: "${edge.target}",
-                    sourceHandle: "${edge.sourceHandle}",
-                    targetHandle: "${edge.targetHandle}"
-                  }`);
-                });
-                
-                console.log('🔍 삭제할 컬럼 정보:', {
-                  id: columnToDelete.id,
-                  name: columnToDelete.name,
-                  parentEntityId: columnToDelete.parentEntityId,
-                  parentColumnId: columnToDelete.parentColumnId
-                });
-                
-                // createHandleId를 사용하여 정확한 targetHandle 계산
-
-                const expectedTargetHandle = createHandleId(columnToDelete.name, 'left');
-                
-                console.log('🔍 매칭 조건:', {
-                  source: parentEntity.id,
-                  target: targetNodeId,
-                  expectedTargetHandle: expectedTargetHandle
-                });
-                
-                // 정확한 targetHandle로 관계선 찾기
-                const specificEdges = useStore.getState().edges.filter(edge => 
-                  edge.source === parentEntity.id && 
-                  edge.target === targetNodeId && 
-                  edge.targetHandle === expectedTargetHandle
-                );
-                
-                console.log('🎯 삭제할 특정 관계선들:', specificEdges.map(edge => ({ 
-                  id: edge.id, 
-                  targetHandle: edge.targetHandle 
-                })));
-                
-                specificEdges.forEach(edge => {
-                  useStore.getState().deleteEdge(edge.id, true);
-                });
-                
-                console.log('✅ 다른 FK 남아있음 - 관계는 유지됩니다.');
+                console.log('🔗 일부 FK 삭제됨 - 관계선 유지');
                 toast.info(`FK 컬럼 ${columnToDelete.name}이 삭제되었습니다. 관계는 유지됩니다.`);
               }
+              
+              // 관계선 삭제 로직 제거 - 항상 유지
+              // 디버깅: 현재 관계선 상태 확인
+              const allRelatedEdges = useStore.getState().edges.filter(edge => 
+                edge.source === parentEntity.id && edge.target === targetNodeId
+              );
+              console.log(`🔍 현재 관계선 개수: ${allRelatedEdges.length}개 (유지됨)`);
+              allRelatedEdges.forEach((edge, index) => {
+                console.log(`  관계선 ${index + 1}: ${edge.id} (${edge.sourceHandle} → ${edge.targetHandle})`);
+              });
               
               // Handle 업데이트
               setTimeout(() => {

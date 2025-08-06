@@ -384,7 +384,67 @@ export const propagateColumnDeletion = (
       
       resultToastMessages.push(`자기참조: ${sourceNodeForSelfRef.data.label} 엔티티에서 자기참조 FK ${selfReferencingFks.length}개가 삭제되었습니다.`);
       
-      // ✅ 즉시 반환하여 추가 처리 방지
+      // 🔄 중요: 삭제된 컬럼이 PK였다면 자식 엔티티로의 연쇄 전파도 수행
+      if (deletedColumn.pk) {
+        console.log(`🔄 자기참조 처리 후 연쇄 전파 시작: ${deletedColumn.name}은 PK였음`);
+        
+        // 자식 엔티티들 찾기
+        const childEdges = finalEdges.filter(edge => edge.source === nodeId && edge.target !== nodeId);
+        
+        childEdges.forEach(edge => {
+          const childNode = finalNodes.find(n => n.id === edge.target);
+          if (!childNode || childNode.type !== 'entity') return;
+          
+          const childColumns = childNode.data.columns || [];
+          
+          // 삭제된 PK를 참조하는 FK들 찾기
+          const targetFkColumns = childColumns.filter((col: any) => 
+            col.fk && 
+            col.parentEntityId === nodeId && 
+            (col.parentColumnId === deletedColumn.id || col.parentColumnId === deletedColumn.name)
+          );
+          
+          if (targetFkColumns.length > 0) {
+            console.log(`🎯 자식 엔티티 ${edge.target}에서 ${targetFkColumns.length}개 FK 삭제`);
+            
+            // FK들 삭제
+            const updatedChildColumns = childColumns.filter((col: any) => 
+              !targetFkColumns.some((fkCol: any) => fkCol.id === col.id)
+            );
+            
+            // 자식 노드 업데이트
+            const childNodeIndex = finalNodes.findIndex(n => n.id === edge.target);
+            if (childNodeIndex !== -1) {
+              finalNodes[childNodeIndex] = {
+                ...finalNodes[childNodeIndex],
+                data: {
+                  ...finalNodes[childNodeIndex].data,
+                  columns: updatedChildColumns
+                }
+              };
+            }
+            
+            // 삭제된 FK가 PK였다면 손자로 재귀 전파
+            targetFkColumns.forEach((deletedFk: any) => {
+              if (deletedFk.pk) {
+                console.log(`🔄 손자로 재귀 전파: ${deletedFk.name}`);
+                const grandchildResult = propagateColumnDeletion(
+                  edge.target,
+                  deletedFk,
+                  finalNodes,
+                  finalEdges,
+                  resultToastMessages
+                );
+                finalNodes = grandchildResult.updatedNodes;
+                finalEdges = grandchildResult.updatedEdges;
+                resultToastMessages = [...resultToastMessages, ...grandchildResult.toastMessages];
+              }
+            });
+          }
+        });
+      }
+      
+      // ✅ 자기참조 처리 + 연쇄 전파 완료 후 반환
       return { 
         updatedNodes: finalNodes, 
         updatedEdges: finalEdges, 

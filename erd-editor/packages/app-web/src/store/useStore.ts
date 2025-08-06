@@ -2925,19 +2925,58 @@ const useStore = create<RFState>((set, get) => ({
       if (deletedColumn && deletedColumn.pk) {
         console.log(`🗑️ Layout에서 PK 삭제 감지: ${deletedColumn.name}`, deletedColumn);
         
-        // 올바른 복합키 관계 판단: 부모에서 삭제될 PK를 제외한 나머지 PK 확인
-        const parentNode = finalNodes.find(n => n.id === nodeId);
-        if (!parentNode) {
-          return { nodes: finalNodes, edges: finalEdges };
-        }
-        
-        const remainingParentPks = parentNode.data.columns.filter((col: any) => 
-          col.pk && col.id !== deletedColumn.id
-        );
+        // 올바른 복합키 관계 판단: 업데이트된 newData 기준으로 남은 PK 확인
+        const updatedColumns = newData.columns || [];
+        const remainingParentPks = updatedColumns.filter((col: any) => col.pk);
         
         console.log(`🔍 복합키 관계 판단: ${remainingParentPks.length > 0} (남은 PK 개수: ${remainingParentPks.length})`);
+        console.log(`📋 업데이트된 컬럼 목록:`, updatedColumns.map((c: any) => `${c.name}(PK:${c.pk}, FK:${c.fk})`));
         
         const isCompositeKeyRelation = remainingParentPks.length > 0;
+        
+        // 🔄 복합키인 경우에만 자기참조 FK 삭제 처리 (단일키는 기존 로직 유지)
+        if (isCompositeKeyRelation) {
+          console.log(`🔄 복합키 상황: 자기참조 FK 삭제 처리 시작`);
+          
+          // 현재 엔티티의 자기참조 FK 찾기 (삭제된 PK를 참조하는)
+          const selfReferencingFks = updatedColumns.filter((col: any) => {
+            const isFk = col.fk;
+            const isSelfRef = col.parentEntityId === nodeId;
+            const referencesDeletedPk = 
+              col.parentColumnId === deletedColumn.id || 
+              col.parentColumnId === deletedColumn.name;
+            
+            console.log(`🔍 자기참조 FK 검사: "${col.name}": FK=${isFk}, 자기참조=${isSelfRef}, PK참조=${referencesDeletedPk} (parentColumnId: ${col.parentColumnId}, deletedColumn.id: ${deletedColumn.id})`);
+            
+            return isFk && isSelfRef && referencesDeletedPk;
+          });
+          
+          if (selfReferencingFks.length > 0) {
+            console.log(`🎯 복합키: 자기참조 FK 삭제: ${selfReferencingFks.map((fk: any) => fk.name).join(', ')}`);
+            
+            // 자기참조 FK들 삭제
+            const updatedSelfColumns = updatedColumns.filter((col: any) => 
+              !selfReferencingFks.some((fk: any) => fk.id === col.id)
+            );
+            
+            console.log(`📋 자기참조 FK 삭제 후:`, updatedSelfColumns.map((c: any) => `${c.name}(PK:${c.pk}, FK:${c.fk})`));
+            
+            // newData.columns 업데이트
+            newData = { ...newData, columns: updatedSelfColumns };
+            
+            // 자기참조 관계선도 삭제
+            finalEdges = finalEdges.filter((edge: any) => 
+              !(edge.source === nodeId && edge.target === nodeId)
+            );
+            
+            console.log(`🗑️ 복합키: 자기참조 관계선 삭제 완료`);
+          } else {
+            console.log(`⚠️ 복합키: 자기참조 FK를 찾을 수 없음`);
+          }
+        } else {
+          console.log(`📝 단일키 상황: 자기참조 FK 처리 생략 (기존 로직 유지)`);
+        }
+        // 단일키인 경우에는 자기참조 FK 처리하지 않음 (기존 로직이 잘 처리함)
         
         if (isCompositeKeyRelation) {
           // 복합키 관계: 해당 PK를 참조하는 FK만 삭제, 관계선 유지

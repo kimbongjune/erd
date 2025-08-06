@@ -2432,13 +2432,29 @@ const Layout = () => {
           if (isRealCompositeKeyRelation) {
             console.log(`🔥 진짜 복합키 관계 - ${sameFkColumns.length}개 FK의 PK 모두 해제`);
             
-            // 모든 관련 FK의 PK와 NN 해제
-            const updatedColumns = columns.map(col => {
+            // 🔄 복합키 PK 해제 시 자기참조 FK 삭제 처리 (모든 관련 FK에 대해)
+            const selfReferencingFks = columns.filter(col => 
+              col.fk && 
+              col.parentEntityId === targetNodeId && 
+              sameFkColumns.some(fkCol => col.parentColumnId === fkCol.id || col.parentColumnId === fkCol.name)
+            );
+            
+            // 모든 관련 FK의 PK와 NN 해제 + 자기참조 FK 삭제
+            let updatedColumns = columns.map(col => {
               if (col.fk && col.parentEntityId === columnToUpdate.parentEntityId) {
                 return { ...col, pk: false, nn: false };
               }
               return col;
             });
+            
+            // 자기참조 FK가 있다면 삭제
+            if (selfReferencingFks.length > 0) {
+              console.log(`🔥 복합키 PK 해제 - 자기참조 FK ${selfReferencingFks.length}개 삭제: ${selfReferencingFks.map((fk: any) => fk.name).join(', ')}`);
+              
+              updatedColumns = updatedColumns.filter(col => 
+                !selfReferencingFks.some((fk: any) => fk.id === col.id)
+              );
+            }
             
             setColumns(updatedColumns);
             
@@ -2480,9 +2496,26 @@ const Layout = () => {
           pk: false, 
           nn: false 
         };
-        const updatedColumns = columns.map(col => 
+        
+        // 🔄 일반 PK 해제 시 자기참조 FK 삭제 처리 (UQ 로직과 동일)
+        const selfReferencingFks = columns.filter(col => 
+          col.fk && 
+          col.parentEntityId === targetNodeId && 
+          (col.parentColumnId === columnToUpdate.id || col.parentColumnId === columnToUpdate.name)
+        );
+        
+        let updatedColumns = columns.map(col => 
           col.id === columnId ? updatedColumn : col
         );
+        
+        // 자기참조 FK가 있다면 삭제
+        if (selfReferencingFks.length > 0) {
+          console.log(`🔥 일반 PK 해제 - 자기참조 FK ${selfReferencingFks.length}개 삭제: ${selfReferencingFks.map((fk: any) => fk.name).join(', ')}`);
+          
+          updatedColumns = updatedColumns.filter(col => 
+            !selfReferencingFks.some((fk: any) => fk.id === col.id)
+          );
+        }
         
         const selectedNode = nodes.find(node => node.id === targetNodeId);
         if (selectedNode) {

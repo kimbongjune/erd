@@ -673,6 +673,19 @@ export const propagateColumnDeletion = (
       
       // 관계선은 항상 유지 (FK 삭제와 상관없이)
       console.log(`🔗 관계선 유지: ${edge.source} → ${edge.target} (FK만 삭제, 관계선 보존)`);
+
+      const remainingFkCount = updatedChildColumns.filter((col: any) => 
+        col.fk && col.parentEntityId === nodeId
+      ).length;
+      
+      if (remainingFkCount === 0) {
+        // 해당 관계에 더 이상 FK가 없으면 관계선 삭제
+        finalEdges = finalEdges.filter(e => e.id !== edge.id);
+        console.log(`🗑️ PK 삭제로 인한 관계선 삭제: ${edge.source} -> ${edge.target}`);
+      } else {
+        console.log(`🔗 관계선 유지: ${edge.source} → ${edge.target} (남은 FK: ${remainingFkCount}개)`);
+      }
+      
       
       // 손자 엔티티로 재귀 전파 (삭제된 FK가 PK였다면)
       targetFkColumns.forEach((deletedFk: any) => {

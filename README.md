@@ -90,27 +90,27 @@
 ## 화면
 
 ### 메인 화면
-![메인 화면](docs/screenshot/main.png)
+![메인 화면](erd-editor/docs/screenshot/main.png)
 
 ### 엔티티 편집
 <div align="center">
-  <img src="docs/screenshot/entity-edit.png" width="30%" alt="엔티티편집1" />
-  <img src="docs/screenshot/entity-edit2.png" width="30%" alt="엔티티편집2" />
-  <img src="docs/screenshot/entity-edit3.png" width="30%" alt="엔티티편집3" />
+  <img src="erd-editor/docs/screenshot/entity-edit.png" width="30%" alt="엔티티편집1" />
+  <img src="erd-editor/docs/screenshot/entity-edit2.png" width="30%" alt="엔티티편집2" />
+  <img src="erd-editor/docs/screenshot/entity-edit3.png" width="30%" alt="엔티티편집3" />
 </div> 
 
 ### 관계 설정
-![관계 설정](docs/screenshot/relationship.png)
+![관계 설정](erd-editor/docs/screenshot/relationship.png)
 
 ### 다크 테마
-![다크 테마](docs/screenshot/dark.png) 
+![다크 테마](erd-editor/docs/screenshot/dark.png) 
 
 ### 배치
 <div align="center">
-  <img src="docs/screenshot/lr-arrange.png" width="30%" alt="좌우배치" />
-  <img src="docs/screenshot/sf-arrange.png" width="30%" alt="눈송이배치" />
-  <img src="docs/screenshot/cp-arrange.png" width="30%" alt="맞춤배치" />
+  <img src="erd-editor/docs/screenshot/lr-arrange.png" width="30%" alt="좌우배치" />
+  <img src="erd-editor/docs/screenshot/sf-arrange.png" width="30%" alt="눈송이배치" />
+  <img src="erd-editor/docs/screenshot/cp-arrange.png" width="30%" alt="맞춤배치" />
 </div> 
 
 ### 보기 방식
-![보기 방식](docs/screenshot/view.png) 
+![보기 방식](erd-editor/docs/screenshot/view.png) 

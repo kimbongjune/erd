@@ -2660,8 +2660,8 @@ const Layout = () => {
                 // 현재 컬럼: UQ 체크, PK/NN 해제
                 return { ...col, uq: true, pk: false, nn: false };
               } else {
-                // 다른 FK들: PK/NN만 해제, UQ는 유지 (복합키 FK에서 UQ 여러 개 동시 가능)
-                return { ...col, pk: false, nn: false };
+                // 다른 FK들: PK/NN만 해제, 기존 UQ는 유지 (복합키 FK에서 UQ 여러 개 동시 가능)
+                return { ...col, pk: false, nn: col.nn };
               }
             }
             return col;

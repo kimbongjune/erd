@@ -2653,15 +2653,15 @@ const Layout = () => {
         if (isRealCompositeKeyRelation) {
           console.log(`🔥 진짜 복합키 관계 - ${sameFkColumns.length}개 FK의 PK 모두 해제`);
           
-          // 모든 관련 FK의 PK와 NN 해제, UQ만 현재 컬럼에 설정
+          // 모든 관련 FK의 PK와 NN 해제, UQ는 현재 컬럼에만 설정하고 다른 FK들의 UQ는 유지
           const updatedColumns = columns.map(col => {
             if (col.fk && col.parentEntityId === columnToUpdate.parentEntityId) {
               if (col.id === columnId) {
                 // 현재 컬럼: UQ 체크, PK/NN 해제
                 return { ...col, uq: true, pk: false, nn: false };
               } else {
-                // 다른 FK들: 모든 제약 해제
-                return { ...col, uq: false, pk: false, nn: false };
+                // 다른 FK들: PK/NN만 해제, UQ는 유지 (복합키 FK에서 UQ 여러 개 동시 가능)
+                return { ...col, pk: false, nn: false };
               }
             }
             return col;
@@ -2951,7 +2951,8 @@ const Layout = () => {
               newColumns[fkIndex] = { 
                 ...newColumns[fkIndex], 
                 pk: value, 
-                nn: value 
+                nn: value,
+                uq: value ? false : newColumns[fkIndex].uq // PK 설정 시 UQ 해제, PK 해제 시 UQ 유지
               };
             }
           });

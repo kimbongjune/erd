@@ -3860,9 +3860,12 @@ const useStore = create<RFState>((set, get) => ({
             col.fk && col.parentEntityId === sourceNode.id
           ) || [];
           
-          if (relatedFkColumns.length > 0) {
-            // 🔗 관계선 개수 보존: 각 관계선마다 고유한 FK 할당
-            // edge.id를 기반으로 일관된 FK 선택 (해시 기반 분배)
+          // 단일 PK 다중 FK 상황 확인 - 이 경우 삭제된 관계선은 복원하지 않음
+          const parentPkColumns = sourceNode.data.columns?.filter((col: any) => col.pk) || [];
+          const isSinglePkMultipleFk = parentPkColumns.length === 1 && relatedFkColumns.length > 1;
+          
+          if (relatedFkColumns.length > 0 && !isSinglePkMultipleFk) {
+            // 단일 PK 다중 FK가 아닌 경우에만 관계선 개수 보존 로직 적용
             const edgeIndex = state.edges.findIndex(e => e.id === edge.id);
             const fkIndex = edgeIndex % relatedFkColumns.length;
             targetFkColumn = relatedFkColumns[fkIndex];
@@ -3871,9 +3874,9 @@ const useStore = create<RFState>((set, get) => ({
           }
         }
         
-        // FK 컬럼을 찾을 수 없으면 edge를 그대로 반환 (삭제하지 않음)
+        // FK 컬럼을 찾을 수 없으면 관계선 삭제 (단일 PK 다중 FK에서 삭제된 관계선 복원 방지)
         if (!targetFkColumn) {
-          return edge;
+          return null; // 이 관계선을 삭제하여 삭제된 상태 유지
         }
         
         // 새로운 handle 결정 로직 사용
@@ -3915,7 +3918,7 @@ const useStore = create<RFState>((set, get) => ({
           sourceHandle: sourceHandleId,
           targetHandle: targetHandleId
         };
-      });
+      }).filter(Boolean) as any[]; // null 값 제거하여 삭제된 관계선 복원 방지
       
       return { ...state, edges: updatedEdges };
     });

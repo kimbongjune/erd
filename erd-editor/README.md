@@ -99,18 +99,18 @@
   <img src="docs/screenshot/entity-edit3.png" width="30%" alt="엔티티편집3" />
 </div> 
 
+### 관계 설정
+![관계 설정](docs/screenshot/relationship.png)
+
+### 다크 테마
+![다크 테마](docs/screenshot/dark.png) 
+
 ### 배치
 <div align="center">
   <img src="docs/screenshot/lr-arrange.png" width="30%" alt="좌우배치" />
   <img src="docs/screenshot/sf-arrange.png" width="30%" alt="눈송이배치" />
   <img src="docs/screenshot/cp-arrange.png" width="30%" alt="맞춤배치" />
 </div> 
-
-### 관계 설정
-![관계 설정](docs/screenshot/relationship.png)
-
-### 다크 테마
-![다크 테마](docs/screenshot/dark.png) 
 
 ### 보기 방식
 ![보기 방식](docs/screenshot/view.png) 

@@ -144,10 +144,11 @@ const TabContainer = styled.div<{ $darkMode?: boolean }>`
 const Tab = styled.button<{ $active: boolean; $darkMode?: boolean }>`
   flex: 1;
   padding: 16px 24px;
+  margin: 0;
   border: none;
   background: ${props => {
     if (props.$active) {
-      return props.$darkMode ? '#4a5568' : '#f7fafc';
+      return props.$darkMode ? '#4a5568' : '#e2e8f0';
     }
     return 'transparent';
   }};
@@ -166,7 +167,7 @@ const Tab = styled.button<{ $active: boolean; $darkMode?: boolean }>`
   gap: 8px;
   
   &:hover {
-    background: ${props => props.$darkMode ? '#4a5568' : '#f7fafc'};
+    background: ${props => props.$darkMode ? '#4a5568' : '#f1f5f9'};
     color: ${props => props.$darkMode ? '#e2e8f0' : '#2d3748'};
   }
   
@@ -215,7 +216,7 @@ const FileUploadArea = styled.div<{ $darkMode?: boolean; $isDragOver?: boolean }
 const UrlInputContainer = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 `;
 
 const Input = styled.input<{ $darkMode?: boolean }>`
@@ -243,6 +244,7 @@ const ButtonContainer = styled.div`
   display: flex;
   gap: 12px;
   justify-content: flex-end;
+  margin-top: 8px;
 `;
 
 const Button = styled.button<{ $variant?: 'primary' | 'secondary'; $darkMode?: boolean }>`
@@ -275,19 +277,11 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary'; $darkMode?: b
   `}
 `;
 
-const ErrorMessage = styled.div<{ $darkMode?: boolean }>`
-  position: absolute;
-  bottom: -30px;
-  left: 0;
-  right: 0;
-  background: #e53e3e;
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  text-align: center;
-  box-shadow: 0 2px 8px rgba(229, 62, 62, 0.3);
-  z-index: 20;
+const ModalErrorMessage = styled.div<{ $darkMode?: boolean }>`
+  color: ${props => props.$darkMode ? '#fc8181' : '#e53e3e'};
+  font-size: 13px;
+  text-align: left;
+  margin-top: 4px;
 `;
 
 const HiddenFileInput = styled.input`
@@ -316,11 +310,16 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'upload' | 'url'>('upload');
   const [urlInputValue, setUrlInputValue] = useState('');
-  const [error, setError] = useState('');
+  const [modalError, setModalError] = useState('');
   const [isImageLoading, setIsImageLoading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isShiftPressed, setIsShiftPressed] = useState(false);
+
+  // 디버깅용: modalError 상태 변화 감지
+  useEffect(() => {
+    console.log('modalError 상태 변화:', modalError);
+  }, [modalError]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -368,13 +367,47 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
   // 이미지 유효성 검증
   const validateImageUrl = useCallback((url: string): Promise<boolean> => {
     return new Promise((resolve) => {
+      // URL 형식 검증
+      try {
+        const urlObj = new URL(url);
+        // HTTP/HTTPS 프로토콜만 허용
+        if (!['http:', 'https:'].includes(urlObj.protocol)) {
+          resolve(false);
+          return;
+        }
+      } catch {
+        resolve(false);
+        return;
+      }
+
       const img = new Image();
-      img.onload = () => resolve(true);
-      img.onerror = () => resolve(false);
-      img.src = url;
       
-      // 5초 타임아웃
-      setTimeout(() => resolve(false), 5000);
+      // CORS 이슈를 피하기 위해 crossOrigin 설정
+      img.crossOrigin = 'anonymous';
+      
+      let timeoutId: number;
+      
+      img.onload = () => {
+        clearTimeout(timeoutId);
+        // 실제 이미지인지 확인 (최소 크기 체크)
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          resolve(true);
+        } else {
+          resolve(false);
+        }
+      };
+      
+      img.onerror = () => {
+        clearTimeout(timeoutId);
+        resolve(false);
+      };
+      
+      // 3초 타임아웃
+      timeoutId = window.setTimeout(() => {
+        resolve(false);
+      }, 3000);
+      
+      img.src = url;
     });
   }, []);
 
@@ -395,6 +428,7 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsModalOpen(false);
+        setModalError(''); // ESC로 모달 닫을 때 에러 메시지 초기화
       }
     };
 
@@ -403,6 +437,7 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
       const target = event.target as HTMLElement;
       if (!target.closest('[data-modal-content]') && !target.closest('button')) {
         setIsModalOpen(false);
+        setModalError(''); // 모달 닫을 때 에러 메시지 초기화
       }
     };
 
@@ -423,15 +458,15 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
   const handleFile = useCallback(async (file: File) => {
     // 파일 타입 검증
     if (!file.type.startsWith('image/')) {
-      setError('이미지 파일만 업로드할 수 있습니다.');
-      setTimeout(() => setError(''), 3000);
+      setModalError('이미지 파일만 업로드할 수 있습니다.');
+      setTimeout(() => setModalError(''), 3000);
       return;
     }
 
     // 파일 크기 검증 (5MB)
     if (file.size > 5 * 1024 * 1024) {
-      setError('파일 크기는 5MB 이하여야 합니다.');
-      setTimeout(() => setError(''), 3000);
+      setModalError('파일 크기는 5MB 이하여야 합니다.');
+      setTimeout(() => setModalError(''), 3000);
       return;
     }
 
@@ -453,7 +488,7 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
         });
       }, 50); // 짧은 지연으로 상태 업데이트 완료 보장
       
-      setError('');
+      setModalError('');
       setIsModalOpen(false);
       
       // 이미지 변경 시 자동저장
@@ -461,8 +496,8 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
         saveToLocalStorage(false);
       }, 500);
     } catch (err) {
-      setError('파일을 읽는 중 오류가 발생했습니다.');
-      setTimeout(() => setError(''), 3000);
+      setModalError('파일을 읽는 중 오류가 발생했습니다.');
+      setTimeout(() => setModalError(''), 3000);
     } finally {
       setIsImageLoading(false);
     }
@@ -510,8 +545,18 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
       return;
     }
 
+    // URL 형식 기본 검증
+    try {
+      new URL(url);
+    } catch {
+      setModalError('올바른 URL 형식이 아닙니다.');
+      return;
+    }
+
     try {
       setIsImageLoading(true);
+      setModalError('이미지를 확인하는 중...');
+      
       const isValid = await validateImageUrl(url);
       
       if (isValid) {
@@ -529,7 +574,7 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
           });
         }, 50); // 짧은 지연으로 상태 업데이트 완료 보장
         
-        setError('');
+        setModalError('');
         setIsModalOpen(false);
         
         // 이미지 URL 변경 시 자동저장
@@ -537,12 +582,10 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
           saveToLocalStorage(false);
         }, 500);
       } else {
-        setError('유효하지 않은 이미지 URL입니다.');
-        setTimeout(() => setError(''), 3000);
+        setModalError('유효하지 않은 이미지 URL입니다. 이미지 파일을 직접 가리키는 URL을 입력해주세요.');
       }
     } catch (err) {
-      setError('이미지를 로드할 수 없습니다.');
-      setTimeout(() => setError(''), 3000);
+      setModalError('이미지를 로드할 수 없습니다.');
     } finally {
       setIsImageLoading(false);
     }
@@ -560,6 +603,8 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
       setUrlInputValue('');
     }
     
+    // 모달 에러 상태 초기화
+    setModalError('');
     setIsModalOpen(true);
   }, [imageUrl, setUrlInputValue, setIsModalOpen]);
 
@@ -673,10 +718,6 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
               src={imageUrl} 
               alt="User uploaded image"
               $darkMode={isDarkMode}
-              onError={() => {
-                setError('이미지를 로드할 수 없습니다.');
-                setTimeout(() => setError(''), 3000);
-              }}
             />
           </>
         ) : (
@@ -689,12 +730,6 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
               더블클릭하세요
             </div>
           </PlaceholderContent>
-        )}
-
-        {error && (
-          <ErrorMessage $darkMode={isDarkMode}>
-            {error}
-          </ErrorMessage>
         )}
 
         <HiddenFileInput
@@ -710,6 +745,7 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
           $darkMode={isDarkMode}
           onClick={() => {
             setIsModalOpen(false);
+            setModalError(''); // 배경 클릭으로 모달 닫을 때 에러 메시지 초기화
           }}
         >
           <ModalContent 
@@ -721,7 +757,10 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
           >
             <ModalHeader $darkMode={isDarkMode}>
               <ModalTitle $darkMode={isDarkMode}>이미지 추가</ModalTitle>
-              <CloseButton $darkMode={isDarkMode} onClick={() => setIsModalOpen(false)}>
+              <CloseButton $darkMode={isDarkMode} onClick={() => {
+                setIsModalOpen(false);
+                setModalError(''); // X 버튼으로 모달 닫을 때 에러 메시지 초기화
+              }}>
                 <FaTimes />
               </CloseButton>
             </ModalHeader>
@@ -730,7 +769,10 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
               <Tab
                 $active={activeTab === 'upload'}
                 $darkMode={isDarkMode}
-                onClick={() => setActiveTab('upload')}
+                onClick={() => {
+                  setActiveTab('upload');
+                  setModalError(''); // 탭 변경 시 에러 메시지 초기화
+                }}
               >
                 <FaUpload />
                 파일 업로드
@@ -738,7 +780,10 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
               <Tab
                 $active={activeTab === 'url'}
                 $darkMode={isDarkMode}
-                onClick={() => setActiveTab('url')}
+                onClick={() => {
+                  setActiveTab('url');
+                  setModalError(''); // 탭 변경 시 에러 메시지 초기화
+                }}
               >
                 <FaLink />
                 URL 입력
@@ -760,21 +805,37 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
                     <strong>클릭하여 파일 선택</strong> 또는 드래그앤드롭
                   </div>
                   <small>이미지 파일만 지원 (최대 5MB)</small>
+                  {modalError && (
+                    <ModalErrorMessage $darkMode={isDarkMode}>
+                      {modalError}
+                    </ModalErrorMessage>
+                  )}
                 </FileUploadArea>
               ) : (
                 <UrlInputContainer>
                   <Input
                     $darkMode={isDarkMode}
-                    type="url"
+                    type="text"
                     placeholder="이미지 URL을 입력하세요..."
                     value={urlInputValue}
                     onChange={(e) => setUrlInputValue(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
+                        e.preventDefault();
                         handleUrlSubmit();
                       }
                     }}
+                    autoComplete="off"
+                    required={false}
+                    pattern=""
+                    title=""
+                    data-form-type="other"
                   />
+                  {modalError && (
+                    <ModalErrorMessage $darkMode={isDarkMode}>
+                      {modalError}
+                    </ModalErrorMessage>
+                  )}
                   <ButtonContainer>
                     <Button $variant="primary" $darkMode={isDarkMode} onClick={handleUrlSubmit}>
                       적용

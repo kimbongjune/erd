@@ -2708,11 +2708,48 @@ const Layout = () => {
       if (col.id === columnId) {
         let updatedCol = { ...col };
         
-        // FK onDelete, onUpdate 처리 - 먼저 처리
+        // FK onDelete, onUpdate 처리 - 복합키 동기화 포함
         if (field === 'onDelete' || field === 'onUpdate') {
           console.log('FK 필드 업데이트:', { field, value, beforeUpdate: col[field] });
           updatedCol[field] = value;
           console.log('FK 필드 업데이트 후:', { field, afterUpdate: updatedCol[field] });
+          
+          // 🎯 복합키 FK들의 onDelete, onUpdate 동기화 처리
+          if (col.fk && col.relationshipGroupId && col.keyType === 'composite') {
+            console.log('🔄 복합키 FK onDelete/onUpdate 동기화 시작:', {
+              columnName: col.name,
+              relationshipGroupId: col.relationshipGroupId,
+              field,
+              value
+            });
+            
+            // 같은 relationshipGroupId를 가진 다른 FK 컬럼들 찾기
+            const sameGroupFkColumns = columns.filter(otherCol => 
+              otherCol.fk && 
+              otherCol.relationshipGroupId === col.relationshipGroupId &&
+              otherCol.id !== col.id // 현재 수정 중인 컬럼은 제외
+            );
+            
+            if (sameGroupFkColumns.length > 0) {
+              console.log('🔄 동기화할 FK 컬럼들:', sameGroupFkColumns.map(fk => fk.name));
+              
+              // 다른 FK 컬럼들도 동일한 값으로 업데이트
+              sameGroupFkColumns.forEach(fkCol => {
+                const fkIndex = columns.findIndex(c => c.id === fkCol.id);
+                if (fkIndex !== -1) {
+                  // 해당 FK 컬럼의 onDelete 또는 onUpdate 값을 동기화
+                  columns[fkIndex] = {
+                    ...columns[fkIndex],
+                    [field]: value
+                  };
+                  console.log(`🔄 ${fkCol.name} ${field}: ${fkCol[field]} → ${value}`);
+                }
+              });
+              
+              toast.info(`복합키 동기화: ${sameGroupFkColumns.length + 1}개 FK의 ${field === 'onDelete' ? 'ON DELETE' : 'ON UPDATE'}가 ${value}로 동기화되었습니다.`);
+            }
+          }
+          
           return updatedCol; // 다른 로직 건너뛰고 바로 반환
         }
         

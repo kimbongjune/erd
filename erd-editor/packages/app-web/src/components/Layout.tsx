@@ -1622,7 +1622,7 @@ const Layout = () => {
         const nodeColumns = selectedNode.data.columns || [];
         // 컬럼이 없으면 빈 배열로 시작
         // id가 없는 컬럼에 고유 id 부여하고 dataType과 type 동기화
-        const columnsWithIds = nodeColumns.map((col: any, index: number) => {
+        const columnsWithIds = nodeColumns.filter(col => col).map((col: any, index: number) => {
           // ID가 없거나 유효하지 않은 경우 새로 생성
           const hasValidId = col.id && typeof col.id === 'string' && col.id.trim() !== '';
           return {
@@ -1649,7 +1649,7 @@ const Layout = () => {
   // columns 변경 시 selectedColumn 동기화
   React.useEffect(() => {
     if (selectedColumn && columns.length > 0) {
-      const updatedSelectedColumn = columns.find(col => col.id === selectedColumn.id);
+      const updatedSelectedColumn = columns.find(col => col && col.id === selectedColumn.id);
       if (updatedSelectedColumn && JSON.stringify(updatedSelectedColumn) !== JSON.stringify(selectedColumn)) {
         setSelectedColumn(updatedSelectedColumn);
       }
@@ -2170,6 +2170,70 @@ const Layout = () => {
                       console.log(`🗑️ 관계선 삭제: ${edge.id}`);
                     } else {
                       console.log(`✅ 관계선 유지: ${edge.id} (남은 FK: ${remainingFkColumns.length}개)`);
+                      
+                      // 🎯 복합키 관계에서 관계선 연결점 업데이트
+                      // 그룹별로 FK들을 분류하고 각 그룹의 첫 번째 FK에 연결
+                      const groupFks = new Map();
+                      remainingFkColumns.forEach((fk: any) => {
+                        const groupId = fk.relationshipGroupId || 'default';
+                        if (!groupFks.has(groupId)) {
+                          groupFks.set(groupId, []);
+                        }
+                        groupFks.get(groupId).push(fk);
+                      });
+                      
+                      console.log(`🎯 그룹별 관계선 처리: ${groupFks.size}개 그룹 발견`, 
+                        Array.from(groupFks.keys()));
+                      
+                      // 각 그룹별로 관계선 처리
+                      groupFks.forEach((groupFkList, groupId) => {
+                        // 그룹 내 FK들을 parentColumnId 순으로 정렬 (a→b 순서)
+                        const sortedGroupFks = groupFkList.sort((a: any, b: any) => {
+                          const aParentId = a.parentColumnId || '';
+                          const bParentId = b.parentColumnId || '';
+                          return aParentId.localeCompare(bParentId);
+                        });
+                        
+                        const firstFk = sortedGroupFks[0]; // 정렬된 그룹의 첫 번째 FK
+                        
+                        console.log(`🔗 그룹 ${groupId} 관계선 처리:`, {
+                          groupFkCount: sortedGroupFks.length,
+                          firstFk: firstFk.name,
+                          allFks: sortedGroupFks.map(fk => fk.name)
+                        });
+                        
+                        // 기존 관계선 중 해당 그룹의 관계선 찾기
+                        const existingGroupEdge = finalEdges.find(e => 
+                          e.source === currentEntityId && 
+                          e.target === edge.target && 
+                          e.data?.relationshipGroupId === groupId
+                        );
+                        
+                        if (existingGroupEdge) {
+                          // 기존 관계선의 연결점 업데이트
+                          const updatedEdge = {
+                            ...existingGroupEdge,
+                            targetHandle: `${firstFk.name}-right`
+                          };
+                          finalEdges = finalEdges.map(e => e.id === existingGroupEdge.id ? updatedEdge : e);
+                          console.log(`🔗 기존 관계선 업데이트: 그룹 ${groupId} → ${firstFk.name}`);
+                        } else {
+                          // 새로운 관계선 생성 (그룹별로)
+                          const newEdge = {
+                            id: `edge-${currentEntityId}-${edge.target}-${groupId}-${Date.now()}`,
+                            source: currentEntityId,
+                            target: edge.target,
+                            type: edge.type,
+                            targetHandle: `${firstFk.name}-right`,
+                            data: {
+                              relationshipGroupId: groupId,
+                              isIdentifyingRelationship: firstFk.pk
+                            }
+                          };
+                          finalEdges.push(newEdge);
+                          console.log(`🔗 새 관계선 생성: 그룹 ${groupId} → ${firstFk.name}`);
+                        }
+                      });
                     }
                     
                     // 🔥 중요: 손자로 재귀 호출 (삭제된 FK들 각각에 대해)
@@ -2386,58 +2450,72 @@ const Layout = () => {
           });
           
           if (isRealCompositeKeyRelation) {
-            console.log(`🔥 진짜 복합키 관계 - ${sameFkColumns.length}개 FK의 PK 모두 해제`);
+            console.log(`🔥 진짜 복합키 관계 - 그룹별 PK 해제 처리`);
             
-            // 🔄 복합키 PK 해제 시 자기참조 FK 삭제 처리 (모든 관련 FK에 대해)
-            const selfReferencingFks = columns.filter(col => 
-              col.fk && 
-              col.parentEntityId === targetNodeId && 
-              sameFkColumns.some(fkCol => col.parentColumnId === fkCol.id || col.parentColumnId === fkCol.name)
-            );
+            // 🎯 그룹별로만 PK 해제 (다른 그룹은 변경하지 않음)
+            const targetGroupId = columnToUpdate.relationshipGroupId;
             
-            // 모든 관련 FK의 PK와 NN 해제 + 자기참조 FK 삭제
-            let updatedColumns = columns.map(col => {
-              if (col.fk && col.parentEntityId === columnToUpdate.parentEntityId) {
-                return { ...col, pk: false, nn: false };
-              }
-              return col;
-            });
-            
-            // 자기참조 FK가 있다면 삭제
-            if (selfReferencingFks.length > 0) {
-              console.log(`🔥 복합키 PK 해제 - 자기참조 FK ${selfReferencingFks.length}개 삭제: ${selfReferencingFks.map((fk: any) => fk.name).join(', ')}`);
+            if (targetGroupId) {
+              console.log(`🎯 그룹별 PK 해제: 그룹 ${targetGroupId}의 FK들만 PK 해제`);
               
-              updatedColumns = updatedColumns.filter(col => 
-                !selfReferencingFks.some((fk: any) => fk.id === col.id)
-              );
-            }
-            
-            setColumns(updatedColumns);
-            
-            // 노드 데이터 업데이트
-            const selectedNode = nodes.find(node => node.id === targetNodeId);
-            if (selectedNode) {
-              updateNodeData(targetNodeId, {
-                ...selectedNode.data,
-                columns: updatedColumns,
-                label: tableName
+              // 같은 그룹의 FK들만 PK 해제
+              let updatedColumns = columns.map(col => {
+                if (col.fk && 
+                    col.parentEntityId === columnToUpdate.parentEntityId && 
+                    col.relationshipGroupId === targetGroupId) {
+                  return { ...col, pk: false, nn: false };
+                }
+                return col;
               });
               
-              setTimeout(() => {
-                updateEdgeHandles();
-              }, 200);
+              // 🔄 복합키 PK 해제 시 자기참조 FK 삭제 처리 (같은 그룹의 FK에 대해서만)
+              const selfReferencingFks = columns.filter(col => 
+                col.fk && 
+                col.parentEntityId === targetNodeId && 
+                col.relationshipGroupId === targetGroupId &&
+                sameFkColumns.some(fkCol => col.parentColumnId === fkCol.id || col.parentColumnId === fkCol.name)
+              );
+            
               
-              // 히스토리 저장
-              if (!skipHistory) {
-                console.log(`💾 PK 해제로 인한 진짜 복합키 해제 히스토리 저장:`, columnToUpdate.name);
-                useStore.getState().saveHistoryState('CHANGE_COLUMN_PK' as any, {
-                  columnName: columnToUpdate.name,
-                  value: false,
-                  affectedColumns: sameFkColumns.map(fk => fk.name)
-                });
+              // 자기참조 FK가 있다면 삭제
+              if (selfReferencingFks.length > 0) {
+                console.log(`🔥 복합키 PK 해제 - 자기참조 FK ${selfReferencingFks.length}개 삭제: ${selfReferencingFks.map((fk: any) => fk.name).join(', ')}`);
+                
+                updatedColumns = updatedColumns.filter(col => 
+                  !selfReferencingFks.some((fk: any) => fk.id === col.id)
+                );
               }
               
-              return; // 전체 함수 종료
+              setColumns(updatedColumns);
+              
+              // 노드 데이터 업데이트
+              const selectedNode = nodes.find(node => node.id === targetNodeId);
+              if (selectedNode) {
+                updateNodeData(targetNodeId, {
+                  ...selectedNode.data,
+                  columns: updatedColumns,
+                  label: tableName
+                });
+                
+                setTimeout(() => {
+                  updateEdgeHandles();
+                }, 200);
+                
+                // 히스토리 저장
+                if (!skipHistory) {
+                  console.log(`💾 PK 해제로 인한 그룹별 복합키 해제 히스토리 저장:`, columnToUpdate.name);
+                  useStore.getState().saveHistoryState('CHANGE_COLUMN_PK' as any, {
+                    columnName: columnToUpdate.name,
+                    value: false,
+                    affectedColumns: sameFkColumns.filter(fk => fk.relationshipGroupId === targetGroupId).map(fk => fk.name)
+                  });
+                }
+                
+                return; // 전체 함수 종료
+              }
+            } else {
+              console.log(`⚠️ 그룹 ID가 없는 경우 - 개별 FK만 처리: ${columnToUpdate.name}`);
+              // 그룹 ID가 없는 경우 개별 컬럼만 처리하고 계속 진행
             }
           } else {
             console.log(`🔗 단일키 다중참조 - 개별 FK만 처리: ${columnToUpdate.name}`);
@@ -2651,49 +2729,62 @@ const Layout = () => {
         });
         
         if (isRealCompositeKeyRelation) {
-          console.log(`🔥 진짜 복합키 관계 - ${sameFkColumns.length}개 FK의 PK 모두 해제`);
+          console.log(`🔥 진짜 복합키 관계 - 그룹별 PK 해제 처리`);
           
-          // 모든 관련 FK의 PK와 NN 해제, UQ는 현재 컬럼에만 설정하고 다른 FK들의 UQ는 유지
-          const updatedColumns = columns.map(col => {
-            if (col.fk && col.parentEntityId === columnToUpdate.parentEntityId) {
-              if (col.id === columnId) {
-                // 현재 컬럼: UQ 체크, PK/NN 해제
-                return { ...col, uq: true, pk: false, nn: false };
-              } else {
-                // 다른 FK들: PK/NN만 해제, 기존 UQ는 유지 (복합키 FK에서 UQ 여러 개 동시 가능)
-                return { ...col, pk: false, nn: col.nn };
+          // 🎯 그룹별로만 PK 해제 (다른 그룹은 변경하지 않음)
+          const targetGroupId = columnToUpdate.relationshipGroupId;
+          
+          if (targetGroupId) {
+            console.log(`🎯 그룹별 PK 해제: 그룹 ${targetGroupId}의 FK들만 PK 해제`);
+            
+            // 같은 그룹의 FK들만 PK 해제, UQ는 현재 컬럼에만 설정
+            const updatedColumns = columns.map(col => {
+              if (col.fk && 
+                  col.parentEntityId === columnToUpdate.parentEntityId && 
+                  col.relationshipGroupId === targetGroupId) {
+                if (col.id === columnId) {
+                  // 현재 컬럼: UQ 체크, PK/NN 해제
+                  return { ...col, uq: true, pk: false, nn: false };
+                } else {
+                  // 같은 그룹의 다른 FK들: PK/NN만 해제, 기존 UQ는 유지
+                  return { ...col, pk: false, nn: col.nn };
+                }
               }
-            }
-            return col;
-          });
-          
-          setColumns(updatedColumns);
-          
-          // 노드 데이터 업데이트
-          const selectedNode = nodes.find(node => node.id === targetNodeId);
-          if (selectedNode) {
-            updateNodeData(targetNodeId, {
-              ...selectedNode.data,
-              columns: updatedColumns,
-              label: tableName
+              return col;
             });
-            
-            setTimeout(() => {
-              updateEdgeHandles();
-            }, 200);
-            
-            // 히스토리 저장
-            if (!skipHistory) {
-              console.log(`💾 UQ 체크로 인한 진짜 복합키 해제 히스토리 저장:`, columnToUpdate.name);
-              useStore.getState().saveHistoryState('CHANGE_COLUMN_UQ' as any, {
-                columnName: columnToUpdate.name,
-                value: true,
-                affectedColumns: sameFkColumns.map(fk => fk.name)
-              });
+          
+                        
+              setColumns(updatedColumns);
+              
+              // 노드 데이터 업데이트
+              const selectedNode = nodes.find(node => node.id === targetNodeId);
+              if (selectedNode) {
+                updateNodeData(targetNodeId, {
+                  ...selectedNode.data,
+                  columns: updatedColumns,
+                  label: tableName
+                });
+                
+                setTimeout(() => {
+                  updateEdgeHandles();
+                }, 200);
+                
+                // 히스토리 저장
+                if (!skipHistory) {
+                  console.log(`💾 UQ 체크로 인한 그룹별 복합키 해제 히스토리 저장:`, columnToUpdate.name);
+                  useStore.getState().saveHistoryState('CHANGE_COLUMN_UQ' as any, {
+                    columnName: columnToUpdate.name,
+                    value: true,
+                    affectedColumns: sameFkColumns.filter(fk => fk.relationshipGroupId === targetGroupId).map(fk => fk.name)
+                  });
+                }
+                
+                return; // 전체 함수 종료
+              }
+            } else {
+              console.log(`⚠️ 그룹 ID가 없는 경우 - 개별 FK만 처리: ${columnToUpdate.name}`);
+              // 그룹 ID가 없는 경우 개별 컬럼만 처리하고 계속 진행
             }
-            
-            return; // 전체 함수 종료
-          }
         } else {
           console.log(`🔗 단일키 다중참조 UQ 체크 - 개별 FK만 처리: ${columnToUpdate.name}`);
           // 단일키 다중참조의 경우 개별 컬럼만 처리하고 계속 진행
@@ -2761,7 +2852,80 @@ const Layout = () => {
           updatedCol.nn = true;
           updatedCol.uq = false; // PK 체크하면 UQ 해제
           
-          // PK 추가 시 하위 계층으로 재귀적 FK 전파
+          // FK 컬럼에서 PK 체크 시 그룹별 처리
+          if (updatedCol.fk && updatedCol.parentEntityId) {
+            console.log('🔥 FK 컬럼에서 PK 체크 - 그룹별 처리');
+            
+            // 같은 부모를 참조하는 모든 FK 찾기
+            const sameFkColumns = columns.filter(col => 
+              col.fk && col.parentEntityId === updatedCol.parentEntityId
+            );
+            
+            // 🔥 정교한 복합키 판별: useStore.ts와 동일한 로직 적용
+            const currentParentColumnId = updatedCol.parentColumnId;
+            const otherFkColumns = sameFkColumns.filter(col => col.id !== updatedCol.id);
+            const otherParentColumnIds = new Set(
+              otherFkColumns.map(col => col.parentColumnId).filter(Boolean)
+            );
+            
+            const isRealCompositeKeyRelation = 
+              otherFkColumns.length > 0 && (
+                (currentParentColumnId && !otherParentColumnIds.has(currentParentColumnId)) ||
+                otherParentColumnIds.size > 1
+              );
+            
+            console.log('🔍 Layout.tsx PK 체크 복합키 판별:', {
+              currentColumn: updatedCol.name,
+              currentParentColumnId,
+              otherFkCount: otherFkColumns.length,
+              otherParentColumnIds: Array.from(otherParentColumnIds),
+              isRealCompositeKey: isRealCompositeKeyRelation,
+              판별근거: isRealCompositeKeyRelation ? '진짜 복합키 (서로 다른 부모 PK 참조)' : '단일키 다중참조 (같은 부모 PK 참조)'
+            });
+            
+            if (isRealCompositeKeyRelation) {
+              console.log(`🔥 진짜 복합키 관계 - 그룹별 PK 체크 처리`);
+              
+              // 🎯 그룹별로만 PK 체크 (다른 그룹은 변경하지 않음)
+              const targetGroupId = updatedCol.relationshipGroupId;
+              
+              if (targetGroupId) {
+                console.log(`🎯 그룹별 PK 체크: 그룹 ${targetGroupId}의 FK들만 PK 체크`);
+                
+                // 같은 그룹의 FK들만 PK 체크
+                const updatedColumns = columns.map(col => {
+                  if (col.fk && 
+                      col.parentEntityId === updatedCol.parentEntityId && 
+                      col.relationshipGroupId === targetGroupId) {
+                    return { ...col, pk: true, nn: true, uq: false };
+                  }
+                  return col;
+                });
+                
+                // 🚨 중요: 복합키 관계에서도 일반적인 컬럼 업데이트 로직을 계속 진행해야 함
+                // return; 제거하고 일반적인 업데이트 로직으로 계속 진행
+                console.log(`✅ 복합키 그룹별 PK 체크 완료, 일반 업데이트 로직 계속 진행`);
+                
+                // 히스토리 저장
+                if (!skipHistory) {
+                  console.log(`💾 PK 체크로 인한 그룹별 복합키 체크 히스토리 저장:`, updatedCol.name);
+                  useStore.getState().saveHistoryState('CHANGE_COLUMN_PK' as any, {
+                    columnName: updatedCol.name,
+                    value: true,
+                    affectedColumns: sameFkColumns.filter(fk => fk.relationshipGroupId === targetGroupId).map(fk => fk.name)
+                  });
+                }
+              } else {
+                console.log(`⚠️ 그룹 ID가 없는 경우 - 개별 FK만 처리: ${updatedCol.name}`);
+                // 그룹 ID가 없는 경우 개별 컬럼만 처리하고 계속 진행
+              }
+            } else {
+              console.log(`🔗 단일키 다중참조 PK 체크 - 개별 FK만 처리: ${updatedCol.name}`);
+              // 단일키 다중참조의 경우 개별 컬럼만 처리하고 계속 진행
+            }
+          }
+          
+          // 일반 PK 체크 처리 (FK가 아니거나 단일 FK인 경우)
           const currentEntity = useStore.getState().nodes.find(n => n.id === targetNodeId);
           if (currentEntity?.type === 'entity' && targetNodeId) {
             const allNodes = useStore.getState().nodes;
@@ -2980,19 +3144,41 @@ const Layout = () => {
         });
         
         if (isRealCompositeKeyRelation) {
-          console.log('🔥 진짜 복합키 관계 - 모든 FK PK 동시 변경');
-          // 진짜 복합키 관계에서 FK PK 설정/해제 시: 모든 FK의 PK를 동일하게 설정/해제
-          sameFkColumns.forEach((fkCol, index) => {
-            const fkIndex = newColumns.findIndex(c => c.id === fkCol.id);
-            if (fkIndex !== -1) {
-              newColumns[fkIndex] = { 
-                ...newColumns[fkIndex], 
-                pk: value, 
-                nn: value,
-                uq: value ? false : newColumns[fkIndex].uq // PK 설정 시 UQ 해제, PK 해제 시 UQ 유지
-              };
-            }
-          });
+          console.log('🔥 진짜 복합키 관계 - 그룹별 FK PK 변경');
+          
+          // 🎯 그룹별로만 PK 변경 (다른 그룹은 변경하지 않음)
+          const targetGroupId = columnToUpdate.relationshipGroupId;
+          
+          if (targetGroupId) {
+            console.log(`🎯 그룹별 PK 변경: 그룹 ${targetGroupId}의 FK들만 변경`);
+            
+            // 같은 그룹의 FK들만 PK 변경
+            sameFkColumns.forEach((fkCol, index) => {
+              if (!fkCol || !fkCol.id) {
+                console.warn('⚠️ undefined fkCol detected, skipping:', fkCol);
+                return;
+              }
+              
+              // 같은 그룹의 FK만 처리
+              if (fkCol.relationshipGroupId === targetGroupId) {
+                const fkIndex = newColumns.findIndex(c => c && c.id === fkCol.id);
+                if (fkIndex !== -1) {
+                  newColumns[fkIndex] = { 
+                    ...newColumns[fkIndex], 
+                    pk: value, 
+                    nn: value,
+                    uq: value ? false : newColumns[fkIndex].uq // PK 설정 시 UQ 해제, PK 해제 시 UQ 유지
+                  };
+                  console.log(`✅ 그룹 ${targetGroupId} FK PK 변경: ${fkCol.name} → ${value}`);
+                }
+              } else {
+                console.log(`⏭️ 다른 그룹 FK 스킵: ${fkCol.name} (그룹: ${fkCol.relationshipGroupId})`);
+              }
+            });
+          } else {
+            console.log(`⚠️ 그룹 ID가 없는 경우 - 개별 FK만 처리: ${columnToUpdate.name}`);
+            // 그룹 ID가 없는 경우 개별 컬럼만 처리
+          }
           
           // 복합키 관계에서는 모든 관계선의 타입을 변경
           const allEdges = useStore.getState().edges;
@@ -3114,7 +3300,7 @@ const Layout = () => {
     
     // 선택된 컬럼도 즉시 업데이트 (newColumns 배열에서 직접 가져와서 동기화 확실히)
     if (selectedColumn?.id === columnId) {
-      const updatedSelectedColumn = newColumns.find(col => col.id === columnId);
+      const updatedSelectedColumn = newColumns.find(col => col && col.id === columnId);
       if (updatedSelectedColumn) {
         setSelectedColumn({...updatedSelectedColumn}); // 새 객체로 업데이트하여 리렌더링 보장
       }
@@ -3878,7 +4064,7 @@ const Layout = () => {
                 </HeaderRow>
               </TableHeader>
               <TableBody>
-                {columns.map((column, index) => (
+                {columns.filter(column => column).map((column, index) => (
                   <TableRow 
                     key={`row-${column.id}`} 
                     $selected={selectedColumn?.id === column.id}

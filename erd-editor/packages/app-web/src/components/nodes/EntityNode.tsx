@@ -745,7 +745,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
           </Header>
           
           <ColumnsContainer $darkMode={isDarkMode}>
-            {data.columns?.map((col: any, i: number) => {
+            {data.columns?.filter(col => col).map((col: any, i: number) => {
               const isColumnHighlighted = highlightedColumns.get(id)?.includes(col.name) || false;
               
               return (

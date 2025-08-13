@@ -363,10 +363,12 @@ export const propagateColumnAddition = (
             messages.push(`복합키 전환: ${childNode.data.label} 엔티티에 복합키 FK ${newFksToAdd.length}개가 추가되었습니다.`);
             console.log(`✅ 복합키 전환 완료: ${childNode.data.label}에 ${newFksToAdd.map((fk: any) => fk.name).join(', ')} 추가`);
             
-            // 새로 추가된 FK가 PK이기도 한 경우 (식별자 관계), 재귀적으로 손자에게도 전파
+            // 🎯 새로 추가된 FK가 PK이기도 한 경우, 재귀적으로 손자에게도 전파
             const newPkFks = newFksToAdd.filter((fk: any) => fk.pk);
             if (newPkFks.length > 0) {
+              console.log(`🔄 복합키 손자로 재귀 전파 시작: ${newPkFks.length}개 PK FK`);
               newPkFks.forEach((newPkFk: any) => {
+                console.log(`🔄 복합키 재귀 전파: ${newPkFk.name} (pk: ${newPkFk.pk})`);
                 const recursiveResult = propagateColumnAddition(
                   edge.target,
                   newPkFk,
@@ -377,7 +379,10 @@ export const propagateColumnAddition = (
                 finalNodes = recursiveResult.updatedNodes;
                 finalEdges = recursiveResult.updatedEdges;
                 messages = recursiveResult.toastMessages;
+                console.log(`✅ 복합키 재귀 전파 완료: ${newPkFk.name}`);
               });
+            } else {
+              console.log(`⚠️ 복합키 재귀 전파 생략: PK인 FK가 없음`);
             }
           } else {
             console.log(`📊 새로운 FK 추가가 필요하지 않음: 이미 충분한 FK가 존재합니다.`);
@@ -450,8 +455,9 @@ export const propagateColumnAddition = (
           // 토스트 메시지 추가
           messages.push(`연쇄관계: ${childNode.data.label} 엔티티에 외래키 컬럼 ${fkColumnName}이 추가되었습니다.`);
           
-          // 추가된 FK가 PK이기도 한 경우 (식별자 관계), 재귀적으로 손자에게도 전파
-          if (isIdentifyingRelationship) {
+          // 🎯 수정: FK가 PK로 생성된 경우 재귀적으로 손자에게도 전파 (관계 타입 무관)
+          if (newFkColumn.pk) {
+            console.log(`🔄 손자로 재귀 전파 시작: ${newFkColumn.name} (pk: ${newFkColumn.pk})`);
             const recursiveResult = propagateColumnAddition(
               edge.target,
               newFkColumn,
@@ -462,6 +468,9 @@ export const propagateColumnAddition = (
             finalNodes = recursiveResult.updatedNodes;
             finalEdges = recursiveResult.updatedEdges;
             messages = recursiveResult.toastMessages;
+            console.log(`✅ 손자로 재귀 전파 완료: ${newFkColumn.name}`);
+          } else {
+            console.log(`⚠️ 재귀 전파 생략: ${newFkColumn.name} (pk: ${newFkColumn.pk})`);
           }
         }
       }
@@ -2320,6 +2329,55 @@ const useStore = create<RFState>((set, get) => ({
         }, 100);
       }
 
+      // 🎯 새로 생성된 FK가 PK인 경우 손자 엔티티로 재귀 전파
+      if (sourceNode && targetNode && sourceNode.type === 'entity' && targetNode.type === 'entity') {
+        const targetUpdatedNode = updatedNodes.find(node => node.id === targetNode.id);
+        if (targetUpdatedNode) {
+          // 새로 생성된 FK들 중 PK인 것들 찾기
+          const newPkFkColumns = targetUpdatedNode.data.columns?.filter((col: any) => 
+            col.fk && col.pk && col.parentEntityId === sourceNode.id
+          ) || [];
+          
+          if (newPkFkColumns.length > 0) {
+            console.log(`🎯 관계생성 후 재귀 전파 시작: ${newPkFkColumns.length}개 PK FK`, newPkFkColumns.map((fk: any) => fk.name));
+            
+            let finalNodes = updatedNodes;
+            let finalEdges = updatedEdges;
+            const propagationMessages: string[] = [];
+            
+            // 각 PK FK에 대해 재귀 전파 수행
+            newPkFkColumns.forEach((pkFkColumn: any) => {
+              console.log(`🔄 관계생성 재귀 전파: ${pkFkColumn.name} (pk: ${pkFkColumn.pk}, fk: ${pkFkColumn.fk})`);
+              
+              const propagationResult = propagateColumnAddition(
+                targetNode.id,
+                pkFkColumn,
+                finalNodes,
+                finalEdges,
+                propagationMessages
+              );
+              
+              finalNodes = propagationResult.updatedNodes;
+              finalEdges = propagationResult.updatedEdges;
+              propagationMessages.push(...propagationResult.toastMessages);
+              
+              console.log(`✅ 관계생성 재귀 전파 완료: ${pkFkColumn.name}`);
+            });
+            
+            // 전파 결과 반영
+            updatedNodes = finalNodes;
+            updatedEdges = finalEdges;
+            
+            // 전파 토스트 메시지 표시
+            if (propagationMessages.length > 0) {
+              propagationMessages.forEach((msg, index) => {
+                setTimeout(() => toast.info(msg), 300 + (index * 100));
+              });
+            }
+          }
+        }
+      }
+
       return { nodes: updatedNodes, edges: updatedEdges };
     });
     
@@ -3074,6 +3132,29 @@ const useStore = create<RFState>((set, get) => ({
         return { oldColumn: oldCol, newColumn: newCol };
       });
 
+      // 🎯 새로운 PK 컬럼 추가 감지 (복합키 관계 전파를 위함)
+      const newlyAddedPkColumns = newColumns.filter((newCol: any) => {
+        if (!newCol.pk) return false;
+        // 기존에 없었던 새로운 컬럼이면서 PK인 경우
+        const existedBefore = oldColumns.find((oldCol: any) => oldCol.id === newCol.id);
+        return !existedBefore;
+      });
+
+      // 🎯 기존 컬럼이 PK로 변경된 경우 (상태 변경이 아닌 새로 PK가 된 경우)
+      const newlyBecamePkColumns = newColumns.filter((newCol: any) => {
+        if (!newCol.pk) return false;
+        const oldCol = oldColumns.find((oldCol: any) => oldCol.id === newCol.id);
+        return oldCol && !oldCol.pk; // 기존에는 PK가 아니었는데 지금 PK가 된 경우
+      });
+
+      console.log(`🔍 PK 변경 분석:`, {
+        oldColumnsCount: oldColumns.length,
+        newColumnsCount: newColumns.length,
+        newlyAddedPkColumns: newlyAddedPkColumns.map((col: any) => ({ id: col.id, name: col.name })),
+        newlyBecamePkColumns: newlyBecamePkColumns.map((col: any) => ({ id: col.id, name: col.name })),
+        총_새로운_PK: newlyAddedPkColumns.length + newlyBecamePkColumns.length
+      });
+
             let finalNodes = updatedNodes;
       let finalEdges = state.edges;
       
@@ -3810,6 +3891,36 @@ const useStore = create<RFState>((set, get) => ({
         });
       }
       */
+
+      // 🎯 새로운 PK 컬럼 추가에 따른 하위 계층으로의 연쇄 전파 (핵심 기능)
+      const allNewPkColumns = [...newlyAddedPkColumns, ...newlyBecamePkColumns];
+      if (allNewPkColumns.length > 0) {
+        console.log(`🎯 새로운 PK 컬럼 감지: ${allNewPkColumns.length}개`, allNewPkColumns.map((col: any) => col.name));
+        
+        // 각 새로운 PK 컬럼에 대해 복합키 관계 전파 수행
+        allNewPkColumns.forEach((newPkColumn: any) => {
+          console.log(`🔄 PK 컬럼 "${newPkColumn.name}" 전파 시작`);
+          
+          const propagationResult = propagateColumnAddition(
+            nodeId,
+            newPkColumn,
+            finalNodes,
+            finalEdges,
+            toastMessages
+          );
+          
+          finalNodes = propagationResult.updatedNodes;
+          finalEdges = propagationResult.updatedEdges;
+          toastMessages.push(...propagationResult.toastMessages);
+          
+          console.log(`✅ PK 컬럼 "${newPkColumn.name}" 전파 완료`);
+        });
+        
+        // 전파 결과 토스트 메시지 표시
+        toastMessages.forEach((msg, index) => {
+          setTimeout(() => toast.info(msg), 200 + (index * 100));
+        });
+      }
 
       return { nodes: finalNodes, edges: finalEdges };
     });

@@ -2210,23 +2210,44 @@ const useStore = create<RFState>((set, get) => ({
         const targetUpdatedNode = updatedNodes.find(node => node.id === targetNode.id);
         
         if (targetUpdatedNode) {
-          // 이번에 새로 생성된 FK 컬럼들 찾기
-          const newlyCreatedFkColumns = targetUpdatedNode.data.columns?.filter((col: any) => 
-            col.fk && 
-            col.parentEntityId === sourceNode.id &&
-            // 이번 관계 생성에서 새로 만들어진 컬럼들 (기존 edges에 없는 handle을 가진 것들)
-            !state.edges.some(edge => 
-              edge.source === sourceNode.id && 
-              edge.target === targetNode.id && 
-              (edge.targetHandle?.includes(col.name) || edge.sourceHandle?.includes(col.name))
-            )
+          // 🎯 개선된 로직: 현재 부모를 참조하는 모든 FK 중에서 아직 관계선이 없는 것들 찾기
+          const allTargetFks = targetUpdatedNode.data.columns?.filter((col: any) => 
+            col.fk && col.parentEntityId === sourceNode.id
           ) || [];
           
-          console.log('🔍 새로 생성된 FK 컬럼들:', newlyCreatedFkColumns.map((col: any) => col.name));
+          // 기존 관계선에서 사용된 FK들 찾기
+          const usedFkNames = new Set(
+            state.edges
+              .filter(edge => edge.source === sourceNode.id && edge.target === targetNode.id)
+              .map(edge => {
+                if (edge.targetHandle && edge.targetHandle !== 'left' && edge.targetHandle !== 'right') {
+                  // Handle 형태에서 FK 이름 추출: "fkName-position" → "fkName"
+                  const handleParts = edge.targetHandle.split('-');
+                  return handleParts.slice(0, -1).join('-');
+                }
+                return null;
+              })
+              .filter(name => name !== null)
+          );
+          
+          // 아직 관계선이 연결되지 않은 FK들만 선택
+          const newlyCreatedFkColumns = allTargetFks.filter((fk: any) => 
+            !usedFkNames.has(fk.name)
+          );
+          
+          console.log('🔍 관계선 생성 분석:', {
+            전체_FK_개수: allTargetFks.length,
+            사용된_FK_이름들: Array.from(usedFkNames),
+            새로운_FK_개수: newlyCreatedFkColumns.length,
+            새로운_FK_이름들: newlyCreatedFkColumns.map((col: any) => col.name)
+          });
           
           // 관계선 생성을 위한 keyType 재계산
           const edgeKeyType = sourcePkColumns.length > 1 ? 'composite' : 'single';
-          const edgeRelationshipGroupId = `rel_${sourceNode.id}_${targetNode.id}_${Date.now()}`;
+          // 🎯 수정: 새로 생성된 FK들에서 relationshipGroupId 추출 (모두 같은 그룹 ID를 가짐)
+          const edgeRelationshipGroupId = newlyCreatedFkColumns.length > 0 
+            ? newlyCreatedFkColumns[0].relationshipGroupId 
+            : `rel_${sourceNode.id}_${targetNode.id}_${Date.now()}`;
           
           console.log('🔍 FK keyType:', edgeKeyType);
           
@@ -2235,11 +2256,31 @@ const useStore = create<RFState>((set, get) => ({
             console.log('🎯 복합키 관계 - 하나의 관계선 생성');
             
             if (newlyCreatedFkColumns.length > 0) {
-              // 첫 번째 FK 컬럼을 대표로 사용
-              const representativeFk = newlyCreatedFkColumns[0];
+              // 🎯 단순화된 대표 FK 선택: 첫 번째 부모 PK를 참조하는 FK를 우선 선택
+              const firstPkColumn = sourcePkColumns[0];
+              let representativeFk = null;
+              
+              if (firstPkColumn) {
+                // 첫 번째 부모 PK를 참조하는 FK 찾기
+                representativeFk = newlyCreatedFkColumns.find((fk: any) => 
+                  fk.parentColumnId === firstPkColumn.id || fk.parentColumnId === firstPkColumn.name
+                );
+              }
+              
+              // 찾지 못했다면 첫 번째 FK 사용
+              if (!representativeFk) {
+                representativeFk = newlyCreatedFkColumns[0];
+              }
+              
               const referencedPkColumn = sourcePkColumns.find((pkCol: any) => 
                 pkCol.id === representativeFk.parentColumnId || pkCol.name === representativeFk.parentColumnId
               );
+              
+              console.log('🎯 복합키 대표 FK 선택 (단순화):', {
+                사용_가능한_FK들: newlyCreatedFkColumns.map((fk: any) => `${fk.name}→${fk.parentColumnId}`),
+                선택된_대표_FK: representativeFk.name,
+                참조하는_부모_PK: referencedPkColumn?.name
+              });
               
               if (referencedPkColumn) {
                 const sourceHandleId = createHandleId(referencedPkColumn.name, sourceHandle as 'left' | 'right');

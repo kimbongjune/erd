@@ -318,7 +318,7 @@ const ImageNode = ({ data, selected, id }: ImageNodeProps) => {
 
   // 디버깅용: modalError 상태 변화 감지
   useEffect(() => {
-    console.log('modalError 상태 변화:', modalError);
+    
   }, [modalError]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);

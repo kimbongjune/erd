@@ -134,7 +134,7 @@ export const propagateColumnAddition = (
     );
     
     if (existingSelfFks.length > 0) {
-      console.log(`🎯 자기참조 PK 추가: ${addedColumn.name}, 기존 FK: ${existingSelfFks.map((fk: any) => fk.name).join(', ')}`);
+      
       
       // 각 기존 자기참조 FK에 대해 새로운 FK 컬럼 생성
       const newSelfFks: any[] = [];
@@ -203,11 +203,11 @@ export const propagateColumnAddition = (
           };
           
           finalEdges = [...finalEdges, newSelfEdge];
-          console.log(`🔗 자기참조 관계선 생성: ${newSelfEdge.id}`);
+          
         }
         
         messages.push(`자기참조: ${currentNode.data.label} 엔티티에 복합키 자기참조 FK ${newSelfFks.length}개가 추가되었습니다.`);
-        console.log(`✅ 자기참조 복합키 FK 생성 완료: ${newSelfFks.map(fk => fk.name).join(', ')}`);
+        
       }
     }
   }
@@ -228,7 +228,7 @@ export const propagateColumnAddition = (
       const parentPkColumns = parentNode.data.columns?.filter((col: any) => col.pk) || [];
       const otherPks = parentPkColumns.filter((pk: any) => pk.id !== addedColumn.id && pk.name !== addedColumn.name);
       
-      console.log(`🔍 부모 PK 분석: 전체 ${parentPkColumns.length}개, 기존 ${otherPks.length}개, 새로 추가 1개`);
+      
       
       let relationshipCount = 1; // 기본값: 1개 관계
       
@@ -240,11 +240,11 @@ export const propagateColumnAddition = (
           (col.parentColumnId === firstExistingPk.id || col.parentColumnId === firstExistingPk.name)
         ).length;
         
-        console.log(`📊 관계 개수 계산: ${firstExistingPk.name}을 참조하는 FK ${relationshipCount}개 → 새 PK에 대해서도 ${relationshipCount}개 생성`);
+        
       }
       
       if (relationshipCount > 0) {
-        console.log(`🔄 복합키 전환: ${parentNode.data.label} → ${childNode.data.label}, ${relationshipCount}개 관계 발견`);
+        
         
         // 새로 추가된 PK를 참조하는 기존 FK들 찾기
         const existingNewPkFks = childColumns.filter((col: any) =>
@@ -255,7 +255,7 @@ export const propagateColumnAddition = (
         const neededFkCount = relationshipCount - existingNewPkFks.length;
         
         if (neededFkCount > 0) {
-          console.log(`📝 ${neededFkCount}개의 FK를 추가로 생성합니다.`);
+          
           
           // 기존 FK들을 기준으로 새로운 FK 생성 (그룹화)
           const referenceFks = otherPks.length > 0 ? 
@@ -264,7 +264,7 @@ export const propagateColumnAddition = (
               (col.parentColumnId === otherPks[0].id || col.parentColumnId === otherPks[0].name)
             ).slice(0, relationshipCount) : [];
           
-          console.log(`📋 참조 FK들: ${referenceFks.length}개`);
+          
           
           // 각 참조 FK에 대해 새로운 FK 생성
           const newFksToAdd: any[] = [];
@@ -318,7 +318,7 @@ export const propagateColumnAddition = (
             
             newFksToAdd.push(newFk);
             
-            console.log(`📝 새 복합키 FK 생성: ${newFk.name} (기준: ${referenceFk.name || '기본값'}, PK: ${newFk.pk}, 그룹: ${newFk.relationshipGroupId})`);
+            
           }
           
           if (newFksToAdd.length > 0) {
@@ -334,16 +334,16 @@ export const propagateColumnAddition = (
                 if (referenceIndex !== -1) {
                   // 기존 FK 바로 다음에 새 FK 삽입
                   updatedChildColumns.splice(referenceIndex + 1, 0, newFk);
-                  console.log(`📍 FK 삽입: ${newFk.name} → 위치 ${referenceIndex + 1} (${correspondingReferenceFk.name} 다음)`);
+                  
                 } else {
                   // 못 찾으면 끝에 추가
                   updatedChildColumns.push(newFk);
-                  console.log(`📍 FK 추가: ${newFk.name} → 마지막 위치`);
+                  
                 }
               } else {
                 // 참조 FK가 없으면 끝에 추가
                 updatedChildColumns.push(newFk);
-                console.log(`📍 FK 추가: ${newFk.name} → 마지막 위치 (참조 FK 없음)`);
+                
               }
             });
             
@@ -361,14 +361,14 @@ export const propagateColumnAddition = (
             
             // 토스트 메시지 추가
             messages.push(`복합키 전환: ${childNode.data.label} 엔티티에 복합키 FK ${newFksToAdd.length}개가 추가되었습니다.`);
-            console.log(`✅ 복합키 전환 완료: ${childNode.data.label}에 ${newFksToAdd.map((fk: any) => fk.name).join(', ')} 추가`);
+            
             
             // 🎯 새로 추가된 FK가 PK이기도 한 경우, 재귀적으로 손자에게도 전파
             const newPkFks = newFksToAdd.filter((fk: any) => fk.pk);
             if (newPkFks.length > 0) {
-              console.log(`🔄 복합키 손자로 재귀 전파 시작: ${newPkFks.length}개 PK FK`);
+              
               newPkFks.forEach((newPkFk: any) => {
-                console.log(`🔄 복합키 재귀 전파: ${newPkFk.name} (pk: ${newPkFk.pk})`);
+                
                 const recursiveResult = propagateColumnAddition(
                   edge.target,
                   newPkFk,
@@ -379,16 +379,16 @@ export const propagateColumnAddition = (
                 finalNodes = recursiveResult.updatedNodes;
                 finalEdges = recursiveResult.updatedEdges;
                 messages = recursiveResult.toastMessages;
-                console.log(`✅ 복합키 재귀 전파 완료: ${newPkFk.name}`);
+                
               });
             } else {
-              console.log(`⚠️ 복합키 재귀 전파 생략: PK인 FK가 없음`);
+              
             }
           } else {
-            console.log(`📊 새로운 FK 추가가 필요하지 않음: 이미 충분한 FK가 존재합니다.`);
+            
           }
         } else {
-          console.log(`📊 복합키 전환 필요 없음: 관계 개수가 ${relationshipCount}개, 새 PK FK가 ${existingNewPkFks.length}개로 동일함`);
+          
         }
       } else {
         // 기존 FK가 없는 경우 - 일반적인 단일 FK 추가
@@ -457,7 +457,7 @@ export const propagateColumnAddition = (
           
           // 🎯 수정: FK가 PK로 생성된 경우 재귀적으로 손자에게도 전파 (관계 타입 무관)
           if (newFkColumn.pk) {
-            console.log(`🔄 손자로 재귀 전파 시작: ${newFkColumn.name} (pk: ${newFkColumn.pk})`);
+            
             const recursiveResult = propagateColumnAddition(
               edge.target,
               newFkColumn,
@@ -468,9 +468,9 @@ export const propagateColumnAddition = (
             finalNodes = recursiveResult.updatedNodes;
             finalEdges = recursiveResult.updatedEdges;
             messages = recursiveResult.toastMessages;
-            console.log(`✅ 손자로 재귀 전파 완료: ${newFkColumn.name}`);
+            
           } else {
-            console.log(`⚠️ 재귀 전파 생략: ${newFkColumn.name} (pk: ${newFkColumn.pk})`);
+            
           }
         }
       }
@@ -492,7 +492,7 @@ export const propagateColumnDeletion = (
   let finalEdges = [...allEdges];
   let resultToastMessages = [...toastMessages];
   
-  console.log(`🗑️ PK 삭제 감지: ${deletedColumn.name}`, deletedColumn);
+  
   
   // 전달받은 deletedColumn이 PK가 아니면 처리하지 않음
   if (!deletedColumn.pk) {
@@ -504,7 +504,7 @@ export const propagateColumnDeletion = (
   if (sourceNodeForSelfRef) {
     const parentColumns = sourceNodeForSelfRef.data.columns || [];
     
-    console.log(`🔍 자기참조 FK 검사 시작: 삭제된 PK "${deletedColumn.name}" (id: ${deletedColumn.id})`);
+    
     
     // 삭제된 PK를 참조하는 자기참조 FK 찾기 (엄격한 조건)
     const selfReferencingFks = parentColumns.filter((col: any) => {
@@ -514,17 +514,14 @@ export const propagateColumnDeletion = (
         col.parentColumnId === deletedColumn.id || 
         col.parentColumnId === deletedColumn.name;
       
-      console.log(`🔍 컬럼 "${col.name}": FK=${isFk}, 자기참조=${isSelfRef}, PK참조=${referencesDeletedPk} (parentColumnId: ${col.parentColumnId})`);
+      
       
       return isFk && isSelfRef && referencesDeletedPk;
     });
     
-    console.log(`🔍 발견된 자기참조 FK: ${selfReferencingFks.length}개`);
+    
     
     if (selfReferencingFks.length > 0) {
-      console.log(`🎯 자기참조 FK 삭제: ${selfReferencingFks.map((fk: any) => fk.name).join(', ')}`);
-      console.log(`📋 삭제 전 parentColumns (${parentColumns.length}개):`, parentColumns.map((c: any) => `${c.name}(${c.id})`));
-      console.log(`🎯 삭제할 selfReferencingFks:`, selfReferencingFks.map((fk: any) => `${fk.name}(${fk.id})`));
       
       // 자기참조 FK들 삭제 + 원래 삭제하려던 PK 컬럼도 함께 삭제
       const updatedParentColumns = parentColumns.filter((col: any) => 
@@ -532,7 +529,7 @@ export const propagateColumnDeletion = (
         !selfReferencingFks.some((fk: any) => fk.id === col.id) // 자기참조 FK들 제거
       );
       
-      console.log(`📋 삭제 후 updatedParentColumns (${updatedParentColumns.length}개):`, updatedParentColumns.map((c: any) => `${c.name}(${c.id})`));
+      
       
       // 부모 노드 업데이트
       const parentNodeIndex = finalNodes.findIndex(n => n.id === nodeId);
@@ -544,7 +541,7 @@ export const propagateColumnDeletion = (
             columns: updatedParentColumns
           }
         };
-        console.log(`✅ 부모 노드 업데이트 완료: ${nodeId}`);
+        
       }
       
       // 자기참조 관계선도 삭제
@@ -556,14 +553,14 @@ export const propagateColumnDeletion = (
         finalEdges = finalEdges.filter((edge: any) => 
           !(edge.source === nodeId && edge.target === nodeId)
         );
-        console.log(`🗑️ 자기참조 관계선 삭제: ${selfReferencingEdges.length}개`);
+        
       }
       
       resultToastMessages.push(`자기참조: ${sourceNodeForSelfRef.data.label} 엔티티에서 자기참조 FK ${selfReferencingFks.length}개가 삭제되었습니다.`);
       
       // 🔄 중요: 삭제된 컬럼이 PK였다면 자식 엔티티로의 연쇄 전파도 수행
       if (deletedColumn.pk) {
-        console.log(`🔄 자기참조 처리 후 연쇄 전파 시작: ${deletedColumn.name}은 PK였음`);
+        
         
         // 자식 엔티티들 찾기
         const childEdges = finalEdges.filter(edge => edge.source === nodeId && edge.target !== nodeId);
@@ -582,7 +579,7 @@ export const propagateColumnDeletion = (
           );
           
           if (targetFkColumns.length > 0) {
-            console.log(`🎯 자식 엔티티 ${edge.target}에서 ${targetFkColumns.length}개 FK 삭제`);
+            
             
             // FK들 삭제
             const updatedChildColumns = childColumns.filter((col: any) => 
@@ -604,7 +601,7 @@ export const propagateColumnDeletion = (
             // 삭제된 FK가 PK였다면 손자로 재귀 전파
             targetFkColumns.forEach((deletedFk: any) => {
               if (deletedFk.pk) {
-                console.log(`🔄 손자로 재귀 전파: ${deletedFk.name}`);
+                
                 const grandchildResult = propagateColumnDeletion(
                   edge.target,
                   deletedFk,
@@ -642,7 +639,7 @@ export const propagateColumnDeletion = (
     col.pk && col.id !== deletedColumn.id
   );
   
-  console.log(`🔍 PK 삭제 분석: 남은 PK 개수 ${remainingParentPks.length}개`);
+  
   
   // 자식 엔티티들 찾기
   const childEdges = finalEdges.filter(edge => edge.source === nodeId);
@@ -661,7 +658,7 @@ export const propagateColumnDeletion = (
     );
     
     if (targetFkColumns.length > 0) {
-      console.log(`🎯 ${edge.target}에서 ${targetFkColumns.length}개 FK 삭제: ${targetFkColumns.map((fk: any) => fk.name).join(', ')}`);
+      
       
       // 해당 FK들만 삭제
       const updatedChildColumns = childColumns.filter((col: any) => 
@@ -681,7 +678,7 @@ export const propagateColumnDeletion = (
       }
       
       // 관계선은 항상 유지 (FK 삭제와 상관없이)
-      console.log(`🔗 관계선 유지: ${edge.source} → ${edge.target} (FK만 삭제, 관계선 보존)`);
+      
 
       const remainingFkCount = updatedChildColumns.filter((col: any) => 
         col.fk && col.parentEntityId === nodeId
@@ -690,9 +687,9 @@ export const propagateColumnDeletion = (
       if (remainingFkCount === 0) {
         // 해당 관계에 더 이상 FK가 없으면 관계선 삭제
         finalEdges = finalEdges.filter(e => e.id !== edge.id);
-        console.log(`🗑️ PK 삭제로 인한 관계선 삭제: ${edge.source} -> ${edge.target}`);
+        
       } else {
-        console.log(`🔗 관계선 유지: ${edge.source} → ${edge.target} (남은 FK: ${remainingFkCount}개)`);
+        
       }
       
       
@@ -1767,34 +1764,17 @@ const useStore = create<RFState>((set, get) => ({
           fkColumnsToRemove = targetColumns.filter((col: any) => 
             col.fk && col.relationshipGroupId === targetFk.relationshipGroupId
           );
-          console.log(`🎯 그룹 원자적 삭제: 그룹 ${targetFk.relationshipGroupId}의 모든 FK 일괄 삭제`, 
-            fkColumnsToRemove.map(fk => fk.name));
+          
         } else {
           // 그룹 ID가 없는 경우 기존 로직 (호환성 유지)
           fkColumnsToRemove = targetColumns.filter((col: any) => 
             col.fk && col.parentEntityId === edgeToDelete.source
           );
-          console.log('🗑️ 기존 삭제 로직: 모든 관련 FK 삭제', 
-            fkColumnsToRemove.map(fk => fk.name));
+          
         }
         
         const allRelatedFks = fkColumnsToRemove; // 기존 변수명 유지 (호환성)
         
-        console.log('🗑️ 관계선 삭제 - FK 분석 (개선):', {
-          edgeId: id,
-          sourceEntity: sourceNode.data.label,
-          targetEntity: targetNode.data.label,
-          targetHandle: edgeToDelete.targetHandle,
-          targetFkName: targetFkColumnName,
-          targetFkGroupId: targetFk?.relationshipGroupId,
-          선택된_FK들: allRelatedFks.map((fk: any) => ({ 
-            name: fk.name, 
-            parentColumnId: fk.parentColumnId,
-            relationshipGroupId: fk.relationshipGroupId 
-          })),
-          전체_FK_개수: targetColumns.filter((c: any) => c.fk).length,
-          선택된_FK_개수: allRelatedFks.length
-        });
         
         // 복합키 vs 단일키 다중참조 판별 (개선된 로직)
         const parentColumnGroups = allRelatedFks.reduce((groups: any, fk: any) => {
@@ -1807,18 +1787,12 @@ const useStore = create<RFState>((set, get) => ({
         // 🔧 수정: 부모 PK가 2개 이상이고 각 PK마다 동일한 개수의 FK가 있으면 복합키
         const isCompositeKey = groupSizes.length > 1 && groupSizes.every(size => size === groupSizes[0]);
         
-        console.log('🗑️ 관계 타입 판별 (개선):', {
-          parentColumnGroups,
-          groupSizes,
-          isCompositeKey: isCompositeKey ? '복합키 관계' : '단일키 다중참조',
-          판별조건: `PK개수: ${groupSizes.length}, 각 PK별 FK개수: [${groupSizes.join(', ')}]`
-        });
         
         // 기존 fkColumnsToRemove 변수 재사용 (중복 선언 제거)
         if (isCompositeKey) {
           // 복합키: 모든 FK 컬럼 삭제
           fkColumnsToRemove = allRelatedFks;
-          console.log('🗑️ 복합키 관계 - 모든 FK 삭제:', fkColumnsToRemove.map(fk => fk.name));
+          
         } else {
           // 단일키 다중참조: 특정 FK만 삭제 (기존 로직)
           let targetFkColumnName = null;
@@ -1841,7 +1815,7 @@ const useStore = create<RFState>((set, get) => ({
             fkColumnsToRemove = [allRelatedFks[0]];
           }
           
-          console.log('🗑️ 단일키 관계 - 특정 FK 삭제:', fkColumnsToRemove.map(fk => fk.name));
+          
         }
         
         // 자식 엔티티에서 해당 FK 컬럼들 제거
@@ -1862,7 +1836,7 @@ const useStore = create<RFState>((set, get) => ({
           // 삭제된 FK들 중 PK인 것들에 대해 연쇄적으로 하위 관계들도 해제
           const deletedFkPkColumns = fkColumnsToRemove.filter(fk => fk.pk);
           if (deletedFkPkColumns.length > 0) {
-            console.log('🔄 삭제된 FK+PK 컬럼들 - 손자로 연쇄 삭제:', deletedFkPkColumns.map(fk => fk.name));
+            
             
             const cascadeResult = propagateRelationshipTypeChange(
               edgeToDelete.target,
@@ -1996,11 +1970,11 @@ const useStore = create<RFState>((set, get) => ({
         if (existingEdge && existingEdge.data?.relationshipGroupId) {
           // 기존 관계가 있으면 같은 그룹 ID 사용 (그룹 일관성 유지)
           relationshipGroupId = existingEdge.data.relationshipGroupId;
-          console.log(`🔄 기존 그룹 ID 재사용: ${relationshipGroupId}`);
+          
         } else {
           // 새로운 관계면 새 그룹 ID 생성
           relationshipGroupId = `rel_${sourceNode.id}_${targetNode.id}_${Date.now()}`;
-          console.log(`🆕 새 그룹 ID 생성: ${relationshipGroupId}`);
+          
         }
         
         // 🚨 자기참조 관계에서 중복 FK 생성 사전 검사
@@ -2014,10 +1988,7 @@ const useStore = create<RFState>((set, get) => ({
           });
           
           if (alreadyExistingFks.length > 0) {
-            console.log('🚨 자기참조 FK 중복 생성 전체 방지:', {
-              attemptedPkColumns: sourcePkColumns.map((col: any) => col.name),
-              alreadyExistingFks: alreadyExistingFks.map((col: any) => col.name)
-            });
+            
             // 자기참조 관계에서 이미 FK가 존재하면 전체 관계 생성을 중단
             toast.error('이미 동일한 자기참조 관계가 존재합니다.');
             return state; // 상태 변경 없이 반환
@@ -2235,12 +2206,7 @@ const useStore = create<RFState>((set, get) => ({
             !usedFkNames.has(fk.name)
           );
           
-          console.log('🔍 관계선 생성 분석:', {
-            전체_FK_개수: allTargetFks.length,
-            사용된_FK_이름들: Array.from(usedFkNames),
-            새로운_FK_개수: newlyCreatedFkColumns.length,
-            새로운_FK_이름들: newlyCreatedFkColumns.map((col: any) => col.name)
-          });
+          
           
           // 관계선 생성을 위한 keyType 재계산
           const edgeKeyType = sourcePkColumns.length > 1 ? 'composite' : 'single';
@@ -2249,11 +2215,11 @@ const useStore = create<RFState>((set, get) => ({
             ? newlyCreatedFkColumns[0].relationshipGroupId 
             : `rel_${sourceNode.id}_${targetNode.id}_${Date.now()}`;
           
-          console.log('🔍 FK keyType:', edgeKeyType);
+          
           
           if (edgeKeyType === 'composite') {
             // 복합키: 하나의 관계선만 생성
-            console.log('🎯 복합키 관계 - 하나의 관계선 생성');
+            
             
             if (newlyCreatedFkColumns.length > 0) {
               // 🎯 단순화된 대표 FK 선택: 첫 번째 부모 PK를 참조하는 FK를 우선 선택
@@ -2276,17 +2242,11 @@ const useStore = create<RFState>((set, get) => ({
                 pkCol.id === representativeFk.parentColumnId || pkCol.name === representativeFk.parentColumnId
               );
               
-              console.log('🎯 복합키 대표 FK 선택 (단순화):', {
-                사용_가능한_FK들: newlyCreatedFkColumns.map((fk: any) => `${fk.name}→${fk.parentColumnId}`),
-                선택된_대표_FK: representativeFk.name,
-                참조하는_부모_PK: referencedPkColumn?.name
-              });
-              
               if (referencedPkColumn) {
                 const sourceHandleId = createHandleId(referencedPkColumn.name, sourceHandle as 'left' | 'right');
                 const targetHandleId = createHandleId(representativeFk.name, targetHandle as 'left' | 'right');
                 
-                console.log('🎯 복합키 관계선 Handle:', { sourceHandleId, targetHandleId });
+                
                 
                 const newEdge = {
                   ...connection,
@@ -2305,33 +2265,33 @@ const useStore = create<RFState>((set, get) => ({
                   }
                 };
                 
-                console.log('✅ 복합키 관계선 생성:', newEdge);
+                
                 updatedEdges = [...updatedEdges, newEdge];
               }
             }
           } else {
             // 단일키: 각 FK마다 개별 관계선 생성
-            console.log('🎯 단일키 관계 - 각 FK마다 관계선 생성');
+            
             
             newlyCreatedFkColumns.forEach((fkColumn: any, index: number) => {
-              console.log(`\n--- ${index + 1}번째 FK 컬럼 처리 시작 ---`);
-              console.log('🔗 처리 중인 FK 컬럼:', fkColumn);
+              
+              
               
               // 해당 FK가 참조하는 PK 컬럼 찾기
               const referencedPkColumn = sourcePkColumns.find((pkCol: any) => 
                 pkCol.id === fkColumn.parentColumnId || pkCol.name === fkColumn.parentColumnId
               );
               
-              console.log('🔗 참조하는 PK 컬럼:', referencedPkColumn);
+              
               
               if (referencedPkColumn) {
-                console.log(`🔗 ${index + 1}번째 FK 컬럼 관계선 생성:`, fkColumn.name, '→', referencedPkColumn.name);
+                
                 
                 // 각 컬럼별로 개별 Handle ID 결정 (컬럼 위치에 맞게)
                 const sourceHandleId = createHandleId(referencedPkColumn.name, sourceHandle as 'left' | 'right');
                 const targetHandleId = createHandleId(fkColumn.name, targetHandle as 'left' | 'right');
                 
-                console.log('🎯 Handle 정보:', { sourceHandleId, targetHandleId });
+                
                 
                 // 개별 관계선 생성
                 const newEdge = {
@@ -2351,26 +2311,19 @@ const useStore = create<RFState>((set, get) => ({
                 },
               };
               
-              console.log('✅ 생성할 관계선:', {
-                id: newEdge.id,
-                source: newEdge.source,
-                target: newEdge.target,
-                sourceHandle: newEdge.sourceHandle,
-                targetHandle: newEdge.targetHandle,
-                style: newEdge.style
-              });
+              
               
               updatedEdges = addEdge(newEdge, updatedEdges);
-              console.log('📊 현재 전체 관계선 개수:', updatedEdges.length);
+              
               } else {
-                console.log('❌ 참조하는 PK 컬럼을 찾을 수 없음');
+                
               }
-              console.log(`--- ${index + 1}번째 FK 컬럼 처리 완료 ---\n`);
+              
             });
           }
         }
         
-        console.log('📊 최종 관계선 개수:', updatedEdges.length);
+        
       } else {
         // 엔티티가 아닌 경우 기본 관계선 생성
         const newEdge = {
@@ -2403,7 +2356,7 @@ const useStore = create<RFState>((set, get) => ({
           ) || [];
           
           if (newPkFkColumns.length > 0) {
-            console.log(`🎯 관계생성 후 재귀 전파 시작: ${newPkFkColumns.length}개 PK FK`, newPkFkColumns.map((fk: any) => fk.name));
+            
             
             let finalNodes = updatedNodes;
             let finalEdges = updatedEdges;
@@ -2411,7 +2364,7 @@ const useStore = create<RFState>((set, get) => ({
             
             // 각 PK FK에 대해 재귀 전파 수행
             newPkFkColumns.forEach((pkFkColumn: any) => {
-              console.log(`🔄 관계생성 재귀 전파: ${pkFkColumn.name} (pk: ${pkFkColumn.pk}, fk: ${pkFkColumn.fk})`);
+              
               
               const propagationResult = propagateColumnAddition(
                 targetNode.id,
@@ -2425,7 +2378,7 @@ const useStore = create<RFState>((set, get) => ({
               finalEdges = propagationResult.updatedEdges;
               propagationMessages.push(...propagationResult.toastMessages);
               
-              console.log(`✅ 관계생성 재귀 전파 완료: ${pkFkColumn.name}`);
+              
             });
             
             // 전파 결과 반영
@@ -2456,7 +2409,7 @@ const useStore = create<RFState>((set, get) => ({
     const targetNode = finalState.nodes.find((node) => node.id === connection.target);
     
     if (sourceNode && targetNode) {
-      //console.log('💾 관계선 생성 히스토리 저장:', sourceNode.data.label, '→', targetNode.data.label);
+      //
       finalState.saveHistoryState(HISTORY_ACTIONS.CREATE_RELATIONSHIP, {
         sourceLabel: sourceNode.data.label,
         targetLabel: targetNode.data.label
@@ -3114,12 +3067,12 @@ const useStore = create<RFState>((set, get) => ({
       });
       
       if (selfReferencingFkPkAttempts.length > 0) {
-        console.log('🚨 자기참조 FK PK 변경 사전 차단:', selfReferencingFkPkAttempts.map((col: any) => col.name));
+        
         
         // 자기참조 FK의 PK 상태를 강제로 false로 되돌림
         newColumns = newColumns.map((col: any) => {
           if (selfReferencingFkPkAttempts.some((attempt: any) => attempt.id === col.id)) {
-            console.log(`🔄 자기참조 FK "${col.name}" PK 사전 차단: true → false`);
+            
             return { 
               ...col, 
               pk: false,
@@ -3211,33 +3164,25 @@ const useStore = create<RFState>((set, get) => ({
         return oldCol && !oldCol.pk; // 기존에는 PK가 아니었는데 지금 PK가 된 경우
       });
 
-      console.log(`🔍 PK 변경 분석:`, {
-        oldColumnsCount: oldColumns.length,
-        newColumnsCount: newColumns.length,
-        newlyAddedPkColumns: newlyAddedPkColumns.map((col: any) => ({ id: col.id, name: col.name })),
-        newlyBecamePkColumns: newlyBecamePkColumns.map((col: any) => ({ id: col.id, name: col.name })),
-        총_새로운_PK: newlyAddedPkColumns.length + newlyBecamePkColumns.length
-      });
+      
 
             let finalNodes = updatedNodes;
       let finalEdges = state.edges;
       
       // deletedColumn이 전달된 경우 (Layout.tsx에서 PK 해제/UQ 체크로 인한 삭제)
       if (deletedColumn && deletedColumn.pk) {
-        console.log(`🗑️ Layout에서 PK 삭제 감지: ${deletedColumn.name}`, deletedColumn);
+        
         
         // 올바른 복합키 관계 판단: 업데이트된 newData 기준으로 남은 PK 확인
         const updatedColumns = newData.columns || [];
         const remainingParentPks = updatedColumns.filter((col: any) => col.pk);
         
-        console.log(`🔍 복합키 관계 판단: ${remainingParentPks.length > 0} (남은 PK 개수: ${remainingParentPks.length})`);
-        console.log(`📋 업데이트된 컬럼 목록:`, updatedColumns.map((c: any) => `${c.name}(PK:${c.pk}, FK:${c.fk})`));
         
         const isCompositeKeyRelation = remainingParentPks.length > 0;
         
         // 🔄 복합키인 경우에만 자기참조 FK 삭제 처리 (단일키는 기존 로직 유지)
         if (isCompositeKeyRelation) {
-          console.log(`🔄 복합키 상황: 자기참조 FK 삭제 처리 시작`);
+          
           
           // 현재 엔티티의 자기참조 FK 찾기 (삭제된 PK를 참조하는)
           const selfReferencingFks = updatedColumns.filter((col: any) => {
@@ -3247,20 +3192,20 @@ const useStore = create<RFState>((set, get) => ({
               col.parentColumnId === deletedColumn.id || 
               col.parentColumnId === deletedColumn.name;
             
-            console.log(`🔍 자기참조 FK 검사: "${col.name}": FK=${isFk}, 자기참조=${isSelfRef}, PK참조=${referencesDeletedPk} (parentColumnId: ${col.parentColumnId}, deletedColumn.id: ${deletedColumn.id})`);
+            
             
             return isFk && isSelfRef && referencesDeletedPk;
           });
           
           if (selfReferencingFks.length > 0) {
-            console.log(`🎯 복합키: 자기참조 FK 삭제: ${selfReferencingFks.map((fk: any) => fk.name).join(', ')}`);
+            
             
             // 자기참조 FK들 삭제
             const updatedSelfColumns = updatedColumns.filter((col: any) => 
               !selfReferencingFks.some((fk: any) => fk.id === col.id)
             );
             
-            console.log(`📋 자기참조 FK 삭제 후:`, updatedSelfColumns.map((c: any) => `${c.name}(PK:${c.pk}, FK:${c.fk})`));
+            
             
             // newData.columns 업데이트
             newData = { ...newData, columns: updatedSelfColumns };
@@ -3270,12 +3215,12 @@ const useStore = create<RFState>((set, get) => ({
               !(edge.source === nodeId && edge.target === nodeId)
             );
             
-            console.log(`🗑️ 복합키: 자기참조 관계선 삭제 완료`);
+            
           } else {
-            console.log(`⚠️ 복합키: 자기참조 FK를 찾을 수 없음`);
+            
           }
         } else {
-          console.log(`📝 단일키 상황: 자기참조 FK 처리 생략 (기존 로직 유지)`);
+          
         }
         // 단일키인 경우에는 자기참조 FK 처리하지 않음 (기존 로직이 잘 처리함)
         
@@ -3297,8 +3242,7 @@ const useStore = create<RFState>((set, get) => ({
               );
               
               if (fksToRemove.length > 0) {
-                console.log(`🎯 부모 PK 삭제: ${deletedColumn.name}을 참조하는 FK들만 삭제`, 
-                  fksToRemove.map(fk => `${fk.name} (그룹: ${fk.relationshipGroupId})`));
+                
                 
                 // 해당 FK들만 삭제 (그룹별 독립성 유지)
                 const updatedChildColumns = childColumns.filter((col: any) => 
@@ -3312,12 +3256,12 @@ const useStore = create<RFState>((set, get) => ({
                     : node
                 );
                 
-                console.log(`✅ 그룹별 FK 삭제 완료: ${fksToRemove.length}개 FK 삭제`);
+                
                 
                 // 손자 엔티티로 재귀 전파 (삭제된 FK가 PK였다면)
                 fksToRemove.forEach((deletedFk: any) => {
                   if (deletedFk.pk) {
-                    console.log(`🔄 손자로 재귀 전파 시작: ${deletedFk.name} (from ${edge.target})`);
+                    
                     const grandchildResult = propagateColumnDeletion(
                       edge.target,
                       deletedFk,
@@ -3325,12 +3269,12 @@ const useStore = create<RFState>((set, get) => ({
                       finalEdges,
                       toastMessages
                     );
-                    console.log(`🔄 손자로 재귀 전파 완료: 노드 ${grandchildResult.updatedNodes.length}개, 엣지 ${grandchildResult.updatedEdges.length}개`);
+                    
                     finalNodes = grandchildResult.updatedNodes;
                     finalEdges = grandchildResult.updatedEdges;
                     toastMessages.push(...grandchildResult.toastMessages);
                   } else {
-                    console.log(`⚠️ 삭제된 FK가 PK가 아님: ${deletedFk.name} (pk: ${deletedFk.pk})`);
+                    
                   }
                 });
               }
@@ -3359,8 +3303,7 @@ const useStore = create<RFState>((set, get) => ({
                   groupFks.get(groupId).push(fk);
                 });
                 
-                console.log(`🎯 그룹별 관계선 처리: ${groupFks.size}개 그룹 발견`, 
-                  Array.from(groupFks.keys()));
+                
                 
                 // 🎯 P5) 정렬·관계선 유지: 그룹별 첫 번째 컬럼에만 연결 (요구사항 10-11)
                 groupFks.forEach((groupFkList, groupId) => {
@@ -3373,11 +3316,6 @@ const useStore = create<RFState>((set, get) => ({
                   
                   const firstFk = sortedGroupFks[0]; // 정렬된 그룹의 첫 번째 FK
                   
-                  console.log(`🔗 그룹 ${groupId} 관계선 처리:`, {
-                    groupFkCount: sortedGroupFks.length,
-                    firstFk: firstFk.name,
-                    allFks: sortedGroupFks.map(fk => fk.name)
-                  });
                   
                   // 기존 관계선 중 해당 그룹의 관계선 찾기
                   const existingGroupEdge = finalEdges.find(e => 
@@ -3394,7 +3332,7 @@ const useStore = create<RFState>((set, get) => ({
                       sourceHandle: remainingParentPks.length > 0 ? `${remainingParentPks[0].name}-right` : undefined
                     };
                     finalEdges = finalEdges.map(e => e.id === existingGroupEdge.id ? updatedEdge : e);
-                    console.log(`🔗 기존 관계선 업데이트: 그룹 ${groupId} → ${firstFk.name}`);
+                    
                   } else {
                     // 새로운 관계선 생성 (그룹별로)
                     const newEdge = {
@@ -3410,16 +3348,16 @@ const useStore = create<RFState>((set, get) => ({
                       }
                     };
                     finalEdges.push(newEdge);
-                    console.log(`🔗 새 관계선 생성: 그룹 ${groupId} → ${firstFk.name}`);
+                    
                   }
                 });
               } else {
-                console.log(`⚠️ 남은 FK가 없음: ${edge.target}에서 모든 FK 삭제됨`);
+                
               }
             }
           });
           
-          console.log(`🔗 그룹별 관계선 유지: 부모에 ${remainingParentPks.length}개 PK 남음`);
+          
           
         } else {
           // 단일키 관계: 모든 FK 삭제, 관계선 삭제
@@ -3436,7 +3374,7 @@ const useStore = create<RFState>((set, get) => ({
               );
               
               if (allFkColumns.length > 0) {
-                console.log(`🗑️ 단일키 관계: ${edge.target}에서 ${allFkColumns.length}개 FK 전체 삭제`);
+                
                 
                 // 모든 FK 삭제
                 const updatedChildColumns = childColumns.filter((col: any) => 
@@ -3457,7 +3395,7 @@ const useStore = create<RFState>((set, get) => ({
                 // 손자 엔티티로 재귀 전파 (삭제된 FK가 PK였다면)
                 allFkColumns.forEach((deletedFk: any) => {
                   if (deletedFk.pk) {
-                    console.log(`🔄 단일키 관계 - 손자로 재귀 전파 시작: ${deletedFk.name} (${edge.target})`);
+                    
                     const grandchildResult = propagateColumnDeletion(
                       edge.target,
                       deletedFk,
@@ -3465,12 +3403,12 @@ const useStore = create<RFState>((set, get) => ({
                       finalEdges,
                       toastMessages
                     );
-                    console.log(`🔄 단일키 관계 - 손자로 재귀 전파 완료: 노드 ${grandchildResult.updatedNodes.length}개, 엣지 ${grandchildResult.updatedEdges.length}개`);
+                    
                     finalNodes = grandchildResult.updatedNodes;
                     finalEdges = grandchildResult.updatedEdges;
                     toastMessages.push(...grandchildResult.toastMessages);
                   } else {
-                    console.log(`⚠️ 단일키 관계 - 삭제된 FK가 PK가 아님: ${deletedFk.name} (pk: ${deletedFk.pk})`);
+                    
                   }
                 });
               }
@@ -3480,9 +3418,9 @@ const useStore = create<RFState>((set, get) => ({
           // 🎯 단일키 관계에서만 관계선 삭제 (복합키 관계는 위에서 이미 처리됨)
           if (!isCompositeKeyRelation) {
             finalEdges = finalEdges.filter(edge => edge.source !== nodeId);
-            console.log(`❌ 단일키 관계선 삭제: 부모에 PK 없음`);
+            
           } else {
-            console.log(`🔗 복합키 관계선 유지: 그룹별 관계선 처리 완료`);
+            
           }
         }
         
@@ -3600,7 +3538,7 @@ const useStore = create<RFState>((set, get) => ({
         pkStatusChangedColumns.forEach(({ oldColumn, newColumn }: any) => {
           // 새로 PK가 설정된 경우 (pk: false → true)
           if (!oldColumn.pk && newColumn.pk) {
-            console.log(`🎯 부모 PK 증가 감지: ${newColumn.name}이 PK로 설정됨`);
+            
             
             // 현재 엔티티가 부모인 관계선들 찾기
             const childEdges = finalEdges.filter(edge => edge.source === nodeId);
@@ -3618,7 +3556,7 @@ const useStore = create<RFState>((set, get) => ({
                     .filter(Boolean)
                 );
                 
-                console.log(`🎯 기존 관계 그룹들: ${Array.from(existingGroups)}`);
+                
                 
                 // 각 그룹에 대해 새 FK 생성
                 existingGroups.forEach(groupId => {
@@ -3666,10 +3604,10 @@ const useStore = create<RFState>((set, get) => ({
                       
                       if (referenceIndex !== -1) {
                         updatedChildColumns.splice(referenceIndex + 1, 0, newFk);
-                        console.log(`📍 새 FK 삽입: ${newFk.name} → 위치 ${referenceIndex + 1} (${referenceFk.name} 다음)`);
+                        
                       } else {
                         updatedChildColumns.push(newFk);
-                        console.log(`📍 새 FK 추가: ${newFk.name} → 마지막 위치`);
+                        
                       }
                       
                       // 자식 노드 업데이트
@@ -3684,9 +3622,9 @@ const useStore = create<RFState>((set, get) => ({
                         };
                       }
                       
-                      console.log(`✅ 부모 PK 증가 자동 확장: ${childNode.data.label}에 ${newFk.name} 추가 (그룹: ${groupId})`);
+                      
                     } else {
-                      console.log(`⚠️ 이미 존재하는 FK: ${existingFk.name} (그룹: ${groupId})`);
+                      
                     }
                   }
                 });
@@ -3757,7 +3695,7 @@ const useStore = create<RFState>((set, get) => ({
       // PK 컬럼의 데이터타입 변경에 따른 하위 계층으로의 연쇄 전파
       if (dataTypeChangedPkColumns.length > 0) {
         dataTypeChangedPkColumns.forEach(({ oldColumn, newColumn }: any) => {
-          //console.log(`🔄 PK 컬럼 데이터타입 변경 감지: ${oldColumn.name} (${oldColumn.dataType || oldColumn.type} -> ${newColumn.dataType || newColumn.type})`);
+          //`);
           
           // 재귀적으로 하위 계층까지 전파하여 데이터타입 변경
           const propagationResult = propagateDataTypeChange(
@@ -3780,7 +3718,7 @@ const useStore = create<RFState>((set, get) => ({
         );
         
         if (newlyAddedPkColumns.length > 0) {
-          console.log('🎯 부모 PK 증가 감지:', newlyAddedPkColumns.map(col => col.newColumn.name));
+          
           
           // 해당 엔티티를 부모로 하는 모든 자식 엔티티 처리
           const childEdges = finalEdges.filter(edge => edge.source === nodeId);
@@ -3853,7 +3791,7 @@ const useStore = create<RFState>((set, get) => ({
                           : node
                       );
                       
-                      console.log(`✅ 그룹 ${groupId}에 새 FK 생성: ${newFk.name} (PK: ${newFk.pk})`);
+                      
                     }
                   }
                 });
@@ -3908,12 +3846,7 @@ const useStore = create<RFState>((set, get) => ({
 
       // FK 컬럼의 PK 상태 변경에 따른 관계 타입 업데이트
       if (fkPkChangedColumns.length > 0) {
-        console.log('🔄 FK-PK 상태 변경된 컬럼들:', fkPkChangedColumns.map((col: any) => ({ 
-          name: col.name, 
-          pk: col.pk, 
-          parentEntityId: col.parentEntityId,
-          isSelf: col.parentEntityId === nodeId 
-        })));
+
         
         fkPkChangedColumns.forEach((changedCol: any) => {
           const parentEntityId = changedCol.parentEntityId;
@@ -3924,12 +3857,7 @@ const useStore = create<RFState>((set, get) => ({
             const isSelfRef = parentEntityId === nodeId;
             
             if (isSelfRef) {
-              console.log('🚨 자기관계 FK PK 변경 감지 - useStore.ts에서 스킵:', {
-                columnName: newCol.name,
-                parentEntityId: parentEntityId,
-                targetNodeId: nodeId,
-                note: 'Layout.tsx에서 이미 차단되어야 함'
-              });
+              
               return; // 자기관계는 완전히 스킵
             }
             
@@ -3970,18 +3898,7 @@ const useStore = create<RFState>((set, get) => ({
                     otherParentColumnIds.size > 1
                   );
                 
-                console.log('🔍 복합키 관계 정밀 판별:', {
-                  currentColumn: newCol.name,
-                  currentParentColumnId,
-                  otherFkCount: otherFkColumns.length,
-                  otherParentColumnIds: Array.from(otherParentColumnIds),
-                  isRealCompositeKey: isRealCompositeKeyRelation,
-                  判별근거: isRealCompositeKeyRelation ? '진짜 복합키 (서로 다른 부모 PK 참조)' : '단일키 다중참조 (같은 부모 PK 참조)',
-                  조건1_다른FK존재: otherFkColumns.length > 0,
-                  조건2_현재컬럼_다른부모PK: currentParentColumnId && !otherParentColumnIds.has(currentParentColumnId),
-                  조건3_다른FK들_서로다른부모PK: otherParentColumnIds.size > 1,
-                  otherFkColumns상세: otherFkColumns.map((col: any) => ({name: col.name, parentColumnId: col.parentColumnId}))
-                });
+                
                 
                 if (isRealCompositeKeyRelation) {
                   // 🎯 P4) PK/UQ 토글: 그룹별 독립적 처리 (요구사항 8-9)
@@ -4001,9 +3918,7 @@ const useStore = create<RFState>((set, get) => ({
                         return col;
                       });
                       
-                      console.log(`🎯 그룹별 PK 해제: 그룹 ${targetGroupId}의 FK들만 PK 해제`, 
-                        newColumns.filter(col => col.fk && col.parentEntityId === parentEntityId && col.relationshipGroupId === targetGroupId)
-                          .map(col => col.name));
+                      
                     } else {
                       // 그룹 ID가 없는 경우에도 그룹별로 처리 (안전성 강화)
                       // 현재 컬럼과 같은 parentColumnId를 가진 FK들만 PK 해제
@@ -4017,7 +3932,7 @@ const useStore = create<RFState>((set, get) => ({
                         return col;
                       });
                       
-                      console.log('🎯 안전한 PK 해제: 같은 부모 컬럼을 참조하는 FK들만 PK 해제');
+                      
                     }
                     
                     // 제거될 PK+FK 컬럼들을 미리 찾기 (연쇄 처리용) - 그룹별로 필터링
@@ -4095,9 +4010,7 @@ const useStore = create<RFState>((set, get) => ({
                         return col;
                       });
                       
-                      console.log(`🎯 그룹별 PK 설정: 그룹 ${targetGroupId}의 FK들만 PK 설정`, 
-                        newColumns.filter(col => col.fk && col.parentEntityId === parentEntityId && col.relationshipGroupId === targetGroupId)
-                          .map(col => col.name));
+                      
                     } else {
                       // 그룹 ID가 없는 경우에도 그룹별로 처리 (안전성 강화)
                       // 현재 컬럼과 같은 parentColumnId를 가진 FK들만 PK 설정
@@ -4111,7 +4024,7 @@ const useStore = create<RFState>((set, get) => ({
                         return col;
                       });
                       
-                      console.log('🎯 안전한 PK 설정: 같은 부모 컬럼을 참조하는 FK들만 PK 설정');
+                      
                     }
                     
                     finalNodes = finalNodes.map(node => 
@@ -4136,12 +4049,7 @@ const useStore = create<RFState>((set, get) => ({
                   }
                 } else {
                   // 🔗 단일키 다중참조: 각 FK별로 완전히 독립적으로 처리
-                  console.log('🔗 단일키 다중참조 처리:', {
-                    columnName: newCol.name,
-                    newPkValue: newCol.pk,
-                    otherFkCount: otherFkColumns.length,
-                    note: '개별 FK만 독립적으로 처리'
-                  });
+                  
                   
                   // 🎯 단일키 다중참조에서는 각 FK의 PK 변경이 다른 FK에 영향을 주지 않음
                   // 오직 해당 FK에 대한 관계선만 개별적으로 변경
@@ -4166,7 +4074,7 @@ const useStore = create<RFState>((set, get) => ({
                     } else if (relatedEdges.length > 1) {
                       // 여러 관계선이 있으면 첫 번째 것을 사용 (단일키 다중참조에서는 보통 하나의 관계선)
                       specificEdge = relatedEdges[0];
-                      console.log('⚠️ 단일키 다중참조에서 여러 관계선 발견, 첫 번째 사용:', relatedEdges.length);
+                      
                     }
                   }
                   
@@ -4198,20 +4106,10 @@ const useStore = create<RFState>((set, get) => ({
                       const toastMessage = `관계변경: ${newCol.name} 컬럼이 ${relationshipType} 관계로 변경되었습니다.`;
                       setTimeout(() => toast.info(toastMessage), 100);
                       
-                      console.log('✅ 단일키 다중참조 관계 타입 변경:', {
-                        columnName: newCol.name,
-                        edgeId: specificEdge.id,
-                        oldType: specificEdge.type,
-                        newType: newEdgeType,
-                        note: '개별 FK만 독립적으로 처리됨'
-                      });
+                      
                     }
                   } else {
-                    console.log('⚠️ 단일키 다중참조에서 관계선을 찾을 수 없음:', {
-                      columnName: newCol.name,
-                      parentEntityId,
-                      targetNodeId: nodeId
-                    });
+                    
                   }
                 }
               }
@@ -4280,11 +4178,11 @@ const useStore = create<RFState>((set, get) => ({
       // 🎯 새로운 PK 컬럼 추가에 따른 하위 계층으로의 연쇄 전파 (핵심 기능)
       const allNewPkColumns = [...newlyAddedPkColumns, ...newlyBecamePkColumns];
       if (allNewPkColumns.length > 0) {
-        console.log(`🎯 새로운 PK 컬럼 감지: ${allNewPkColumns.length}개`, allNewPkColumns.map((col: any) => col.name));
+        
         
         // 각 새로운 PK 컬럼에 대해 복합키 관계 전파 수행
         allNewPkColumns.forEach((newPkColumn: any) => {
-          console.log(`🔄 PK 컬럼 "${newPkColumn.name}" 전파 시작`);
+          
           
           const propagationResult = propagateColumnAddition(
             nodeId,
@@ -4298,7 +4196,7 @@ const useStore = create<RFState>((set, get) => ({
           finalEdges = propagationResult.updatedEdges;
           toastMessages.push(...propagationResult.toastMessages);
           
-          console.log(`✅ PK 컬럼 "${newPkColumn.name}" 전파 완료`);
+          
         });
         
         // 전파 결과 토스트 메시지 표시
@@ -4370,13 +4268,13 @@ const useStore = create<RFState>((set, get) => ({
             const edgeGroupId = edge.data?.relationshipGroupId;
             if (edgeGroupId && groupFirstFks.has(edgeGroupId)) {
               targetFkColumn = groupFirstFks.get(edgeGroupId);
-              console.log(`🎯 그룹 첫 번째 컬럼 연결: 그룹 ${edgeGroupId} → ${targetFkColumn.name}`);
+              
             } else {
               // 그룹 정보가 없으면 첫 번째 그룹의 첫 번째 FK 사용
               const firstGroupFk = groupFirstFks.values().next().value;
               if (firstGroupFk) {
                 targetFkColumn = firstGroupFk;
-                console.log(`🎯 기본 그룹 첫 번째 컬럼 연결: ${targetFkColumn.name}`);
+                
               }
             }
           }
@@ -4466,7 +4364,7 @@ const useStore = create<RFState>((set, get) => ({
     const state = get();
     const node = state.nodes.find(n => n.id === nodeId);
     if (node) {
-      //console.log('💾 노드 색상 변경 히스토리 저장:', node.data.label, color);
+      //
       state.saveHistoryState(HISTORY_ACTIONS.CHANGE_NODE_COLOR, {
         nodeName: node.data.label,
         nodeId: nodeId,
@@ -4493,7 +4391,7 @@ const useStore = create<RFState>((set, get) => ({
     if (edge) {
       const sourceNode = state.nodes.find(n => n.id === edge.source);
       const targetNode = state.nodes.find(n => n.id === edge.target);
-      //console.log('💾 관계선 색상 변경 히스토리 저장:', sourceNode?.data.label, '→', targetNode?.data.label, color);
+      //
       state.saveHistoryState('CHANGE_EDGE_COLOR' as any, {
         sourceName: sourceNode?.data.label,
         targetName: targetNode?.data.label,
@@ -4519,7 +4417,7 @@ const useStore = create<RFState>((set, get) => ({
     const state = get();
     const comment = state.nodes.find(n => n.id === commentId);
     if (comment) {
-      //console.log('💾 커멘트 색상 변경 히스토리 저장:', comment.data.label, color);
+      //
       state.saveHistoryState('CHANGE_COMMENT_COLOR' as any, {
         commentText: comment.data.label,
         commentId: commentId,
@@ -5237,7 +5135,7 @@ const useStore = create<RFState>((set, get) => ({
       state.historyManager.saveState('INITIAL_STATE' as HistoryActionType, emptyState, { name: '초기 상태 (데이터 삭제 후)' });
       state.updateHistoryFlags();
       
-      //console.log('🗑️ 데이터 삭제 완료 - 히스토리 초기화됨');
+      //
       
       toast.success('저장된 데이터가 삭제되고 초기 상태로 리셋되었습니다.');
     } catch (error) {
@@ -5408,8 +5306,8 @@ const useStore = create<RFState>((set, get) => ({
       hiddenEntities: state.hiddenEntities
     });
     
-    //console.log('🔄 히스토리 저장:', actionType, metadata);
-    //console.log('📊 저장되는 노드 수:', currentState.nodes.length);
+    //
+    //
     
     // 엔티티 노드의 상세 정보 로깅 (최대 2개만)
     const entityNodes = currentState.nodes.filter(node => node.type === 'entity').slice(0, 2);

@@ -365,7 +365,7 @@ const CommentNode = ({ data, selected, id }: any) => {
     
     // 텍스트가 실제로 변경된 경우에만 히스토리 저장 (업데이트 후 히스토리 저장)
     if (finalContent !== data.label) {
-      console.log('💬 커멘트 텍스트 변경 히스토리 저장:', finalContent);
+      
       setTimeout(() => {
         saveHistoryState('CHANGE_COMMENT_TEXT', {
           commentId: id,
@@ -402,7 +402,7 @@ const CommentNode = ({ data, selected, id }: any) => {
   const handleColorSelect = useCallback((color: string) => {
     const oldColor = getCommentColor(id);
     if (color !== oldColor) {
-      console.log('🎨 커멘트 색상 변경 히스토리 저장:', color);
+      
       saveHistoryState('CHANGE_NODE_COLOR', {
         nodeId: id,
         nodeType: 'comment',

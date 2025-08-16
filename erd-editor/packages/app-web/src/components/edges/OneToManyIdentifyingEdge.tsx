@@ -103,7 +103,7 @@ const OneToManyIdentifyingEdge: React.FC<OneToManyIdentifyingEdgeProps> = React.
   const handleColorSelect = useCallback((color: string) => {
     const oldColor = getEdgeColor(id);
     if (color !== oldColor) {
-      console.log('🎨 관계선 색상 변경 히스토리 저장:', color);
+      
       saveHistoryState('CHANGE_NODE_COLOR', {
         edgeId: id,
         nodeType: 'edge',

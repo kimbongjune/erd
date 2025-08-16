@@ -589,7 +589,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   const handleColorSelect = useCallback((color: string) => {
     const oldColor = getNodeColor(id);
     if (color !== oldColor) {
-      console.log('🎨 엔티티 색상 변경 히스토리 저장:', color);
+      
       saveHistoryState('CHANGE_NODE_COLOR', {
         nodeId: id,
         nodeType: 'entity',

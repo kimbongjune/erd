@@ -482,7 +482,7 @@ const Canvas = () => {
         };
         // 노드 추가 및 히스토리 저장
         useStore.getState().setNodes([...nodes, newNode]);
-        console.log('💾 엔티티 생성 히스토리 저장:', newNode.data.label);
+        
         useStore.getState().saveHistoryState('CREATE_ENTITY', { name: newNode.data.label });
         
         // 생성 후 선택 모드로 돌아가기
@@ -497,7 +497,7 @@ const Canvas = () => {
         };
         // 노드 추가 및 히스토리 저장
         useStore.getState().setNodes([...nodes, newNode]);
-        console.log('💾 커멘트 생성 히스토리 저장:', newNode.data.label);
+        
         useStore.getState().saveHistoryState('CREATE_COMMENT', { name: newNode.data.label });
         
         // 생성 후 선택 모드로 돌아가기
@@ -517,7 +517,7 @@ const Canvas = () => {
         };
         // 노드 추가 및 히스토리 저장
         useStore.getState().setNodes([...nodes, newNode]);
-        console.log('💾 이미지 생성 히스토리 저장:', newNode.data.label);
+        
         useStore.getState().saveHistoryState('CREATE_IMAGE', { name: newNode.data.label });
         
         // 생성 후 선택 모드로 돌아가기
@@ -691,7 +691,7 @@ const Canvas = () => {
       const threshold = 5; // 5픽셀 이상 이동 시에만 히스토리 저장
       
       if (deltaX > threshold || deltaY > threshold) {
-        console.log('💾 노드 이동 히스토리 저장:', node.data?.label || node.id, `(${deltaX.toFixed(1)}, ${deltaY.toFixed(1)})`);
+        
         useStore.getState().saveHistoryState('MOVE_NODE');
       }
       

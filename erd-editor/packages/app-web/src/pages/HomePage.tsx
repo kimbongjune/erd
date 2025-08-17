@@ -6,6 +6,10 @@ import { FaNoteSticky } from "react-icons/fa6";
 import { GrMysql } from "react-icons/gr";
 
 import { BsFillDiagram3Fill } from "react-icons/bs";
+import UserMenu from '../components/UserMenu';
+import LoginModal from '../components/auth/LoginModal';
+import SignupModal from '../components/auth/SignupModal';
+import MyPageModal from '../components/auth/MyPageModal';
 const HomeContainer = styled.div`
   min-height: 100vh;
   background: #0f1419;
@@ -50,21 +54,6 @@ const UserInfo = styled.div`
   gap: 12px;
   color: #9ca3af;
   font-size: 14px;
-  
-  .login-link {
-    color: #60a5fa;
-    text-decoration: none;
-    padding: 8px 16px;
-    border: 1px solid #374151;
-    border-radius: 8px;
-    transition: all 0.3s ease;
-    
-    &:hover {
-      color: #ffffff;
-      border-color: #60a5fa;
-      background: rgba(96, 165, 250, 0.1);
-    }
-  }
 `;
 
 const MainContent = styled.main`
@@ -558,6 +547,11 @@ const HomePage: React.FC = () => {
     diagramId: null,
     diagramName: ''
   });
+  
+  // 모달 상태 관리
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [signupModalOpen, setSignupModalOpen] = useState(false);
+  const [myPageModalOpen, setMyPageModalOpen] = useState(false);
 
   useEffect(() => {
     loadDiagrams();
@@ -784,7 +778,11 @@ const HomePage: React.FC = () => {
           <h1>No ERD</h1>
         </Logo>
         <UserInfo>
-          <a href="#" className="login-link">로그인</a>
+          <UserMenu
+            onOpenLogin={() => setLoginModalOpen(true)}
+            onOpenSignup={() => setSignupModalOpen(true)}
+            onOpenMyPage={() => setMyPageModalOpen(true)}
+          />
         </UserInfo>
       </Header>
 
@@ -1007,6 +1005,30 @@ const HomePage: React.FC = () => {
           </ModalContent>
         </DeleteModal>
       )}
+      
+      {/* 인증 모달들 */}
+      <LoginModal
+        isOpen={loginModalOpen}
+        onClose={() => setLoginModalOpen(false)}
+        onSwitchToSignup={() => {
+          setLoginModalOpen(false);
+          setSignupModalOpen(true);
+        }}
+      />
+      
+      <SignupModal
+        isOpen={signupModalOpen}
+        onClose={() => setSignupModalOpen(false)}
+        onSwitchToLogin={() => {
+          setSignupModalOpen(false);
+          setLoginModalOpen(true);
+        }}
+      />
+      
+      <MyPageModal
+        isOpen={myPageModalOpen}
+        onClose={() => setMyPageModalOpen(false)}
+      />
     </HomeContainer>
   );
 };

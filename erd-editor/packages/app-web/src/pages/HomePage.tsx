@@ -556,6 +556,13 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     loadDiagrams();
     
+    // 페이지가 다시 포커스될 때 다이어그램 목록 새로고침
+    const handleFocus = () => {
+      loadDiagrams();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
     // 메뉴가 열려있을 때 외부 클릭으로 닫기
     const handleClickOutside = () => {
       setMenuOpenId(null);
@@ -566,17 +573,62 @@ const HomePage: React.FC = () => {
     }
     
     return () => {
+      window.removeEventListener('focus', handleFocus);
       document.removeEventListener('click', handleClickOutside);
     };
   }, [menuOpenId]);
 
   const loadDiagrams = () => {
-    const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-    setDiagrams(diagramsList.sort((a: Diagram, b: Diagram) => b.updatedAt - a.updatedAt));
+    // localStorage에서 실제 erd- 키로 저장된 모든 다이어그램 찾기
+    const actualDiagrams: Diagram[] = [];
+    
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('erd-') && key !== 'erd-diagrams-list') {
+        const erdId = key.replace('erd-', '');
+        try {
+          const erdData = JSON.parse(localStorage.getItem(key) || '{}');
+          
+          // 다이어그램 이름 결정 (우선순위: erd-diagrams-list > 기본값)
+          let diagramName = '제목 없는 다이어그램';
+          
+          // erd-diagrams-list에서 해당 ID의 이름을 찾아보기
+          try {
+            const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
+            const existingDiagram = diagramsList.find((d: any) => d.id === erdId);
+            if (existingDiagram && existingDiagram.name) {
+              diagramName = existingDiagram.name;
+            }
+          } catch (error) {
+            // erd-diagrams-list 파싱 실패 시 기본값 사용
+          }
+          
+          actualDiagrams.push({
+            id: erdId,
+            name: diagramName,
+            createdAt: erdData.timestamp || Date.now(),
+            updatedAt: erdData.timestamp || Date.now()
+          });
+        } catch (error) {
+          // 파싱 에러 시 해당 키는 무시
+          continue;
+        }
+      }
+    }
+    
+    // 업데이트 시간순으로 정렬
+    setDiagrams(actualDiagrams.sort((a: Diagram, b: Diagram) => b.updatedAt - a.updatedAt));
   };
 
-  const createNewDiagram = () => {
+  const createNewDiagram = (event?: React.MouseEvent) => {
+    console.log('createNewDiagram 호출됨');
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
     const id = `erd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log('생성된 다이어그램 ID:', id);
     
     // 새 다이어그램을 다이어그램 목록에 즉시 추가
     const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
@@ -589,10 +641,41 @@ const HomePage: React.FC = () => {
     diagramsList.push(newDiagram);
     localStorage.setItem('erd-diagrams-list', JSON.stringify(diagramsList));
     
+    // 새 다이어그램의 초기 ERD 데이터도 저장
+    const initialErdData = {
+      version: '1.0',
+      timestamp: Date.now(),
+      nodes: [],
+      edges: [],
+      nodeColors: {},
+      edgeColors: {},
+      commentColors: {},
+      viewSettings: {
+        entityView: 'logical',
+        showKeys: true,
+        showPhysicalName: true,
+        showLogicalName: false,
+        showDataType: true,
+        showConstraints: false,
+        showDefaults: false,
+      },
+      theme: 'light',
+      showGrid: false,
+      hiddenEntities: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      viewportRestoreTrigger: Date.now()
+    };
+    localStorage.setItem(`erd-${id}`, JSON.stringify(initialErdData));
+    console.log('localStorage에 저장 완료:', `erd-${id}`);
+    
+    // 강제로 네비게이션 실행
+    console.log('navigate 호출:', `/erd/${id}`);
     navigate(`/erd/${id}`);
   };
 
   const openDiagram = (id: string) => {
+    console.log('openDiagram 호출됨, ID:', id);
+    console.log('navigate 호출:', `/erd/${id}`);
     navigate(`/erd/${id}`);
   };
 
@@ -618,8 +701,8 @@ const HomePage: React.FC = () => {
       // 다이어그램 데이터 제거
       localStorage.removeItem(`erd-${deleteModal.diagramId}`);
       
-      // 상태 업데이트
-      setDiagrams(updatedList);
+      // loadDiagrams로 상태 새로고침 (중복 방지)
+      loadDiagrams();
     }
     
     // 모달을 먼저 숨기고, 트랜지션이 완료된 후에 상태 초기화

@@ -135,12 +135,82 @@ const Navigation: React.FC<NavigationProps> = ({ currentDiagramId }) => {
   }, [isMyDiagramsOpen]);
 
   const loadDiagrams = () => {
-    const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-    setDiagrams(diagramsList.sort((a: Diagram, b: Diagram) => b.updatedAt - a.updatedAt));
+    // localStorage에서 실제 erd- 키로 저장된 모든 다이어그램 찾기
+    const actualDiagrams: Diagram[] = [];
+    
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('erd-') && key !== 'erd-diagrams-list') {
+        const erdId = key.replace('erd-', '');
+        try {
+          const erdData = JSON.parse(localStorage.getItem(key) || '{}');
+          
+          // 다이어그램 이름 결정 (우선순위: erd-diagrams-list > 기본값)
+          let diagramName = '제목 없는 다이어그램';
+          
+          // erd-diagrams-list에서 해당 ID의 이름을 찾아보기
+          try {
+            const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
+            const existingDiagram = diagramsList.find((d: any) => d.id === erdId);
+            if (existingDiagram && existingDiagram.name) {
+              diagramName = existingDiagram.name;
+            }
+          } catch (error) {
+            // erd-diagrams-list 파싱 실패 시 기본값 사용
+          }
+          
+          actualDiagrams.push({
+            id: erdId,
+            name: diagramName,
+            createdAt: erdData.timestamp || Date.now(),
+            updatedAt: erdData.timestamp || Date.now()
+          });
+        } catch (error) {
+          // 파싱 에러 시 해당 키는 무시
+          continue;
+        }
+      }
+    }
+    
+    setDiagrams(actualDiagrams.sort((a: Diagram, b: Diagram) => b.updatedAt - a.updatedAt));
   };
 
   const createNewDiagram = () => {
     const id = `erd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // 새 다이어그램을 다이어그램 목록에 추가
+    const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
+    const newDiagram = {
+      id: id,
+      name: '제목 없는 다이어그램',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    diagramsList.push(newDiagram);
+    localStorage.setItem('erd-diagrams-list', JSON.stringify(diagramsList));
+    
+    // 새 다이어그램의 초기 ERD 데이터도 저장
+    const initialERDData = {
+      nodes: [],
+      edges: [],
+      nodeColors: [],
+      edgeColors: [],
+      commentColors: [],
+      theme: 'light',
+      viewSettings: {
+        entityView: 'logical',
+        showKeys: true,
+        showPhysicalName: true,
+        showLogicalName: false,
+        showDataType: true,
+        showConstraints: false,
+        showDefaults: false,
+      },
+      timestamp: Date.now()
+    };
+    
+    localStorage.setItem(`erd-${id}`, JSON.stringify(initialERDData));
+    
     navigate(`/erd/${id}`);
   };
 

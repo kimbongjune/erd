@@ -1003,19 +1003,6 @@ export const findExistingFkColumn = (
   return null;
 };
 
-// 자동 저장 디바운싱을 위한 타이머
-let autoSaveTimer: number | null = null;
-
-// 디바운싱된 자동 저장 함수
-const debounceAutoSave = (saveFunction: () => void, delay: number = 1000) => {
-  if (autoSaveTimer) {
-    clearTimeout(autoSaveTimer);
-  }
-  autoSaveTimer = setTimeout(() => {
-    saveFunction();
-  }, delay);
-};
-
 // Viewport 타입 정의
 type Viewport = {
   x: number;
@@ -1280,7 +1267,6 @@ type RFState = {
   hasSavedData: boolean;
   setHasSavedData: (value: boolean) => void;
   checkSavedData: () => void;
-  hasUnsavedChanges: () => boolean;
   saveToLocalStorage: (showToast?: boolean) => void;
   loadFromLocalStorage: () => void;
   clearLocalStorage: () => void;
@@ -5162,64 +5148,6 @@ const useStore = create<RFState>((set, get) => ({
     }
   },
 
-  // 변경사항 체크 함수 (저장 형식과 동일하게)
-  hasUnsavedChanges: () => {
-    const state = get();
-    const savedData = localStorage.getItem(getCurrentStorageKey());
-    
-    // 저장할 때와 똑같은 형식으로 현재 상태 구성
-    const currentForComparison = {
-      nodes: state.nodes,
-      edges: state.edges,
-      nodeColors: Object.fromEntries(state.nodeColors),
-      edgeColors: Object.fromEntries(state.edgeColors),
-      commentColors: Object.fromEntries(state.commentColors),
-      viewSettings: state.viewSettings,
-      theme: state.theme,
-      showGrid: state.showGrid,
-      hiddenEntities: Array.from(state.hiddenEntities),
-    };
-    
-    if (!savedData) {
-      // 저장된 데이터가 없으면 현재 상태가 완전히 비어있지 않은 경우에만 변경사항 있음으로 판단
-      const isEmpty = state.nodes.length === 0 && 
-                     state.edges.length === 0 && 
-                     state.nodeColors.size === 0 && 
-                     state.edgeColors.size === 0 && 
-                     state.commentColors.size === 0 &&
-                     state.hiddenEntities.size === 0;
-      return !isEmpty;
-    }
-
-    try {
-      const saved = JSON.parse(savedData);
-      
-      // 저장된 데이터에서도 똑같은 형식으로 구성
-      const savedForComparison = {
-        nodes: saved.nodes || [],
-        edges: saved.edges || [],
-        nodeColors: saved.nodeColors || {},
-        edgeColors: saved.edgeColors || {},
-        commentColors: saved.commentColors || {},
-        viewSettings: saved.viewSettings || {},
-        theme: saved.theme || 'light',
-        showGrid: saved.showGrid || false,
-        hiddenEntities: saved.hiddenEntities || [],
-      };
-      
-      return JSON.stringify(currentForComparison) !== JSON.stringify(savedForComparison);
-    } catch {
-      // 파싱 에러가 난 경우, 현재 상태가 비어있지 않으면 변경사항 있음으로 판단
-      const isEmpty = state.nodes.length === 0 && 
-                     state.edges.length === 0 && 
-                     state.nodeColors.size === 0 && 
-                     state.edgeColors.size === 0 && 
-                     state.commentColors.size === 0 &&
-                     state.hiddenEntities.size === 0;
-      return !isEmpty;
-    }
-  },
-  
   // viewport 관련 함수들
   setViewport: (viewport: Viewport) => {
     // viewport 값의 유효성 검증

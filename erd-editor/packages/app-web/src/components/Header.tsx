@@ -596,16 +596,6 @@ const Header = () => {
   const [diagramName, setDiagramName] = useState('제목 없는 다이어그램');
   const [tempName, setTempName] = useState('');
 
-  // 커스텀 네비게이션 함수 (변경사항 체크 포함)
-  const customNavigate = useCallback(async (path: string) => {
-    if ((window as any).customNavigate) {
-      await (window as any).customNavigate(path);
-    } else {
-      // 폴백: customNavigate가 없으면 기본 navigate 사용
-      navigate(path);
-    }
-  }, [navigate]);
-
   const [diagrams, setDiagrams] = useState<Array<{
     id: string;
     name: string;
@@ -709,8 +699,44 @@ const Header = () => {
   // 다이어그램 목록 로드
   useEffect(() => {
     const loadDiagrams = () => {
-      const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-      setDiagrams(diagramsList.sort((a: any, b: any) => b.updatedAt - a.updatedAt));
+      // localStorage에서 실제 erd- 키로 저장된 모든 다이어그램 찾기
+      const actualDiagrams: any[] = [];
+      
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('erd-') && key !== 'erd-diagrams-list') {
+          const erdId = key.replace('erd-', '');
+          try {
+            const erdData = JSON.parse(localStorage.getItem(key) || '{}');
+            
+            // 다이어그램 이름 결정 (우선순위: erd-diagrams-list > 기본값)
+            let diagramName = '제목 없는 다이어그램';
+            
+            // erd-diagrams-list에서 해당 ID의 이름을 찾아보기
+            try {
+              const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
+              const existingDiagram = diagramsList.find((d: any) => d.id === erdId);
+              if (existingDiagram && existingDiagram.name) {
+                diagramName = existingDiagram.name;
+              }
+            } catch (error) {
+              // erd-diagrams-list 파싱 실패 시 기본값 사용
+            }
+            
+            actualDiagrams.push({
+              id: erdId,
+              name: diagramName,
+              createdAt: erdData.timestamp || Date.now(),
+              updatedAt: erdData.timestamp || Date.now()
+            });
+          } catch (error) {
+            // 파싱 에러 시 해당 키는 무시
+            continue;
+          }
+        }
+      }
+      
+      setDiagrams(actualDiagrams.sort((a: any, b: any) => b.updatedAt - a.updatedAt));
     };
     
     loadDiagrams();
@@ -736,24 +762,7 @@ const Header = () => {
   };
 
   const createNewDiagram = async () => {
-    // 먼저 변경사항이 있는지 확인
-    const { hasUnsavedChanges } = useStore.getState();
-    const isOnERDPage = window.location.pathname.startsWith('/erd/');
-    
-    if (isOnERDPage && hasUnsavedChanges()) {
-      const confirmed = await customConfirm('저장하지 않은 변경사항이 있습니다. 새 다이어그램을 생성하시겠습니까?', {
-        title: '새 다이어그램 생성',
-        confirmText: '생성',
-        cancelText: '취소',
-        type: 'warning',
-        darkMode: theme === 'dark'
-      });
-      
-      if (!confirmed) {
-        setIsNavDropdownOpen(false);
-        return;
-      }
-    }
+    // 새 다이어그램 생성
     
     const id = `erd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
@@ -768,6 +777,28 @@ const Header = () => {
     diagramsList.push(newDiagram);
     localStorage.setItem('erd-diagrams-list', JSON.stringify(diagramsList));
     
+    // 새 다이어그램의 초기 ERD 데이터도 저장
+    const initialERDData = {
+      nodes: [],
+      edges: [],
+      nodeColors: [],
+      edgeColors: [],
+      commentColors: [],
+      theme: 'light',
+      viewSettings: {
+        entityView: 'logical',
+        showKeys: true,
+        showPhysicalName: true,
+        showLogicalName: false,
+        showDataType: true,
+        showConstraints: false,
+        showDefaults: false,
+      },
+      timestamp: Date.now()
+    };
+    
+    localStorage.setItem(`erd-${id}`, JSON.stringify(initialERDData));
+    
     // navigate 대신 직접 이동 (이미 확인했으므로)
     navigate(`/erd/${id}`);
     setIsNavDropdownOpen(false);
@@ -777,7 +808,7 @@ const Header = () => {
   const createSampleDiagram = async () => {
     // 샘플 다이어그램 생성 로직 (나중에 구현)
     const id = `sample_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await customNavigate(`/erd/${id}`);
+    navigate(`/erd/${id}`);
     setIsNavDropdownOpen(false);
   };
 
@@ -789,7 +820,7 @@ const Header = () => {
       setDiagramName(diagram.name);
     }
     
-    await customNavigate(`/erd/${id}`);
+    navigate(`/erd/${id}`);
     setIsNavDropdownOpen(false);
     closeDashboardModal();
   };
@@ -805,7 +836,7 @@ const Header = () => {
     
     // 현재 다이어그램을 보고 있다면 홈으로 이동
     if (window.location.pathname === `/erd/${diagramId}`) {
-      await customNavigate('/home');
+      navigate('/home');
       closeDashboardModal();
     } else {
       // 목록 새로고침
@@ -1186,7 +1217,7 @@ const Header = () => {
           </DiagramNameContainer>
 
           <NavDropdownMenu $darkMode={theme === 'dark'} $isOpen={isNavDropdownOpen} role="menu">
-            <NavDropdownItem $darkMode={theme === 'dark'} onClick={async () => await customNavigate('/home')}>
+            <NavDropdownItem $darkMode={theme === 'dark'} onClick={() => navigate('/home')}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FaHome />
                 홈으로 가기

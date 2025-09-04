@@ -299,6 +299,26 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [imageSize, setImageSize] = useState('s96-c');
+
+  // 이미지 URL에서 크기 부분을 변경하는 함수
+  const getModifiedPhotoURL = (originalURL: string, size: string) => {
+    if (!originalURL) return originalURL;
+    // Google 프로필 이미지 URL에서 크기 부분 변경
+    return originalURL.replace(/=s\d+(-c)?$/, `=${size}`);
+  };
+
+  // 이미지 로딩 실패 시 다른 크기로 시도
+  const handleImageError = () => {
+    if (imageSize === 's96-c') {
+      setImageSize('s128-c');
+    } else if (imageSize === 's128-c') {
+      setImageSize('s64-c');
+    } else {
+      setImageError(true);
+    }
+  };
 
   // 모달이 닫힐 때 편집 상태 초기화
   useEffect(() => {
@@ -386,8 +406,14 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
 
           <UserInfo>
             <UserAvatar>
-              {user.photoURL ? (
-                <img src={user.photoURL} alt="프로필" />
+              {user.photoURL && !imageError ? (
+                <img 
+                  src={getModifiedPhotoURL(user.photoURL, imageSize)} 
+                  alt="프로필" 
+                  crossOrigin="anonymous"
+                  onError={handleImageError}
+                  onLoad={() => setImageError(false)}
+                />
               ) : (
                 <FaUser />
               )}

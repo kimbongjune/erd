@@ -141,7 +141,27 @@ const UserInfo = styled.div`
 const UserMenu: React.FC<UserMenuProps> = ({ onOpenLogin, onOpenSignup, onOpenMyPage }) => {
   const { user, logout, loading } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [imageSize, setImageSize] = useState('s96-c');
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // 이미지 URL에서 크기 부분을 변경하는 함수
+  const getModifiedPhotoURL = (originalURL: string, size: string) => {
+    if (!originalURL) return originalURL;
+    // Google 프로필 이미지 URL에서 크기 부분 변경
+    return originalURL.replace(/=s\d+(-c)?$/, `=${size}`);
+  };
+
+  // 이미지 로딩 실패 시 다른 크기로 시도
+  const handleImageError = () => {
+    if (imageSize === 's96-c') {
+      setImageSize('s128-c');
+    } else if (imageSize === 's128-c') {
+      setImageSize('s64-c');
+    } else {
+      setImageError(true);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -211,8 +231,14 @@ const UserMenu: React.FC<UserMenuProps> = ({ onOpenLogin, onOpenSignup, onOpenMy
     <UserMenuContainer ref={menuRef}>
       <UserButton onClick={() => setIsOpen(!isOpen)}>
         <div className="user-avatar">
-          {user.photoURL ? (
-            <img src={user.photoURL} alt="프로필" />
+          {user.photoURL && !imageError ? (
+            <img 
+              src={getModifiedPhotoURL(user.photoURL, imageSize)} 
+              alt="프로필" 
+              crossOrigin="anonymous"
+              onError={handleImageError}
+              onLoad={() => setImageError(false)}
+            />
           ) : (
             getInitials(user.displayName || user.email || 'U')
           )}

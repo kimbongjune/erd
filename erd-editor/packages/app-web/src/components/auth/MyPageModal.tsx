@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { FaTimes, FaUser, FaEdit, FaTrash, FaSpinner, FaSignOutAlt } from 'react-icons/fa';
+import { FaTimes, FaUser, FaEdit, FaTrash, FaSpinner, FaSignOutAlt, FaCamera } from 'react-icons/fa';
 import { useAuth } from '../../hooks/useAuth';
 
 interface MyPageModalProps {
@@ -96,12 +96,56 @@ const UserAvatar = styled.div`
   color: white;
   font-size: 24px;
   font-weight: 600;
+  position: relative;
+  overflow: hidden;
   
   img {
     width: 100%;
     height: 100%;
     border-radius: 50%;
     object-fit: cover;
+  }
+  
+  .avatar-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    
+    .avatar-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      border-radius: 50%;
+      cursor: pointer;
+      
+      &:hover {
+        opacity: 1;
+      }
+      
+      .upload-button {
+        color: white;
+        font-size: 18px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px;
+        border-radius: 50%;
+        transition: background-color 0.3s ease;
+        
+        &:hover {
+          background: rgba(255, 255, 255, 0.2);
+        }
+      }
+    }
   }
 `;
 
@@ -382,6 +426,105 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
     setLoading(false);
   };
 
+      const handleProfileImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // 파일 타입 검증
+    if (!file.type.startsWith('image/')) {
+      setError('이미지 파일만 업로드 가능합니다.');
+      return;
+    }
+
+    // 파일 크기 검증 (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('파일 크기는 5MB 이하여야 합니다.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      // 이미지를 Base64로 변환 (더 작은 크기로)
+      const base64String = await compressImageToBase64(file, 80, 0.5); // 80x80, 품질 0.5
+
+      if (!user) {
+        setError('사용자 정보를 찾을 수 없습니다.');
+        setLoading(false);
+        return;
+      }
+
+      // Firebase Auth 프로필 업데이트
+      const { updateProfile } = await import('firebase/auth');
+      await updateProfile(user, {
+        photoURL: base64String
+      });
+
+      setSuccess('프로필 사진이 성공적으로 업데이트되었습니다!');
+      setTimeout(() => setSuccess(''), 3000);
+
+      // 입력 필드 초기화
+      event.target.value = '';
+      setLoading(false);
+
+    } catch (error: any) {
+      console.error('Profile image upload error:', error);
+
+      if (error.message?.includes('too long') || error.code === 'auth/invalid-profile-attribute') {
+        setError('이미지가 너무 큽니다. 더 작은 이미지를 선택해주세요.');
+      } else {
+        setError('프로필 사진 업로드에 실패했습니다. 다시 시도해주세요.');
+      }
+      setLoading(false);
+    }
+  };
+
+  // 이미지 압축 함수 (Base64 반환, 더 작은 크기)
+  const compressImageToBase64 = (file: File, maxSize: number = 80, quality: number = 0.5): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          let { width, height } = img;
+
+          // 비율 유지하면서 최대 크기에 맞춤
+          if (width > height) {
+            if (width > maxSize) {
+              height = (height * maxSize) / width;
+              width = maxSize;
+            }
+          } else {
+            if (height > maxSize) {
+              width = (width * maxSize) / height;
+              height = maxSize;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          // 낮은 품질로 압축
+          const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressedBase64);
+        };
+
+        img.onerror = () => reject(new Error('이미지 로드 실패'));
+        img.src = e.target?.result as string;
+      };
+
+      reader.onerror = () => reject(new Error('파일 읽기 실패'));
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       onClose();
@@ -405,18 +548,30 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
           {success && <SuccessMessage>{success}</SuccessMessage>}
 
           <UserInfo>
-            <UserAvatar>
-              {user.photoURL && !imageError ? (
-                <img 
-                  src={getModifiedPhotoURL(user.photoURL, imageSize)} 
-                  alt="프로필" 
-                  crossOrigin="anonymous"
-                  onError={handleImageError}
-                  onLoad={() => setImageError(false)}
-                />
-              ) : (
-                <FaUser />
-              )}
+            <UserAvatar onClick={() => document.getElementById('profile-upload')?.click()}>
+              <div className="avatar-container">
+                {user.photoURL && !imageError ? (
+                  <img 
+                    src={getModifiedPhotoURL(user.photoURL, imageSize)} 
+                    alt="프로필" 
+                    crossOrigin="anonymous"
+                    onError={handleImageError}
+                    onLoad={() => setImageError(false)}
+                  />
+                ) : (
+                  <FaUser />
+                )}
+                <div className="avatar-overlay">
+                  <FaCamera />
+                </div>
+              </div>
+              <input
+                id="profile-upload"
+                type="file"
+                accept="image/*"
+                onChange={handleProfileImageUpload}
+                style={{ display: 'none' }}
+              />
             </UserAvatar>
             <UserDetails>
               <div className="display-name">

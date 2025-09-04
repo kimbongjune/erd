@@ -169,6 +169,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   const arrangeLeftRight = useStore((state) => state.arrangeLeftRight);
   const arrangeSnowflake = useStore((state) => state.arrangeSnowflake);
   const arrangeCompact = useStore((state) => state.arrangeCompact);
+  const updateViewport = useStore((state) => state.updateViewport);
 
   // 툴팁 상태
   const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, text: '' });
@@ -206,23 +207,47 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
 
   const handleZoomToFit = () => {
     fitView({ padding: 0.1, duration: 500 });
+    
+    // fitView 완료 후 viewport 저장
+    setTimeout(() => {
+      const currentViewport = getViewport();
+      updateViewport(currentViewport);
+    }, 600); // fitView duration(500ms)보다 약간 길게 설정
   };
 
   const handleZoomIn = () => {
     zoomIn({ duration: 200 });
+    
+    // zoomIn 완료 후 viewport 저장
+    setTimeout(() => {
+      const currentViewport = getViewport();
+      updateViewport(currentViewport);
+    }, 300);
   };
 
   const handleZoomOut = () => {
     zoomOut({ duration: 200 });
+    
+    // zoomOut 완료 후 viewport 저장
+    setTimeout(() => {
+      const currentViewport = getViewport();
+      updateViewport(currentViewport);
+    }, 300);
   };
 
   const handleZoomReset = () => {
     const currentViewport = getViewport();
-    setViewport({
+    const newViewport = {
       x: currentViewport.x,
       y: currentViewport.y,
       zoom: 1
-    }, { duration: 300 });
+    };
+    setViewport(newViewport, { duration: 300 });
+    
+    // zoomReset 완료 후 viewport 저장
+    setTimeout(() => {
+      updateViewport(newViewport);
+    }, 400);
   };
 
   const handleSearch = () => {

@@ -14,44 +14,47 @@ const ERDContainer = styled.div`
 const ERDEditor: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { loadFromLocalStorage, clearLocalStorage, nodes, theme } = useStore();
+  const { loadFromLocalStorage, clearLocalStorage, nodes, theme, setLoading } = useStore();
 
   useEffect(() => {
-    console.log('ERDEditor useEffect 실행, id:', id);
     if (id) {
       // ERD ID 유효성 검증 (영문, 숫자, _, - 만 허용)
       const validIdPattern = /^[a-zA-Z0-9_-]+$/;
       if (!validIdPattern.test(id)) {
-        console.log('유효하지 않은 ID 패턴:', id);
         navigate('/404');
         return;
       }
 
       // localStorage에서 실제로 저장된 ERD 데이터가 있는지 확인
       const savedData = localStorage.getItem(`erd-${id}`);
-      console.log('저장된 ERD 데이터 존재:', !!savedData);
       
       if (!savedData) {
         // 실제 데이터가 없는 경우 홈페이지로 리다이렉트
-        console.log('ERD 데이터가 존재하지 않음, 홈으로 리다이렉트:', id);
         navigate('/home');
         return;
       }
 
-      // 특정 ERD ID의 데이터 로드
+      // 데이터가 있는 경우 로딩바와 함께 로드
       try {
         const erdData = JSON.parse(savedData);
-        console.log('ERD 데이터 로드 성공:', erdData);
-        // 기존 store에 데이터 로드
-        useStore.setState({
-          nodes: erdData.nodes || [],
-          edges: erdData.edges || [],
-          nodeColors: new Map(Array.isArray(erdData.nodeColors) ? erdData.nodeColors : Object.entries(erdData.nodeColors || {})),
-          edgeColors: new Map(Array.isArray(erdData.edgeColors) ? erdData.edgeColors : Object.entries(erdData.edgeColors || {})),
-          commentColors: new Map(Array.isArray(erdData.commentColors) ? erdData.commentColors : Object.entries(erdData.commentColors || {})),
-          theme: erdData.theme || 'light',
-          viewSettings: erdData.viewSettings || {}
-        });
+        // 빈 데이터가 아닌 경우에만 로딩바 표시
+        const hasContent = (erdData.nodes && erdData.nodes.length > 0) || (erdData.edges && erdData.edges.length > 0);
+        
+        if (hasContent) {
+          // 로딩바와 함께 데이터 로드
+          loadFromLocalStorage();
+        } else {
+          // 빈 데이터인 경우 로딩바 없이 직접 설정
+          useStore.setState({
+            nodes: erdData.nodes || [],
+            edges: erdData.edges || [],
+            nodeColors: new Map(Array.isArray(erdData.nodeColors) ? erdData.nodeColors : Object.entries(erdData.nodeColors || {})),
+            edgeColors: new Map(Array.isArray(erdData.edgeColors) ? erdData.edgeColors : Object.entries(erdData.edgeColors || {})),
+            commentColors: new Map(Array.isArray(erdData.commentColors) ? erdData.commentColors : Object.entries(erdData.commentColors || {})),
+            theme: erdData.theme || 'light',
+            viewSettings: erdData.viewSettings || {}
+          });
+        }
       } catch (error) {
         console.error('ERD 데이터 로드 실패:', error);
         // 파싱 에러인 경우 초기화

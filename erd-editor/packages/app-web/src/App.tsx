@@ -24,15 +24,8 @@ function AppContent() {
   }, [checkSavedData]);
 
   useEffect(() => {
-    // ERD 에디터 페이지에서만 자동 로딩 실행
-    if (location.pathname.startsWith('/erd/')) {
-      const autoLoadTimer = setTimeout(() => {
-        checkAndAutoLoad();
-      }, 50); // 50ms 후 실행으로 안정성 확보
-
-      return () => clearTimeout(autoLoadTimer);
-    }
-  }, [checkAndAutoLoad, location.pathname]);
+    // ERD 에디터 페이지에서의 자동 로딩은 ERDEditor.tsx에서 처리
+  }, [location.pathname]);
 
   useEffect(() => {
     // Ctrl+S 키 이벤트 핸들러

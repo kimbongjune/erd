@@ -621,14 +621,12 @@ const HomePage: React.FC = () => {
   };
 
   const createNewDiagram = (event?: React.MouseEvent) => {
-    console.log('createNewDiagram 호출됨');
     if (event) {
       event.preventDefault();
       event.stopPropagation();
     }
     
     const id = `erd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    console.log('생성된 다이어그램 ID:', id);
     
     // 새 다이어그램을 다이어그램 목록에 즉시 추가
     const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
@@ -666,16 +664,12 @@ const HomePage: React.FC = () => {
       viewportRestoreTrigger: Date.now()
     };
     localStorage.setItem(`erd-${id}`, JSON.stringify(initialErdData));
-    console.log('localStorage에 저장 완료:', `erd-${id}`);
     
     // 강제로 네비게이션 실행
-    console.log('navigate 호출:', `/erd/${id}`);
     navigate(`/erd/${id}`);
   };
 
   const openDiagram = (id: string) => {
-    console.log('openDiagram 호출됨, ID:', id);
-    console.log('navigate 호출:', `/erd/${id}`);
     navigate(`/erd/${id}`);
   };
 

@@ -103,12 +103,33 @@ const parseSQLTables = (sqlContent: string): ParsedTable[] => {
 };
 
 // localStorage 키 상수
-const STORAGE_KEY_PREFIX = 'erd-editor-data';
 const STORAGE_VERSION = '1.0';
 
-// 현재 URL을 기반으로 한 동적 저장소 키 생성
+// 현재 URL에서 다이어그램 ID 추출하여 저장소 키 생성
 const getCurrentStorageKey = () => {
-  return `${STORAGE_KEY_PREFIX}${window.location.pathname}`;
+  const pathname = window.location.pathname;
+  const erdMatch = pathname.match(/\/erd\/(.+)$/);
+  if (erdMatch) {
+    return `erd-${erdMatch[1]}`;
+  }
+  return 'erd-temp'; // 기본값
+};
+
+// 자동저장을 위한 debounce 변수
+let autoSaveTimeout: NodeJS.Timeout | null = null;
+
+// debounced 자동저장 함수
+const debouncedAutoSave = (saveFunction: () => void, delay: number = 500) => {
+  if (autoSaveTimeout) {
+    clearTimeout(autoSaveTimeout);
+  }
+  
+  autoSaveTimeout = setTimeout(() => {
+    // ERD 페이지에서만 자동저장 실행
+    if (window.location.pathname.startsWith('/erd/')) {
+      saveFunction();
+    }
+  }, delay);
 };
 
 // 하위 계층으로의 연쇄 FK 추가 전파 함수 (PK 추가 시 사용)
@@ -1394,14 +1415,16 @@ const useStore = create<RFState>((set, get) => ({
       return { nodes: newNodes };
     });
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 자동저장
+    debouncedAutoSave(() => get().saveToLocalStorage(false));
   },
   onEdgesChange: (changes) => {
     set({
       edges: applyEdgeChanges(changes, get().edges),
     });
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 자동저장
+    debouncedAutoSave(() => get().saveToLocalStorage(false));
   },
   addNode: (type) => {
     const newNode = {
@@ -1431,7 +1454,8 @@ const useStore = create<RFState>((set, get) => ({
       );
     }, 0);
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 자동저장
+    debouncedAutoSave(() => get().saveToLocalStorage(false));
   },
   setSelectedNodeId: (id) => {
     const state = get();
@@ -1456,7 +1480,14 @@ const useStore = create<RFState>((set, get) => ({
   },
   
   // 편집 상태 관리
-  setEditingCommentId: (id) => set({ editingCommentId: id }),
+  setEditingCommentId: (id) => {
+    set({ editingCommentId: id });
+    
+    // 코멘트 편집 완료 시에만 자동저장 (id가 null이 될 때)
+    if (id === null) {
+      debouncedAutoSave(() => get().saveToLocalStorage(false));
+    }
+  },
   setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
   setHoveredEdgeId: (id: string | null) => set({ hoveredEdgeId: id }),
   setHoveredEntityId: (id: string | null) => {
@@ -1709,7 +1740,8 @@ const useStore = create<RFState>((set, get) => ({
       );
     }
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 자동저장
+    debouncedAutoSave(() => get().saveToLocalStorage(false));
   },
 
   deleteEdge: (id, skipHistory = false) => {
@@ -1867,7 +1899,8 @@ const useStore = create<RFState>((set, get) => ({
       get().saveHistoryState(HISTORY_ACTIONS.DELETE_RELATIONSHIP);
     }
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 자동저장
+    debouncedAutoSave(() => get().saveToLocalStorage(false));
   },
 
   deleteSelected: () => {
@@ -1881,15 +1914,18 @@ const useStore = create<RFState>((set, get) => ({
       hasChanges = true;
     }
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 자동저장
+    debouncedAutoSave(() => get().saveToLocalStorage(false));
   },
   setNodes: (nodes) => {
     set({ nodes });
-    // 자동저장 제거 - 수동 저장만 사용
+    // 자동저장
+    debouncedAutoSave(() => get().saveToLocalStorage(false));
   },
   setEdges: (edges) => {
     set({ edges });
-    // 자동저장 제거 - 수동 저장만 사용
+    // 자동저장
+    debouncedAutoSave(() => get().saveToLocalStorage(false));
   },
   onConnect: (connection) => {
     set((state) => {
@@ -2402,7 +2438,8 @@ const useStore = create<RFState>((set, get) => ({
       });
     }
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 자동저장
+    debouncedAutoSave(() => get().saveToLocalStorage(false));
   },
   setConnectionMode: (mode) => {
     set({ connectionMode: mode });
@@ -2456,6 +2493,9 @@ const useStore = create<RFState>((set, get) => ({
 
       return { edges: updatedEdges };
     });
+    
+    // 자동저장
+    debouncedAutoSave(() => get().saveToLocalStorage(false));
   },
 
   setCreateMode: (mode: string | null) => set({ createMode: mode }),
@@ -4127,7 +4167,6 @@ const useStore = create<RFState>((set, get) => ({
             
             // 진짜 복합키 관계에서만 일관성 처리 적용
             if (isRealCompositeKeyRelation) {
-              console.log(`🔧 진짜 복합키 일관성 처리: ${parentEntityId}를 참조하는 ${sameFkColumns.length}개 FK, ${uniqueParentColumnIds.size}개 부모컬럼`);
               
               // 변경된 컬럼의 PK 상태에 따라 모든 FK의 PK 상태 일괄 변경
               const shouldAllBePk = newCol.pk; 
@@ -4137,7 +4176,6 @@ const useStore = create<RFState>((set, get) => ({
                   const updatedColumns = node.data.columns.map((col: any) => {
                     // 같은 부모를 참조하는 FK들의 PK 상태를 일괄 변경
                     if (col.fk && col.parentEntityId === parentEntityId) {
-                      console.log(`🔄 복합키 FK ${col.name} PK 상태: ${col.pk} → ${shouldAllBePk}`);
                       return { 
                         ...col, 
                         pk: shouldAllBePk,
@@ -4152,9 +4190,7 @@ const useStore = create<RFState>((set, get) => ({
                 return node;
               });
               
-              console.log(`✅ 복합키 일관성 처리 완료: 모든 FK PK=${shouldAllBePk}`);
             } else {
-              console.log(`⚠️ 복합키 일관성 처리 스킵: 단일PK 다중참조 관계 (FK: ${sameFkColumns.length}, 부모컬럼: ${uniqueParentColumnIds.size})`);
             }
           }
         });
@@ -4197,7 +4233,8 @@ const useStore = create<RFState>((set, get) => ({
     // 에지 핸들 업데이트 (관계선 위치 및 연결 상태 갱신) - 즉시 실행
     get().updateEdgeHandles();
     
-    // 자동저장 제거 - 수동 저장만 사용
+    // 자동저장
+    debouncedAutoSave(() => get().saveToLocalStorage(false));
   },
   
   // 🎯 P5) 정렬·관계선 유지: 그룹별 첫 번째 컬럼에만 연결 (요구사항 10-11)
@@ -4319,6 +4356,9 @@ const useStore = create<RFState>((set, get) => ({
   clearAllEdges: () => {
     set({ edges: [] });
     toast.info('모든 관계가 삭제되었습니다. 새로운 관계를 생성해주세요.');
+    
+    // 자동저장
+    debouncedAutoSave(() => get().saveToLocalStorage(false));
   },
   
   // 색상 팔레트 함수들
@@ -5038,9 +5078,26 @@ const useStore = create<RFState>((set, get) => ({
     try {
       const savedData = localStorage.getItem(getCurrentStorageKey());
       if (savedData) {
-        // 저장된 데이터가 있으면 자동으로 불러오기
-        get().loadFromLocalStorage();
-        return true;
+        try {
+          const parsedData = JSON.parse(savedData);
+          // 새로 생성된 다이어그램인지 확인 (생성된 지 5초 이내이고 완전히 비어있는 경우만)
+          const currentTime = Date.now();
+          const dataTimestamp = parsedData.timestamp || 0;
+          const isRecentlyCreated = (currentTime - dataTimestamp) < 5000; // 5초 이내
+          const isCompletelyEmpty = (!parsedData.nodes || parsedData.nodes.length === 0) && 
+                                   (!parsedData.edges || parsedData.edges.length === 0);
+          
+          // 최근에 생성되고 완전히 비어있는 경우만 로딩 스킵
+          if (isRecentlyCreated && isCompletelyEmpty) {
+            return false;
+          }
+          
+          // 그 외의 경우는 모두 자동으로 불러오기
+          get().loadFromLocalStorage();
+          return true;
+        } catch (parseError) {
+          return false;
+        }
       }
       return false;
     } catch (error) {
@@ -5168,7 +5225,8 @@ const useStore = create<RFState>((set, get) => ({
     };
     
     set({ viewport: validViewport });
-    // 자동저장 제거 - 수동 저장만 사용
+    // 자동저장
+    debouncedAutoSave(() => get().saveToLocalStorage(false));
   },
   
   // SQL import 함수
@@ -5240,11 +5298,7 @@ const useStore = create<RFState>((set, get) => ({
     // 엔티티 노드의 상세 정보 로깅 (최대 2개만)
     const entityNodes = currentState.nodes.filter(node => node.type === 'entity').slice(0, 2);
     entityNodes.forEach((node, index) => {
-      // console.log(`📦 엔티티 ${index + 1}:`, {
-      //   id: node.id,
-      //   label: node.data.label,
-      //   physicalName: node.data.physicalName,
-      //   logicalName: node.data.logicalName,
+      
       //   columns: node.data.columns?.length || 0,
       //   columnsDetail: node.data.columns?.slice(0, 3).map((col: any) => ({
       //     name: col.name,
@@ -5266,14 +5320,10 @@ const useStore = create<RFState>((set, get) => ({
 
   undo: () => {
     const state = get();
-    //console.log('↩️ Undo 시도, canUndo:', state.historyManager.canUndo());
     const historyEntry = state.historyManager.undo();
     
     if (historyEntry) {
-      //console.log('↩️ Undo 실행:', historyEntry.description);
       const restoredState = deserializeState(historyEntry.data);
-      
-      //console.log('📊 복원되는 노드 수:', restoredState.nodes.length);
       
       // 복원되는 엔티티 노드의 상세 정보 로깅 (최대 2개만)
       const entityNodes = restoredState.nodes.filter(node => node.type === 'entity').slice(0, 2);
@@ -5331,20 +5381,15 @@ const useStore = create<RFState>((set, get) => ({
       state.updateHistoryFlags();
       // toast.success(`${historyEntry.description} 취소됨`); // 토스트 제거
     } else {
-      //console.log('↩️ Undo 실패: 되돌릴 상태가 없음');
     }
   },
 
   redo: () => {
     const state = get();
-    //console.log('↪️ Redo 시도, canRedo:', state.historyManager.canRedo());
     const historyEntry = state.historyManager.redo();
     
     if (historyEntry) {
-      //console.log('↪️ Redo 실행:', historyEntry.description);
       const restoredState = deserializeState(historyEntry.data);
-      
-      //console.log('📊 Redo 복원되는 노드 수:', restoredState.nodes.length);
       
       // 이미지 노드 복원 로깅
       const imageNodes = restoredState.nodes.filter(node => node.type === 'image');
@@ -5380,7 +5425,6 @@ const useStore = create<RFState>((set, get) => ({
       state.updateHistoryFlags();
       // toast.success(`${historyEntry.description} 다시 실행됨`); // 토스트 제거
     } else {
-      //console.log('↪️ Redo 실패: 다시 실행할 상태가 없음');
     }
   },
 

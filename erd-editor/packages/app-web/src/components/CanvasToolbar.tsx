@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { FaSearch, FaExpand, FaTh, FaProjectDiagram, FaEye, FaPlus, FaMinus, FaTable } from 'react-icons/fa';
+import { FaSearch, FaExpand, FaTh, FaProjectDiagram, FaEye, FaPlus, FaMinus, FaTable, FaCopy, FaPaste } from 'react-icons/fa';
 import { MdGridOn } from 'react-icons/md';
 import { useReactFlow } from 'reactflow';
 import useStore from '../store/useStore';
@@ -151,6 +151,12 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   const edges = useStore((state) => state.edges);
   const nodes = useStore((state) => state.nodes);
   
+  // 복사-붙여넣기 관련
+  const selectedNodeId = useStore((state) => state.selectedNodeId);
+  const copiedNode = useStore((state) => state.copiedNode);
+  const copyNode = useStore((state) => state.copyNode);
+  const pasteNode = useStore((state) => state.pasteNode);
+  
   // Store 액션들
   const setSearchActive = useStore((state) => state.setSearchActive);
   const toggleSearchPanel = useStore((state) => state.toggleSearchPanel);
@@ -277,6 +283,16 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
     setShowViewPopup(!showViewPopup);
   };
 
+  const handleCopy = () => {
+    if (selectedNodeId) {
+      copyNode(selectedNodeId);
+    }
+  };
+
+  const handlePaste = () => {
+    pasteNode(); // Ctrl+V와 동일하게 원본 노드 오른쪽 아래에 붙여넣기
+  };
+
   const isDarkMode = theme === 'dark';
 
   const handleAlignSelect = (type: 'left-right' | 'snowflake' | 'compact') => {
@@ -313,6 +329,20 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
         <div onMouseEnter={(e) => handleMouseEnter(e, '줌 인')} onMouseLeave={handleMouseLeave}>
           <ToolbarButton onClick={handleZoomIn} $darkMode={isDarkMode}>
             <FaPlus size={14} />
+          </ToolbarButton>
+        </div>
+        
+        <Divider $darkMode={isDarkMode} />
+        
+        <div onMouseEnter={(e) => handleMouseEnter(e, '복사')} onMouseLeave={handleMouseLeave}>
+          <ToolbarButton onClick={handleCopy} $darkMode={isDarkMode} $active={!!selectedNodeId}>
+            <FaCopy size={16} />
+          </ToolbarButton>
+        </div>
+        
+        <div onMouseEnter={(e) => handleMouseEnter(e, '붙여넣기')} onMouseLeave={handleMouseLeave}>
+          <ToolbarButton onClick={handlePaste} $darkMode={isDarkMode} $active={!!copiedNode}>
+            <FaPaste size={16} />
           </ToolbarButton>
         </div>
         

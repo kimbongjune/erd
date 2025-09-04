@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
-import { FaTrash } from 'react-icons/fa';
+import { FaTrash, FaCopy, FaPaste } from 'react-icons/fa';
 
 const MenuContainer = styled.div<{ $x: number; $y: number; $visible: boolean }>`
   position: fixed;
@@ -56,7 +56,11 @@ interface ContextMenuProps {
   y: number;
   onDelete: () => void;
   onClose: () => void;
-  type: 'node' | 'edge';
+  onCopy?: () => void;
+  onPaste?: () => void;
+  type: 'node' | 'edge' | 'pane';
+  canCopy?: boolean;
+  canPaste?: boolean;
 }
 
 const ContextMenu: React.FC<ContextMenuProps> = ({ 
@@ -65,11 +69,27 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
   y, 
   onDelete, 
   onClose,
-  type 
+  onCopy,
+  onPaste,
+  type,
+  canCopy = false,
+  canPaste = false
 }) => {
   const handleDelete = () => {
     onDelete();
     onClose();
+  };
+
+  const handleCopy = () => {
+    if (onCopy) {
+      onCopy();
+    }
+  };
+
+  const handlePaste = () => {
+    if (onPaste) {
+      onPaste();
+    }
   };
 
   React.useEffect(() => {
@@ -118,10 +138,24 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 
   return createPortal(
     <MenuContainer $x={x} $y={y} $visible={visible} data-context-menu>
-      <MenuItem onClick={handleDelete}>
-        <FaTrash className="icon" />
-        삭제
-      </MenuItem>
+      {canCopy && (
+        <MenuItem onClick={handleCopy}>
+          <FaCopy />
+          복사
+        </MenuItem>
+      )}
+      {canPaste && (
+        <MenuItem onClick={handlePaste}>
+          <FaPaste />
+          붙여넣기
+        </MenuItem>
+      )}
+      {(type === 'node' || type === 'edge') && (
+        <MenuItem onClick={handleDelete}>
+          <FaTrash className="icon" />
+          삭제
+        </MenuItem>
+      )}
     </MenuContainer>,
     document.body
   );

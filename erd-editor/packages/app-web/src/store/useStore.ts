@@ -1195,6 +1195,9 @@ type RFState = {
   viewport: Viewport;
   viewportRestoreTrigger: number; // 데이터 로드 시 viewport 복원을 위한 트리거
   
+  // 복사-붙여넣기 기능
+  copiedNode: Node | null; // 복사된 노드 데이터
+  
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   addNode: (type: string) => void;
@@ -1277,6 +1280,10 @@ type RFState = {
   setPreviewNodeColor: (nodeId: string, color: string) => void;
   clearPreviewNodeColor: () => void;
   
+  // 복사-붙여넣기 함수들
+  copyNode: (nodeId: string) => void;
+  pasteNode: (position?: { x: number; y: number }) => void;
+  
   // 자동 배치 함수들
   measureEntitySize: (nodeId: string) => { width: number; height: number };
   getAllEntitySizes: () => Map<string, { width: number; height: number }>;
@@ -1350,6 +1357,9 @@ const useStore = create<RFState>((set, get) => ({
   palettePosition: { x: 0, y: 0 },
   paletteTarget: null,
   previewNodeColor: null,
+  
+  // 복사-붙여넣기 관련 초기값
+  copiedNode: null,
   
   onNodesChange: (changes: NodeChange[]) => {
     set((state) => {
@@ -4481,6 +4491,116 @@ const useStore = create<RFState>((set, get) => ({
   
   clearPreviewNodeColor: () => {
     set({ previewNodeColor: null });
+  },
+  
+  // 복사-붙여넣기 함수들
+  copyNode: (nodeId: string) => {
+    const state = get();
+    const node = state.nodes.find(n => n.id === nodeId);
+    if (!node) {
+      toast.error('복사할 노드를 찾을 수 없습니다.');
+      return;
+    }
+    
+    // 단순 복사: FK 관계 제거하고 새로운 노드 데이터 생성
+    const copiedNodeData = { ...node };
+    
+    // 엔티티 노드인 경우 FK 관계 제거
+    if (node.type === 'entity' && node.data && node.data.columns) {
+      copiedNodeData.data = {
+        ...node.data,
+        columns: node.data.columns.map((col: any) => ({
+          ...col,
+          fk: false, // FK 관계 제거
+          parentEntityId: undefined // 부모 엔티티 관계 제거
+        }))
+      };
+    }
+    
+    // 색상 정보도 함께 저장
+    const nodeColor = state.nodeColors.get(nodeId);
+    const commentColor = state.commentColors.get(nodeId);
+    
+    // copiedNode에 색상 정보 추가
+    (copiedNodeData as any).originalColor = {
+      nodeColor: nodeColor || null,
+      commentColor: commentColor || null
+    };
+    
+    set({ copiedNode: copiedNodeData });
+    toast.success('노드가 복사되었습니다.');
+  },
+  
+  pasteNode: (position?: { x: number; y: number }) => {
+    const state = get();
+    if (!state.copiedNode) {
+      toast.error('복사된 노드가 없습니다.');
+      return;
+    }
+    
+    // 새로운 ID 생성
+    const newNodeId = `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // 붙여넣기 위치 결정
+    let pastePosition = { x: 0, y: 0 };
+    
+    if (position) {
+      // 우클릭 붙여넣기: 클릭한 위치
+      pastePosition = position;
+    } else {
+      // Ctrl+V 붙여넣기: 원본 노드의 오른쪽 아래
+      const originalNode = state.nodes.find(n => n.id === state.copiedNode!.id);
+      if (originalNode) {
+        pastePosition = {
+          x: originalNode.position.x + 50,
+          y: originalNode.position.y + 50
+        };
+      }
+    }
+    
+    // 새 노드 생성 (색상 정보 제거)
+    const { originalColor, ...nodeWithoutColor } = state.copiedNode as any;
+    const newNode = {
+      ...nodeWithoutColor,
+      id: newNodeId,
+      position: pastePosition,
+      selected: true
+    };
+    
+    // 색상 정보 적용
+    const newNodeColors = new Map(state.nodeColors);
+    const newCommentColors = new Map(state.commentColors);
+    
+    if (originalColor) {
+      if (originalColor.nodeColor) {
+        newNodeColors.set(newNodeId, originalColor.nodeColor);
+      }
+      if (originalColor.commentColor) {
+        newCommentColors.set(newNodeId, originalColor.commentColor);
+      }
+    }
+    
+    // 노드 추가
+    const newNodes = [...state.nodes, newNode];
+    set({ 
+      nodes: newNodes,
+      selectedNodeId: newNodeId,
+      copiedNode: null, // 일회성: 붙여넣기 후 복사된 노드 제거
+      nodeColors: newNodeColors,
+      commentColors: newCommentColors
+    });
+    
+    // 자동 저장
+    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    
+    // 히스토리 저장
+    const historyAction = newNode.type === 'entity' ? HISTORY_ACTIONS.CREATE_ENTITY :
+                         newNode.type === 'comment' ? HISTORY_ACTIONS.CREATE_COMMENT :
+                         newNode.type === 'image' ? HISTORY_ACTIONS.CREATE_IMAGE :
+                         HISTORY_ACTIONS.CREATE_COMMENT; // 기본값
+    state.saveHistoryState(historyAction);
+    
+    toast.success('노드가 붙여넣어졌습니다.');
   },
   
   // 자동 배치 함수들

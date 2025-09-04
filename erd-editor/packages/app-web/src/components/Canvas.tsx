@@ -1,5 +1,4 @@
 import ReactFlow, { Node, useReactFlow, Edge, MiniMap, useViewport, Panel, Background, BackgroundVariant, useUpdateNodeInternals, getRectOfNodes, getTransformForBounds } from 'reactflow';
-import { toPng } from 'html-to-image';
 import React, { useCallback, useRef, useState, MouseEvent, useEffect, useMemo } from 'react';
 import 'reactflow/dist/style.css';
 import throttle from 'lodash.throttle';
@@ -79,6 +78,11 @@ const Canvas = () => {
   const hiddenEntities = useStore((state) => state.hiddenEntities);
   const exportToImage = useStore((state) => state.exportToImage);
   
+  // 복사-붙여넣기 관련
+  const copyNode = useStore((state) => state.copyNode);
+  const pasteNode = useStore((state) => state.pasteNode);
+  const copiedNode = useStore((state) => state.copiedNode);
+  
   // 스냅 기능 관련
   const setIsDragging = useStore((state) => state.setIsDragging);
   const setDraggingNodeId = useStore((state) => state.setDraggingNodeId);
@@ -127,8 +131,9 @@ const Canvas = () => {
     visible: false,
     x: 0,
     y: 0,
-    type: 'node' as 'node' | 'edge',
-    targetId: ''
+    type: 'node' as 'node' | 'edge' | 'pane',
+    targetId: '',
+    clickPosition: { x: 0, y: 0 } // 클릭 위치 저장
   });
 
   // viewport 변경 핸들러 - 실시간 viewport 추적
@@ -196,6 +201,21 @@ const Canvas = () => {
         // Ctrl+Y = Redo
         event.preventDefault();
         useStore.getState().redo();
+        return;
+      }
+      if (event.key === 'c' || event.key === 'C') {
+        // Ctrl+C = Copy
+        event.preventDefault();
+        const selectedNodeId = useStore.getState().selectedNodeId;
+        if (selectedNodeId) {
+          copyNode(selectedNodeId);
+        }
+        return;
+      }
+      if (event.key === 'v' || event.key === 'V') {
+        // Ctrl+V = Paste (원본 노드 오른쪽 아래)
+        event.preventDefault();
+        pasteNode();
         return;
       }
     }
@@ -287,13 +307,14 @@ const Canvas = () => {
         const isDarkMode = theme === 'dark';
         
         // 이미지 export - 실제 캔버스 크기로 캡처
+        const { toPng } = await import('html-to-image');
         const dataUrl = await toPng(reactFlowWrapper, {
           backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
           width: captureWidth,
           height: captureHeight,
           pixelRatio: 3, // 고화질을 위해 픽셀 비율 증가 (2 → 3)
           quality: 1.0, // 최고 품질로 설정 (0.95 → 1.0)
-          filter: (node) => {
+          filter: (node: any) => {
             // 최소한의 필터링만
             if (node.classList) {
               return !node.classList.contains('react-flow__controls') &&
@@ -572,7 +593,8 @@ const Canvas = () => {
       x: event.clientX,
       y: event.clientY,
       type: 'node',
-      targetId: node.id
+      targetId: node.id,
+      clickPosition: { x: 0, y: 0 } // 노드 메뉴에서는 불필요
     });
     setSelectedNodeId(node.id);
   }, [setSelectedNodeId]);
@@ -584,10 +606,42 @@ const Canvas = () => {
       x: event.clientX,
       y: event.clientY,
       type: 'edge',
-      targetId: edge.id
+      targetId: edge.id,
+      clickPosition: { x: 0, y: 0 } // 엣지 메뉴에서는 불필요
     });
     setSelectedEdgeId(edge.id);
   }, [setSelectedEdgeId]);
+
+  // 캔버스 빈 공간 우클릭 핸들러
+  const handlePaneContextMenu = useCallback((event: MouseEvent) => {
+    event.preventDefault();
+    
+    // 복사된 노드가 있는 경우에만 메뉴 표시
+    if (copiedNode) {
+      // ReactFlow 인스턴스를 통해 화면 좌표를 플로우 좌표로 변환
+      const reactFlowInstance = (window as any).reactFlowInstance;
+      let flowPosition = { x: event.clientX, y: event.clientY };
+      
+      if (reactFlowInstance && reactFlowInstance.screenToFlowPosition) {
+        flowPosition = reactFlowInstance.screenToFlowPosition({
+          x: event.clientX,
+          y: event.clientY,
+        });
+      }
+      
+      setContextMenu({
+        visible: true,
+        x: event.clientX,
+        y: event.clientY,
+        type: 'pane',
+        targetId: '',
+        clickPosition: flowPosition
+      });
+    } else {
+      // 복사된 노드가 없으면 메뉴 닫기
+      setContextMenu(prev => ({ ...prev, visible: false }));
+    }
+  }, [copiedNode]);
 
   const handleContextMenuDelete = useCallback(() => {
     if (contextMenu.type === 'node') {
@@ -596,6 +650,20 @@ const Canvas = () => {
       useStore.getState().deleteEdge(contextMenu.targetId);
     }
   }, [contextMenu]);
+
+  const handleContextMenuCopy = useCallback(() => {
+    if (contextMenu.type === 'node') {
+      copyNode(contextMenu.targetId);
+    }
+    setContextMenu(prev => ({ ...prev, visible: false }));
+  }, [contextMenu, copyNode]);
+
+  const handleContextMenuPaste = useCallback(() => {
+    if (contextMenu.type === 'pane' && contextMenu.clickPosition) {
+      pasteNode(contextMenu.clickPosition);
+    }
+    setContextMenu(prev => ({ ...prev, visible: false }));
+  }, [contextMenu, pasteNode]);
 
   const handleContextMenuClose = useCallback(() => {
     setContextMenu(prev => ({ ...prev, visible: false }));
@@ -961,7 +1029,7 @@ const Canvas = () => {
         onEdgeMouseLeave={handleEdgeMouseLeave}
         onEdgeContextMenu={handleEdgeContextMenu}
         onPaneClick={handlePaneClick}
-        onPaneContextMenu={handleContextMenuClose}
+        onPaneContextMenu={handlePaneContextMenu}
         defaultEdgeOptions={{}}
         panOnDrag={!connectionMode && !createMode && !editingCommentId}
         selectionOnDrag={!connectionMode && !createMode && !editingCommentId}
@@ -1075,6 +1143,10 @@ const Canvas = () => {
         type={contextMenu.type}
         onDelete={handleContextMenuDelete}
         onClose={handleContextMenuClose}
+        onCopy={handleContextMenuCopy}
+        onPaste={handleContextMenuPaste}
+        canCopy={contextMenu.type === 'node'}
+        canPaste={contextMenu.type === 'pane' && !!copiedNode}
       />
       
       {/* 검색 패널 */}

@@ -63,22 +63,23 @@ const LoadingOverlay = styled.div<{ $darkMode?: boolean }>`
   backdrop-filter: blur(4px);
 `;
 
-const LoadingContainer = styled.div`
+const LoadingContainer = styled.div<{ $darkMode?: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 20px;
   padding: 40px;
   border-radius: 12px;
-  background-color: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  background-color: ${props => props.$darkMode ? 'rgba(42, 42, 42, 0.95)' : 'rgba(255, 255, 255, 0.9)'};
+  box-shadow: ${props => props.$darkMode ? '0 8px 32px rgba(0, 0, 0, 0.3)' : '0 8px 32px rgba(0, 0, 0, 0.1)'};
+  border: ${props => props.$darkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.05)'};
 `;
 
-const Spinner = styled.div`
+const Spinner = styled.div<{ $darkMode?: boolean }>`
   width: 48px;
   height: 48px;
-  border: 4px solid #e2e8f0;
-  border-top: 4px solid #3182ce;
+  border: 4px solid ${props => props.$darkMode ? '#4a5568' : '#e2e8f0'};
+  border-top: 4px solid ${props => props.$darkMode ? '#63b3ed' : '#3182ce'};
   border-radius: 50%;
   animation: spin 1s linear infinite;
   
@@ -88,37 +89,39 @@ const Spinner = styled.div`
   }
 `;
 
-const LoadingText = styled.div`
-  color: #2d3748;
+const LoadingText = styled.div<{ $darkMode?: boolean }>`
+  color: ${props => props.$darkMode ? '#e2e8f0' : '#2d3748'};
   font-size: 16px;
   font-weight: 500;
   text-align: center;
 `;
 
-const ProgressBar = styled.div`
+const ProgressBar = styled.div<{ $darkMode?: boolean }>`
   position: relative;
   width: 240px;
   height: 6px;
-  background-color: #e2e8f0;
+  background-color: ${props => props.$darkMode ? '#4a5568' : '#e2e8f0'};
   border-radius: 3px;
   overflow: hidden;
 `;
 
-const ProgressFill = styled.div<{ progress: number }>`
+const ProgressFill = styled.div<{ progress: number; $darkMode?: boolean }>`
   height: 100%;
-  background: linear-gradient(90deg, #3182ce 0%, #4299e1 100%);
+  background: ${props => props.$darkMode 
+    ? 'linear-gradient(90deg, #63b3ed 0%, #90cdf4 100%)' 
+    : 'linear-gradient(90deg, #3182ce 0%, #4299e1 100%)'};
   border-radius: 3px;
   width: ${props => props.progress}%;
   transition: width 0.3s ease-in-out;
 `;
 
-const ProgressPercentage = styled.div`
+const ProgressPercentage = styled.div<{ $darkMode?: boolean }>`
   position: absolute;
   top: -20px;
   right: 0;
   font-size: 12px;
   font-weight: 500;
-  color: #2d3748;
+  color: ${props => props.$darkMode ? '#e2e8f0' : '#2d3748'};
 `;
 
 const BottomPanelContainer = styled.div<{ $height: number; $darkMode?: boolean }>`
@@ -905,7 +908,11 @@ const TableCommentTextarea = styled.textarea<{ $darkMode?: boolean }>`
   }
 `;
 
-const Layout = () => {
+interface LayoutProps {
+  erdId?: string;
+}
+
+const Layout: React.FC<LayoutProps> = ({ erdId }) => {
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
   const [dropdownType, setDropdownType] = useState<string | null>(null);
@@ -924,7 +931,7 @@ const Layout = () => {
     position: 'top'
   });
   const [hoveredHeaderId, setHoveredHeaderId] = useState<string | null>(null);
-  const tooltipTimeoutRef = useRef<number | null>(null);
+  const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const tableNameInputRef = useRef<HTMLInputElement | null>(null);
   const [initialRender, setInitialRender] = useState(true);
 
@@ -1622,7 +1629,7 @@ const Layout = () => {
         const nodeColumns = selectedNode.data.columns || [];
         // 컬럼이 없으면 빈 배열로 시작
         // id가 없는 컬럼에 고유 id 부여하고 dataType과 type 동기화
-        const columnsWithIds = nodeColumns.filter(col => col).map((col: any, index: number) => {
+        const columnsWithIds = nodeColumns.filter((col: any) => col).map((col: any, index: number) => {
           // ID가 없거나 유효하지 않은 경우 새로 생성
           const hasValidId = col.id && typeof col.id === 'string' && col.id.trim() !== '';
           return {
@@ -1891,7 +1898,7 @@ const Layout = () => {
               deletedFkPkColumns.forEach((deletedFkPk) => {
                 const currentState = useStore.getState();
                 const propagationResult = propagateColumnDeletion(
-                  targetNodeId,
+                  targetNodeId!,
                   deletedFkPk,
                   currentState.nodes,
                   currentState.edges,
@@ -1999,7 +2006,7 @@ const Layout = () => {
                 
                 const currentState = useStore.getState();
                 const propagationResult = propagateColumnDeletion(
-                  targetNodeId,
+                  targetNodeId!,
                   columnToDelete,
                   currentState.nodes,
                   currentState.edges,
@@ -3679,13 +3686,13 @@ const Layout = () => {
     return (
       <>
         {isLoading && (
-          <LoadingOverlay>
-            <LoadingContainer>
-              <Spinner />
-              <LoadingText>{loadingMessage}</LoadingText>
-              <ProgressBar>
-                <ProgressFill progress={loadingProgress} />
-                <ProgressPercentage>{loadingProgress}%</ProgressPercentage>
+          <LoadingOverlay $darkMode={isDarkMode}>
+            <LoadingContainer $darkMode={isDarkMode}>
+              <Spinner $darkMode={isDarkMode} />
+              <LoadingText $darkMode={isDarkMode}>{loadingMessage}</LoadingText>
+              <ProgressBar $darkMode={isDarkMode}>
+                <ProgressFill progress={loadingProgress} $darkMode={isDarkMode} />
+                <ProgressPercentage $darkMode={isDarkMode}>{loadingProgress}%</ProgressPercentage>
               </ProgressBar>
             </LoadingContainer>
           </LoadingOverlay>
@@ -3703,7 +3710,7 @@ const Layout = () => {
     <>
       <Container $darkMode={isDarkMode}>
         <TopContainer $darkMode={isDarkMode}>
-          <Header />
+          <Header erdId={erdId} />
           <ToolboxContainer $darkMode={isDarkMode}>
             <Toolbox />
           </ToolboxContainer>

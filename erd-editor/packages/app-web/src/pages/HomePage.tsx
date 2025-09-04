@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import styled from 'styled-components';
 import { FaPlus, FaSearch, FaEllipsisV, FaGlobe, FaFolder, FaClock, FaEdit, FaDatabase, FaChartLine, FaUsers, FaCubes, FaProjectDiagram, FaSitemap, FaTable, FaTrash, FaComment, FaImage, FaLock, FaUnlock  } from 'react-icons/fa';
 import { FaNoteSticky } from "react-icons/fa6";
@@ -538,7 +538,7 @@ interface Diagram {
 }
 
 const HomePage: React.FC = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [diagrams, setDiagrams] = useState<Diagram[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
@@ -666,11 +666,11 @@ const HomePage: React.FC = () => {
     localStorage.setItem(`erd-${id}`, JSON.stringify(initialErdData));
     
     // 강제로 네비게이션 실행
-    navigate(`/erd/${id}`);
+    router.push(`/erd/${id}`);
   };
 
   const openDiagram = (id: string) => {
-    navigate(`/erd/${id}`);
+    router.push(`/erd/${id}`);
   };
 
   const deleteDiagram = (id: string, event: React.MouseEvent) => {
@@ -900,7 +900,7 @@ const HomePage: React.FC = () => {
               <FaPlus />
               새 다이어그램 만들기
             </ActionButton>
-            {/* <ActionButton onClick={() => navigate('/templates')}>
+            {/* <ActionButton onClick={() => router.push('/templates')}>
               <FaFolder />
               템플릿 둘러보기
             </ActionButton> */}

@@ -1,8 +1,9 @@
-import { Handle, Position } from 'reactflow';
+import React from 'react';
+import { Handle, Position, NodeProps } from 'reactflow';
 import styled from 'styled-components';
 import useStore from '../../store/useStore';
 
-const NodeContainer = styled.div`
+const NodeContainer = styled.div<{ color?: string }>`
   padding: 10px;
   border: 1px solid #000;
   background-color: ${(props) => props.color || '#ccf'};
@@ -39,10 +40,15 @@ const DeleteButton = styled.button`
   }
 `;
 
-const TextNode = ({ id, data }) => {
+interface TextNodeData {
+  label?: string;
+  color?: string;
+}
+
+const TextNode: React.FC<NodeProps<TextNodeData>> = ({ id, data }) => {
   const { updateNodeData, deleteNode } = useStore();
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     updateNodeData(id, { label: e.target.value });
   };
 

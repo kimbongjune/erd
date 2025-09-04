@@ -2,7 +2,7 @@ import React, { useCallback, useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash, FaUpload, FaImage, FaPlus, FaHome, FaEdit, FaSearch, FaTimes, FaGlobe, FaEllipsisV, FaTachometerAlt, FaUndo, FaRedo } from 'react-icons/fa';
 import { GrMysql } from "react-icons/gr";
-import { useNavigate, useParams } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import useStore from '../store/useStore';
 import { toast } from 'react-toastify';
 import { customConfirm } from '../utils/confirmUtils';
@@ -587,9 +587,13 @@ const ExportOption = styled.button<{ $darkMode?: boolean }>`
   }
 `;
 
-const Header = () => {
-  const navigate = useNavigate();
-  const { id: currentErdId } = useParams<{ id: string }>();
+interface HeaderProps {
+  erdId?: string;
+}
+
+const Header: React.FC<HeaderProps> = ({ erdId }) => {
+  const router = useRouter();
+  const currentErdId = erdId;
   const [isNavDropdownOpen, setIsNavDropdownOpen] = useState(false);
   const [isDashboardModalOpen, setIsDashboardModalOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
@@ -800,7 +804,7 @@ const Header = () => {
     localStorage.setItem(`erd-${id}`, JSON.stringify(initialERDData));
     
     // navigate 대신 직접 이동 (이미 확인했으므로)
-    navigate(`/erd/${id}`);
+    router.push(`/erd/${id}`);
     setIsNavDropdownOpen(false);
     closeDashboardModal();
   };
@@ -808,7 +812,7 @@ const Header = () => {
   const createSampleDiagram = async () => {
     // 샘플 다이어그램 생성 로직 (나중에 구현)
     const id = `sample_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    navigate(`/erd/${id}`);
+    router.push(`/erd/${id}`);
     setIsNavDropdownOpen(false);
   };
 
@@ -820,7 +824,7 @@ const Header = () => {
       setDiagramName(diagram.name);
     }
     
-    navigate(`/erd/${id}`);
+    router.push(`/erd/${id}`);
     setIsNavDropdownOpen(false);
     closeDashboardModal();
   };
@@ -836,7 +840,7 @@ const Header = () => {
     
     // 현재 다이어그램을 보고 있다면 홈으로 이동
     if (window.location.pathname === `/erd/${diagramId}`) {
-      navigate('/home');
+      router.push('/home');
       closeDashboardModal();
     } else {
       // 목록 새로고침
@@ -1043,7 +1047,7 @@ const Header = () => {
           $darkMode={theme === 'dark'} 
           onClick={(e) => {
             e.stopPropagation();
-            saveToLocalStorage();
+            saveToLocalStorage(true); // 수동 저장시에는 토스트 표시
           }}
           title="Ctrl+S로도 저장할 수 있습니다"
         >
@@ -1217,7 +1221,7 @@ const Header = () => {
           </DiagramNameContainer>
 
           <NavDropdownMenu $darkMode={theme === 'dark'} $isOpen={isNavDropdownOpen} role="menu">
-            <NavDropdownItem $darkMode={theme === 'dark'} onClick={() => navigate('/home')}>
+            <NavDropdownItem $darkMode={theme === 'dark'} onClick={() => router.push('/home')}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FaHome />
                 홈으로 가기

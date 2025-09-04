@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import styled from 'styled-components';
-import { FaPlus, FaSearch, FaEllipsisV, FaGlobe } from 'react-icons/fa';
+import { FaPlus, FaSearch, FaEllipsisV, FaGlobe, FaFolder, FaClock, FaEdit } from 'react-icons/fa';
 
 const HomeContainer = styled.div`
   min-height: 100vh;
@@ -151,7 +151,7 @@ interface Diagram {
 }
 
 const HomePage: React.FC = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [diagrams, setDiagrams] = useState<Diagram[]>([]);
 
   useEffect(() => {
@@ -165,11 +165,11 @@ const HomePage: React.FC = () => {
 
   const createNewDiagram = () => {
     const id = `erd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    navigate(`/erd/${id}`);
+    router.push(`/erd/${id}`);
   };
 
   const openDiagram = (id: string) => {
-    navigate(`/erd/${id}`);
+    router.push(`/erd/${id}`);
   };
 
   const formatDate = (timestamp: number) => {

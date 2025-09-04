@@ -1989,9 +1989,9 @@ const useStore = create<RFState>((set, get) => ({
         
         // 🎯 그룹 메타 보존 강화: 기존 관계가 있으면 같은 그룹 ID 사용, 없으면 새 그룹 생성
         let relationshipGroupId: string;
-        if (existingEdge && existingEdge.data?.relationshipGroupId) {
+        if (existingEdge && (existingEdge as any).data?.relationshipGroupId) {
           // 기존 관계가 있으면 같은 그룹 ID 사용 (그룹 일관성 유지)
-          relationshipGroupId = existingEdge.data.relationshipGroupId;
+          relationshipGroupId = (existingEdge as any).data.relationshipGroupId;
           
         } else {
           // 새로운 관계면 새 그룹 ID 생성
@@ -3081,8 +3081,8 @@ const useStore = create<RFState>((set, get) => ({
       });
 
       // 컬럼 변경 분석 - 개선된 로직
-      const oldColumns = (oldNode.data.columns || []).filter(col => col && col.id); // undefined 요소 제거 + id 검증
-      let newColumns = (newData.columns || []).filter(col => col && col.id); // undefined 요소 제거 + id 검증
+      const oldColumns = (oldNode.data.columns || []).filter((col: any) => col && col.id); // undefined 요소 제거 + id 검증
+      let newColumns = (newData.columns || []).filter((col: any) => col && col.id); // undefined 요소 제거 + id 검증
       const toastMessages: string[] = [];
       
       // 🚨 자기참조 FK PK 변경 사전 차단 (다른 모든 로직보다 우선 처리)
@@ -3272,7 +3272,7 @@ const useStore = create<RFState>((set, get) => ({
                 
                 // 해당 FK들만 삭제 (그룹별 독립성 유지)
                 const updatedChildColumns = childColumns.filter((col: any) => 
-                  !fksToRemove.some(fk => fk.id === col.id)
+                  !fksToRemove.some((fk: any) => fk.id === col.id)
                 );
                 
                 // 자식 노드 업데이트
@@ -3804,7 +3804,7 @@ const useStore = create<RFState>((set, get) => ({
                       };
                       
                       // 새 FK를 해당 그룹의 마지막 FK 다음에 삽입
-                      const lastGroupFkIndex = childColumns.findIndex(col => col.id === groupFks[groupFks.length - 1].id);
+                      const lastGroupFkIndex = childColumns.findIndex((col: any) => col.id === groupFks[groupFks.length - 1].id);
                       const insertIndex = lastGroupFkIndex !== -1 ? lastGroupFkIndex + 1 : childColumns.length;
                       
                       const updatedChildColumns = [...childColumns];

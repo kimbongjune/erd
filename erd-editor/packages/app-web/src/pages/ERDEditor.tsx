@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import Layout from '../components/Layout';
 import useStore from '../store/useStore';
 import styled from 'styled-components';
@@ -11,26 +11,29 @@ const ERDContainer = styled.div`
   flex-direction: column;
 `;
 
-const ERDEditor: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+interface ERDEditorProps {
+  erdId?: string;
+}
+
+const ERDEditor: React.FC<ERDEditorProps> = ({ erdId }) => {
+  const router = useRouter();
   const { loadFromLocalStorage, clearLocalStorage, nodes, theme, setLoading } = useStore();
 
   useEffect(() => {
-    if (id) {
+    if (erdId) {
       // ERD ID 유효성 검증 (영문, 숫자, _, - 만 허용)
       const validIdPattern = /^[a-zA-Z0-9_-]+$/;
-      if (!validIdPattern.test(id)) {
-        navigate('/404');
+      if (!validIdPattern.test(erdId)) {
+        router.push('/404');
         return;
       }
 
       // localStorage에서 실제로 저장된 ERD 데이터가 있는지 확인
-      const savedData = localStorage.getItem(`erd-${id}`);
+      const savedData = localStorage.getItem(`erd-${erdId}`);
       
       if (!savedData) {
         // 실제 데이터가 없는 경우 홈페이지로 리다이렉트
-        navigate('/home');
+        router.push('/home');
         return;
       }
 
@@ -88,7 +91,7 @@ const ERDEditor: React.FC = () => {
         });
       }
     }
-  }, [id, navigate]);
+  }, [erdId, router]);
 
   const updateDiagramsList = (erdId: string) => {
     const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
@@ -110,13 +113,13 @@ const ERDEditor: React.FC = () => {
     localStorage.setItem('erd-diagrams-list', JSON.stringify(diagramsList));
   };
 
-  if (!id) {
+  if (!erdId) {
     return <div>잘못된 접근입니다.</div>;
   }
 
   return (
     <ERDContainer>
-      <Layout />
+      <Layout erdId={erdId} />
     </ERDContainer>
   );
 };

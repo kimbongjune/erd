@@ -1,88 +1,98 @@
-import { useState, useEffect } from 'react';
-import { 
-  signInWithPopup, 
-  signOut, 
-  onAuthStateChanged, 
-  User,
-  updateProfile
-} from 'firebase/auth';
-import { auth, googleProvider, githubProvider } from '../firebase';
+import { useSession, signIn, signOut } from 'next-auth/react';
 
 export const useAuth = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [initialized, setInitialized] = useState(false);
-
-  useEffect(() => {
-    // 초기 로딩 상태를 더 빠르게 처리하기 위해 즉시 현재 사용자 상태 확인
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      setUser(currentUser);
-      setLoading(false);
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-      setInitialized(true);
-    });
-
-    return () => unsubscribe();
-  }, []);
+  const { data: session, status, update } = useSession();
 
   const signInWithGoogle = async () => {
-    const result = await signInWithPopup(auth, googleProvider);
-    return { success: true, user: result.user };
+    await signIn('google');
+    return { success: true };
   };
 
   const signInWithGitHub = async () => {
-    const result = await signInWithPopup(auth, githubProvider);
-    return { success: true, user: result.user };
+    await signIn('github');
+    return { success: true };
   };
 
   const logout = async () => {
-    try {
-      await signOut(auth);
-      return { success: true };
-    } catch (error: any) {
-      //console.error('로그아웃 실패:', error);
-      return { success: false, error: error.message };
-    }
+    await signOut();
+    return { success: true };
   };
 
   const updateDisplayName = async (displayName: string) => {
-    if (!user) return { success: false, error: '사용자가 로그인되지 않았습니다.' };
-    
     try {
-      await updateProfile(user, { displayName });
+      const response = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: displayName }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return { success: false, error: error.error || '이름 변경에 실패했습니다.' };
+      }
+
+      const result = await response.json();
+      
+      // 세션 강제 업데이트
+      await update({
+        name: result.user.name,
+        image: result.user.image
+      });
+      
       return { success: true };
-    } catch (error: any) {
-      //console.error('닉네임 업데이트 실패:', error);
-      return { success: false, error: error.message };
+    } catch (error) {
+      console.error('이름 변경 오류:', error);
+      return { success: false, error: '이름 변경 중 오류가 발생했습니다.' };
+    }
+  };
+
+  const updateProfileImage = async (imageUrl: string) => {
+    try {
+      const response = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ image: imageUrl }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return { success: false, error: error.error || '프로필 이미지 변경에 실패했습니다.' };
+      }
+
+      const result = await response.json();
+      
+      // 세션 강제 업데이트
+      await update({
+        name: result.user.name,
+        image: result.user.image
+      });
+      
+      return { success: true };
+    } catch (error) {
+      console.error('프로필 이미지 변경 오류:', error);
+      return { success: false, error: '프로필 이미지 변경 중 오류가 발생했습니다.' };
     }
   };
 
   const deleteAccount = async () => {
-    if (!user) return { success: false, error: '사용자가 로그인되지 않았습니다.' };
-    
-    try {
-      await user.delete();
-      return { success: true };
-    } catch (error: any) {
-      //console.error('계정 삭제 실패:', error);
-      return { success: false, error: error.message };
-    }
+    // TODO: 계정 삭제 API 구현 필요
+    return { success: false, error: '계정 삭제 기능은 아직 구현되지 않았습니다.' };
   };
 
   return {
-    user,
-    loading: loading && !initialized,
+    user: session?.user || null,
+    loading: status === 'loading',
     signInWithGoogle,
     signInWithGitHub,
     logout,
     updateDisplayName,
+    updateProfileImage,
     deleteAccount,
-    isAuthenticated: !!user,
-    initialized
+    isAuthenticated: !!session?.user,
+    initialized: status !== 'loading'
   };
 };

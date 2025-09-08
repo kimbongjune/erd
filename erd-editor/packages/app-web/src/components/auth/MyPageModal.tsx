@@ -336,9 +336,9 @@ const DeleteConfirmContent = styled.div`
 `;
 
 const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
-  const { user, updateDisplayName, deleteAccount, logout } = useAuth();
+  const { user, updateDisplayName, updateProfileImage, deleteAccount, logout } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [displayName, setDisplayName] = useState(user?.displayName || '');
+  const [displayName, setDisplayName] = useState(user?.name || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -349,6 +349,12 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
   // 이미지 URL에서 크기 부분을 변경하는 함수
   const getModifiedPhotoURL = (originalURL: string, size: string) => {
     if (!originalURL) return originalURL;
+    
+    // base64 이미지인 경우 그대로 반환
+    if (originalURL.startsWith('data:image/')) {
+      return originalURL;
+    }
+    
     // Google 프로필 이미지 URL에서 크기 부분 변경
     return originalURL.replace(/=s\d+(-c)?$/, `=${size}`);
   };
@@ -368,11 +374,26 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
   useEffect(() => {
     if (!isOpen) {
       setIsEditing(false);
-      setDisplayName(user?.displayName || '');
+      setDisplayName(user?.name || '');
       setError('');
       setSuccess('');
     }
-  }, [isOpen, user?.displayName]);
+  }, [isOpen, user?.name]);
+
+  // 사용자 정보가 업데이트될 때 displayName 상태도 업데이트
+  useEffect(() => {
+    if (user?.name) {
+      setDisplayName(user.name);
+    }
+  }, [user?.name]);
+
+  // 사용자 이미지가 변경될 때 이미지 에러 상태 리셋
+  useEffect(() => {
+    if (user?.image) {
+      setImageError(false);
+      setImageSize('s96-c');
+    }
+  }, [user?.image]);
 
   const handleSave = async () => {
     if (!displayName.trim()) {
@@ -415,12 +436,14 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
   const handleLogout = async () => {
     setLoading(true);
     
-    const result = await logout();
-    
-    if (result.success) {
-      onClose();
-    } else {
-      setError(result.error || '로그아웃에 실패했습니다.');
+    try {
+      const result = await logout();
+      
+      if (result.success) {
+        onClose();
+      }
+    } catch (error) {
+      setError('로그아웃에 실패했습니다.');
     }
     
     setLoading(false);
@@ -430,59 +453,13 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // 파일 타입 검증
-    if (!file.type.startsWith('image/')) {
-      setError('이미지 파일만 업로드 가능합니다.');
-      return;
-    }
-
-    // 파일 크기 검증 (5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setError('파일 크기는 5MB 이하여야 합니다.');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      // 이미지를 Base64로 변환 (더 작은 크기로)
-      const base64String = await compressImageToBase64(file, 80, 0.5); // 80x80, 품질 0.5
-
-      if (!user) {
-        setError('사용자 정보를 찾을 수 없습니다.');
-        setLoading(false);
-        return;
-      }
-
-      // Firebase Auth 프로필 업데이트
-      const { updateProfile } = await import('firebase/auth');
-      await updateProfile(user, {
-        photoURL: base64String
-      });
-
-      setSuccess('프로필 사진이 성공적으로 업데이트되었습니다!');
-      setTimeout(() => setSuccess(''), 3000);
-
-      // 입력 필드 초기화
-      event.target.value = '';
-      setLoading(false);
-
-    } catch (error: any) {
-      console.error('Profile image upload error:', error);
-
-      if (error.message?.includes('too long') || error.code === 'auth/invalid-profile-attribute') {
-        setError('이미지가 너무 큽니다. 더 작은 이미지를 선택해주세요.');
-      } else {
-        setError('프로필 사진 업로드에 실패했습니다. 다시 시도해주세요.');
-      }
-      setLoading(false);
-    }
+    // 일단 프로필 이미지 업로드 비활성화
+    setError('프로필 이미지 업로드는 현재 지원하지 않습니다.');
+    return;
   };
 
-  // 이미지 압축 함수 (Base64 반환, 더 작은 크기)
-  const compressImageToBase64 = (file: File, maxSize: number = 80, quality: number = 0.5): Promise<string> => {
+  // 이미지 압축 함수 (Base64 반환)
+  const compressImageToBase64 = (file: File, maxSize: number = 100, quality: number = 0.6): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -548,11 +525,11 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
           {success && <SuccessMessage>{success}</SuccessMessage>}
 
           <UserInfo>
-            <UserAvatar onClick={() => document.getElementById('profile-upload')?.click()}>
+            <UserAvatar>
               <div className="avatar-container">
-                {user.photoURL && !imageError ? (
+                {user.image && !imageError ? (
                   <img 
-                    src={getModifiedPhotoURL(user.photoURL, imageSize)} 
+                    src={getModifiedPhotoURL(user.image, imageSize)} 
                     alt="프로필" 
                     crossOrigin="anonymous"
                     onError={handleImageError}
@@ -561,17 +538,7 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
                 ) : (
                   <FaUser />
                 )}
-                <div className="avatar-overlay">
-                  <FaCamera />
-                </div>
               </div>
-              <input
-                id="profile-upload"
-                type="file"
-                accept="image/*"
-                onChange={handleProfileImageUpload}
-                style={{ display: 'none' }}
-              />
             </UserAvatar>
             <UserDetails>
               <div className="display-name">
@@ -586,7 +553,7 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
                     />
                   </FormGroup>
                 ) : (
-                  user.displayName || '닉네임 없음'
+                  user.name || '닉네임 없음'
                 )}
               </div>
               <div className="email">{user.email}</div>
@@ -612,7 +579,7 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
                 $variant="secondary"
                 onClick={() => {
                   setIsEditing(false);
-                  setDisplayName(user.displayName || '');
+                  setDisplayName(user?.name || '');
                   setError('');
                 }}
                 disabled={loading}

@@ -231,26 +231,26 @@ const UserMenu: React.FC<UserMenuProps> = ({ onOpenLogin, onOpenSignup, onOpenMy
     <UserMenuContainer ref={menuRef}>
       <UserButton onClick={() => setIsOpen(!isOpen)}>
         <div className="user-avatar">
-          {user.photoURL && !imageError ? (
+          {user.image && !imageError ? (
             <img 
-              src={getModifiedPhotoURL(user.photoURL, imageSize)} 
+              src={getModifiedPhotoURL(user.image, imageSize)} 
               alt="프로필" 
               crossOrigin="anonymous"
               onError={handleImageError}
               onLoad={() => setImageError(false)}
             />
           ) : (
-            getInitials(user.displayName || user.email || 'U')
+            getInitials(user.name || user.email || 'U')
           )}
         </div>
-        <span>{user.displayName || '사용자'}</span>
+        <span>{user.name || '사용자'}</span>
         <FaCaretDown className={`caret ${isOpen ? 'open' : ''}`} />
       </UserButton>
       
       <DropdownMenu $isOpen={isOpen}>
         <UserInfo>
           <div className="display-name">
-            {user.displayName || '닉네임 없음'}
+            {user.name || '닉네임 없음'}
           </div>
           <div className="email">{user.email}</div>
         </UserInfo>

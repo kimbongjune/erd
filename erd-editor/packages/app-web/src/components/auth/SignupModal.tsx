@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { FaGoogle, FaGithub, FaTimes, FaSpinner } from 'react-icons/fa';
 import { useAuth } from '../../hooks/useAuth';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../../firebase';
 
 interface SignupModalProps {
   isOpen: boolean;
@@ -192,26 +190,11 @@ const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose, onSwitchToLo
     setLoading('google');
     setError('');
     
-    // Firebase 공식 콜백을 사용해서 인증 상태 변화 감지
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // 로그인 성공
-        unsubscribe();
-        handleClose();
-      } else {
-        // 로그인 실패 또는 팝업 닫힘
-        unsubscribe();
-        setLoading(null);
-      }
-    });
-    
     try {
-      const result = await signInWithGoogle();
-      // 로그인 성공 시 즉시 모달 닫기
-      unsubscribe();
+      await signInWithGoogle();
       handleClose();
     } catch (error: any) {
-      unsubscribe();
+      setError('회원가입에 실패했습니다.');
       setLoading(null);
     }
   };
@@ -220,26 +203,11 @@ const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose, onSwitchToLo
     setLoading('github');
     setError('');
     
-    // Firebase 공식 콜백을 사용해서 인증 상태 변화 감지
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // 로그인 성공
-        unsubscribe();
-        handleClose();
-      } else {
-        // 로그인 실패 또는 팝업 닫힘
-        unsubscribe();
-        setLoading(null);
-      }
-    });
-    
     try {
-      const result = await signInWithGitHub();
-      // 로그인 성공 시 즉시 모달 닫기
-      unsubscribe();
+      await signInWithGitHub();
       handleClose();
     } catch (error: any) {
-      unsubscribe();
+      setError('회원가입에 실패했습니다.');
       setLoading(null);
     }
   };

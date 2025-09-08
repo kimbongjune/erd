@@ -2,6 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { SessionProvider } from 'next-auth/react';
 import StyledComponentsRegistry from '../lib/registry';
 import { ReactFlowProvider } from 'reactflow';
 import { GlobalStyle } from '../styles/GlobalStyle';
@@ -41,24 +42,26 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className="lang-ko">
-        <StyledComponentsRegistry>
-          <ReactFlowProvider>
-            <GlobalStyle />
-            {children}
-            <ToastContainer
-              position="top-right"
-              autoClose={3000}
-              hideProgressBar={false}
-              newestOnTop={false}
-              closeOnClick
-              rtl={false}
-              pauseOnFocusLoss
-              draggable
-              pauseOnHover
-              theme={theme === 'dark' ? 'dark' : 'light'}
-            />
-          </ReactFlowProvider>
-        </StyledComponentsRegistry>
+        <SessionProvider>
+          <StyledComponentsRegistry>
+            <ReactFlowProvider>
+              <GlobalStyle />
+              {children}
+              <ToastContainer
+                position="top-right"
+                autoClose={3000}
+                hideProgressBar={false}
+                newestOnTop={false}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme={theme === 'dark' ? 'dark' : 'light'}
+              />
+            </ReactFlowProvider>
+          </StyledComponentsRegistry>
+        </SessionProvider>
       </body>
     </html>
   );

@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '../components/Layout';
 import useStore from '../store/useStore';
+import { useAuth } from '../hooks/useAuth';
+import { useMongoDBDiagrams } from '../hooks/useMongoDBDiagrams';
 import styled from 'styled-components';
 
 const ERDContainer = styled.div`
@@ -17,101 +19,56 @@ interface ERDEditorProps {
 
 const ERDEditor: React.FC<ERDEditorProps> = ({ erdId }) => {
   const router = useRouter();
-  const { loadFromLocalStorage, clearLocalStorage, nodes, theme, setLoading } = useStore();
+  const { 
+    loadFromMongoDB, 
+    setCurrentDiagramId, 
+    setIsAuthenticated, 
+    nodes, 
+    theme, 
+    setLoading, 
+    currentDiagramId 
+  } = useStore();
+  const { isAuthenticated, user, loading } = useAuth();
+  const { fetchDiagram } = useMongoDBDiagrams();
 
   useEffect(() => {
-    if (erdId) {
-      // ERD ID 유효성 검증 (영문, 숫자, _, - 만 허용)
-      const validIdPattern = /^[a-zA-Z0-9_-]+$/;
-      if (!validIdPattern.test(erdId)) {
-        router.push('/404');
-        return;
-      }
-
-      // localStorage에서 실제로 저장된 ERD 데이터가 있는지 확인
-      const savedData = localStorage.getItem(`erd-${erdId}`);
-      
-      if (!savedData) {
-        // 실제 데이터가 없는 경우 홈페이지로 리다이렉트
-        router.push('/home');
-        return;
-      }
-
-      // 데이터가 있는 경우 로딩바와 함께 로드
-      try {
-        const erdData = JSON.parse(savedData);
-        // 빈 데이터가 아닌 경우에만 로딩바 표시
-        const hasContent = (erdData.nodes && erdData.nodes.length > 0) || (erdData.edges && erdData.edges.length > 0);
-        
-        if (hasContent) {
-          // 로딩바와 함께 데이터 로드
-          loadFromLocalStorage();
-        } else {
-          // 빈 데이터인 경우 로딩바 없이 직접 설정
-          useStore.setState({
-            nodes: erdData.nodes || [],
-            edges: erdData.edges || [],
-            nodeColors: new Map(Array.isArray(erdData.nodeColors) ? erdData.nodeColors : Object.entries(erdData.nodeColors || {})),
-            edgeColors: new Map(Array.isArray(erdData.edgeColors) ? erdData.edgeColors : Object.entries(erdData.edgeColors || {})),
-            commentColors: new Map(Array.isArray(erdData.commentColors) ? erdData.commentColors : Object.entries(erdData.commentColors || {})),
-            theme: erdData.theme || 'light',
-            viewSettings: erdData.viewSettings || {}
-          });
-        }
-      } catch (error) {
-        console.error('ERD 데이터 로드 실패:', error);
-        // 파싱 에러인 경우 초기화
-        useStore.setState({
-          nodes: [],
-          edges: [],
-          nodeColors: new Map(),
-          edgeColors: new Map(),
-          commentColors: new Map(),
-          viewSettings: {
-            entityView: 'logical',
-            showKeys: true,
-            showPhysicalName: true,
-            showLogicalName: false,
-            showDataType: true,
-            showConstraints: false,
-            showDefaults: false,
-          },
-          selectedNodeId: null,
-          selectedEdgeId: null,
-          hoveredEdgeId: null,
-          hoveredEntityId: null,
-          highlightedEntities: [],
-          highlightedEdges: [],
-          highlightedColumns: new Map(),
-          isBottomPanelOpen: false,
-          connectionMode: null,
-          connectingNodeId: null,
-          createMode: null,
-          selectMode: true,
-        });
-      }
-    }
-  }, [erdId, router]);
-
-  const updateDiagramsList = (erdId: string) => {
-    const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-    const existingIndex = diagramsList.findIndex((d: any) => d.id === erdId);
+    // Store에 인증 상태 설정
+    setIsAuthenticated(isAuthenticated);
     
-    const diagramInfo = {
-      id: erdId,
-      name: existingIndex === -1 ? '제목 없는 다이어그램' : diagramsList[existingIndex].name,
-      createdAt: existingIndex === -1 ? Date.now() : diagramsList[existingIndex].createdAt,
-      updatedAt: Date.now()
+    if (!erdId) return;
+    
+    // ERD ID 유효성 검증 (MongoDB ObjectId 또는 영문, 숫자, _, - 만 허용)
+    const validIdPattern = /^[a-zA-Z0-9_-]+$/;
+    if (!validIdPattern.test(erdId)) {
+      router.push('/404');
+      return;
+    }
+
+    // 인증 로딩 중이면 대기
+    if (loading) {
+      return;
+    }
+
+    if (!isAuthenticated || !user) {
+      // 로그인하지 않은 경우 즉시 홈페이지로 리다이렉트 (로딩 표시 안함)
+      router.push('/home');
+      return;
+    }
+
+    // MongoDB에서 다이어그램 로드 (로그인된 사용자만)
+    const loadDiagram = async () => {
+      try {
+        setCurrentDiagramId(erdId);
+        await loadFromMongoDB(erdId);
+      } catch (error) {
+        console.error('ERD 다이어그램 로드 실패:', error);
+        // 로드 실패시 홈페이지로 리다이렉트
+        router.push('/home');
+      }
     };
 
-    if (existingIndex === -1) {
-      diagramsList.push(diagramInfo);
-    } else {
-      diagramsList[existingIndex] = diagramInfo;
-    }
-
-    localStorage.setItem('erd-diagrams-list', JSON.stringify(diagramsList));
-  };
+    loadDiagram();
+  }, [erdId, isAuthenticated, user, loading]); // 의존성 배열에 loading 추가
 
   if (!erdId) {
     return <div>잘못된 접근입니다.</div>;

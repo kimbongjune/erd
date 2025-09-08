@@ -1,11 +1,13 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash, FaUpload, FaImage, FaPlus, FaHome, FaEdit, FaSearch, FaTimes, FaGlobe, FaEllipsisV, FaTachometerAlt, FaUndo, FaRedo } from 'react-icons/fa';
+import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash, FaUpload, FaImage, FaPlus, FaHome, FaEdit, FaSearch, FaTimes, FaGlobe, FaEllipsisV, FaTachometerAlt, FaUndo, FaRedo, FaLock, FaUnlock } from 'react-icons/fa';
 import { GrMysql } from "react-icons/gr";
 import { useRouter } from 'next/navigation';
 import useStore from '../store/useStore';
 import { toast } from 'react-toastify';
 import { customConfirm } from '../utils/confirmUtils';
+import { useMongoDBDiagrams } from '../hooks/useMongoDBDiagrams';
+import { useAuth } from '../hooks/useAuth';
 
 const HeaderContainer = styled.header<{ $darkMode?: boolean }>`
   grid-area: header;
@@ -60,6 +62,63 @@ const DiagramNameContainer = styled.div`
   gap: 8px;
 `;
 
+const ToggleSwitch = styled.label<{ $darkMode?: boolean }>`
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+  margin-right: 8px;
+`;
+
+const ToggleSlider = styled.span<{ $darkMode?: boolean; $isPublic?: boolean }>`
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: ${props => props.$isPublic ? '#48BB78' : '#CBD5E0'};
+  transition: .4s;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: ${props => props.$isPublic ? 'flex-start' : 'flex-end'};
+  padding: 0 6px;
+  
+  &:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: ${props => props.$isPublic ? '29px' : '3px'};
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+    z-index: 2;
+  }
+`;
+
+const ToggleIcon = styled.span<{ $isPublic?: boolean }>`
+  font-size: 10px;
+  color: white;
+  z-index: 1;
+  margin: ${props => props.$isPublic ? '0 0 0 4px' : '0 4px 0 0'};
+`;
+
+const ToggleInput = styled.input`
+  opacity: 0;
+  width: 0;
+  height: 0;
+`;
+
+const ToggleLabel = styled.span<{ $darkMode?: boolean; $isPublic?: boolean }>`
+  font-size: 12px;
+  color: ${props => props.$darkMode ? '#ffffff' : '#2d3748'};
+  margin-left: 4px;
+  font-weight: 500;
+`;
+
 const DiagramNameButton = styled.button<{ $darkMode?: boolean }>`
   background: transparent;
   border: 1px solid transparent;
@@ -90,6 +149,30 @@ const DiagramNameInput = styled.input<{ $darkMode?: boolean }>`
   &:focus {
     outline: none;
     border-color: #4299e1;
+  }
+`;
+
+const PublicToggleButton = styled.button<{ $darkMode?: boolean; $isPublic?: boolean }>`
+  background: transparent;
+  border: none;
+  color: ${props => props.$isPublic 
+    ? '#38a169'  // Public: 초록색
+    : '#a0aec0'  // Private: 회색
+  };
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  
+  &:hover {
+    background: ${props => props.$darkMode ? '#4a5568' : '#f7fafc'};
+    color: ${props => props.$isPublic 
+      ? '#2f855a'  // Public hover: 더 진한 초록색
+      : '#718096'  // Private hover: 더 진한 회색
+    };
   }
 `;
 
@@ -599,6 +682,7 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [diagramName, setDiagramName] = useState('제목 없는 다이어그램');
   const [tempName, setTempName] = useState('');
+  const [isPublic, setIsPublic] = useState(false); // public/private 상태 추가
 
   const [diagrams, setDiagrams] = useState<Array<{
     id: string;
@@ -627,7 +711,9 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
             <span key={index} style={{ backgroundColor: '#ffd700', color: '#000', padding: '0' }}>
               {part}
             </span>
-          ) : part
+          ) : (
+            <span key={`text-${index}`}>{part}</span>
+          )
         )}
       </>
     );
@@ -636,14 +722,12 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
   const diagramNameRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  
   const { 
     theme, 
     toggleTheme, 
     exportToImage, 
     exportToSQL,
-    saveToLocalStorage,
-    loadFromLocalStorage,
-    clearLocalStorage,
     importFromSQL,
     nodes,
     undo,
@@ -652,8 +736,20 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
     canRedo,
     hasSavedData,
     setHasSavedData,
-    checkSavedData
+    checkSavedData,
+    saveToMongoDB,
+    currentDiagramId,
+    isAuthenticated,
+    clearLocalStorage // 데이터 삭제를 위해 추가
   } = useStore();
+  
+  const { user } = useAuth();
+  const { 
+    fetchDiagrams,
+    saveAsNew,
+    updateDiagram,
+    deleteDiagram: deleteDiagramFromMongoDB
+  } = useMongoDBDiagrams();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -702,45 +798,28 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
 
   // 다이어그램 목록 로드
   useEffect(() => {
-    const loadDiagrams = () => {
-      // localStorage에서 실제 erd- 키로 저장된 모든 다이어그램 찾기
-      const actualDiagrams: any[] = [];
-      
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('erd-') && key !== 'erd-diagrams-list') {
-          const erdId = key.replace('erd-', '');
-          try {
-            const erdData = JSON.parse(localStorage.getItem(key) || '{}');
-            
-            // 다이어그램 이름 결정 (우선순위: erd-diagrams-list > 기본값)
-            let diagramName = '제목 없는 다이어그램';
-            
-            // erd-diagrams-list에서 해당 ID의 이름을 찾아보기
-            try {
-              const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-              const existingDiagram = diagramsList.find((d: any) => d.id === erdId);
-              if (existingDiagram && existingDiagram.name) {
-                diagramName = existingDiagram.name;
-              }
-            } catch (error) {
-              // erd-diagrams-list 파싱 실패 시 기본값 사용
-            }
-            
-            actualDiagrams.push({
-              id: erdId,
-              name: diagramName,
-              createdAt: erdData.timestamp || Date.now(),
-              updatedAt: erdData.timestamp || Date.now()
-            });
-          } catch (error) {
-            // 파싱 에러 시 해당 키는 무시
-            continue;
-          }
-        }
+    const loadDiagrams = async () => {
+      if (!isAuthenticated || !user) {
+        setDiagrams([]);
+        return;
       }
-      
-      setDiagrams(actualDiagrams.sort((a: any, b: any) => b.updatedAt - a.updatedAt));
+
+      try {
+        const response = await fetchDiagrams();
+        const formattedDiagrams = response.diagrams.map((diagram: any) => ({
+          id: diagram.id, // MongoDB 스키마의 toJSON 변환에 의해 id로 제공됨
+          name: diagram.title || '제목 없는 다이어그램',
+          createdAt: new Date(diagram.createdAt).getTime(),
+          updatedAt: new Date(diagram.updatedAt).getTime(),
+          description: diagram.description || '',
+          isPublic: diagram.isPublic || false,
+          tags: diagram.tags || []
+        }));
+        setDiagrams(formattedDiagrams);
+      } catch (error) {
+        console.error('다이어그램 목록 로드 실패:', error);
+        setDiagrams([]);
+      }
     };
     
     loadDiagrams();
@@ -748,15 +827,60 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
     if (isNavDropdownOpen) {
       loadDiagrams();
     }
-  }, [isNavDropdownOpen]);
+  }, [isNavDropdownOpen, isAuthenticated, user]); // fetchDiagrams 제거
+
+  // 현재 다이어그램 이름 로드
+  useEffect(() => {
+    const loadCurrentDiagramName = async () => {
+      if (!currentDiagramId || !isAuthenticated || !user) {
+        setDiagramName('제목 없는 다이어그램');
+        setIsPublic(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/diagrams/${currentDiagramId}`);
+        if (response.ok) {
+          const { diagram } = await response.json();
+          setDiagramName(diagram.title || '제목 없는 다이어그램');
+          setIsPublic(diagram.isPublic || false); // isPublic 상태도 로드
+        } else {
+          setDiagramName('제목 없는 다이어그램');
+          setIsPublic(false);
+        }
+      } catch (error) {
+        console.error('다이어그램 이름 로드 실패:', error);
+        setDiagramName('제목 없는 다이어그램');
+        setIsPublic(false);
+      }
+    };
+
+    loadCurrentDiagramName();
+  }, [currentDiagramId, isAuthenticated, user]);
 
   // Navigation 메뉴 함수들
-  const openDashboardModal = () => {
+  const openDashboardModal = async () => {
     setIsDashboardModalOpen(true);
     setIsNavDropdownOpen(false);
+    
     // 모달 열 때 다이어그램 목록 새로고침
-    const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-    setDiagrams(diagramsList.sort((a: any, b: any) => b.updatedAt - a.updatedAt));
+    if (isAuthenticated && user) {
+      try {
+        const response = await fetchDiagrams();
+        const formattedDiagrams = response.diagrams.map((diagram: any) => ({
+          id: diagram.id, // MongoDB 스키마의 toJSON 변환에 의해 id로 제공됨
+          name: diagram.title || '제목 없는 다이어그램',
+          createdAt: new Date(diagram.createdAt).getTime(),
+          updatedAt: new Date(diagram.updatedAt).getTime(),
+          description: diagram.description || '',
+          isPublic: diagram.isPublic || false,
+          tags: diagram.tags || []
+        }));
+        setDiagrams(formattedDiagrams);
+      } catch (error) {
+        console.error('다이어그램 목록 로드 실패:', error);
+      }
+    }
   };
 
   const closeDashboardModal = () => {
@@ -766,47 +890,49 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
   };
 
   const createNewDiagram = async () => {
-    // 새 다이어그램 생성
-    
-    const id = `erd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // 새 다이어그램을 다이어그램 목록에 추가
-    const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-    const newDiagram = {
-      id: id,
-      name: '제목 없는 다이어그램',
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-    diagramsList.push(newDiagram);
-    localStorage.setItem('erd-diagrams-list', JSON.stringify(diagramsList));
-    
-    // 새 다이어그램의 초기 ERD 데이터도 저장
-    const initialERDData = {
-      nodes: [],
-      edges: [],
-      nodeColors: [],
-      edgeColors: [],
-      commentColors: [],
-      theme: 'light',
-      viewSettings: {
-        entityView: 'logical',
-        showKeys: true,
-        showPhysicalName: true,
-        showLogicalName: false,
-        showDataType: true,
-        showConstraints: false,
-        showDefaults: false,
-      },
-      timestamp: Date.now()
-    };
-    
-    localStorage.setItem(`erd-${id}`, JSON.stringify(initialERDData));
-    
-    // navigate 대신 직접 이동 (이미 확인했으므로)
-    router.push(`/erd/${id}`);
-    setIsNavDropdownOpen(false);
-    closeDashboardModal();
+    if (!isAuthenticated || !user) {
+      return;
+    }
+
+    try {
+      const initialERDData = {
+        version: '1.0', // MongoDB 스키마에서 필수 필드
+        timestamp: Date.now(),
+        nodes: [],
+        edges: [],
+        nodeColors: {}, // 배열이 아닌 객체여야 함
+        edgeColors: {}, // 배열이 아닌 객체여야 함
+        commentColors: {}, // 배열이 아닌 객체여야 함
+        theme: 'light',
+        showGrid: false, // 누락된 필드 추가
+        hiddenEntities: [], // 누락된 필드 추가
+        viewport: { x: 0, y: 0, zoom: 1 }, // 누락된 필드 추가
+        viewportRestoreTrigger: Date.now(), // 누락된 필드 추가
+        viewSettings: {
+          entityView: 'logical',
+          showKeys: true,
+          showPhysicalName: true,
+          showLogicalName: false,
+          showDataType: true,
+          showConstraints: false,
+          showDefaults: false,
+        }
+      };
+
+      const response = await saveAsNew('제목 없는 다이어그램', '', false, [], initialERDData);
+      
+      if (response.diagram && response.diagram.id) {
+        router.push(`/erd/${response.diagram.id}`);
+        setIsNavDropdownOpen(false);
+        closeDashboardModal();
+        toast.success('새 다이어그램이 생성되었습니다.');
+      } else {
+        throw new Error('다이어그램 생성에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('새 다이어그램 생성 실패:', error);
+      toast.error('다이어그램 생성에 실패했습니다.');
+    }
   };
 
   const createSampleDiagram = async () => {
@@ -817,34 +943,44 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
   };
 
   const openDiagram = async (id: string) => {
-    // 다이어그램 이름 즉시 업데이트 (navigate 전에)
-    const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-    const diagram = diagramsList.find((d: any) => d.id === id);
-    if (diagram) {
-      setDiagramName(diagram.name);
-    }
-    
+    // 다이어그램 이름은 ERDEditor에서 로드될 때 자동으로 설정됨
     router.push(`/erd/${id}`);
     setIsNavDropdownOpen(false);
     closeDashboardModal();
   };
 
   const deleteDiagram = async (diagramId: string) => {
-    // 다이어그램 목록에서 삭제
-    const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-    const updatedDiagrams = diagramsList.filter((d: any) => d.id !== diagramId);
-    localStorage.setItem('erd-diagrams-list', JSON.stringify(updatedDiagrams));
-    
-    // 개별 다이어그램 데이터 삭제
-    localStorage.removeItem(`erd-${diagramId}`);
-    
-    // 현재 다이어그램을 보고 있다면 홈으로 이동
-    if (window.location.pathname === `/erd/${diagramId}`) {
-      router.push('/home');
-      closeDashboardModal();
-    } else {
-      // 목록 새로고침
-      setDiagrams(updatedDiagrams.sort((a: any, b: any) => b.updatedAt - a.updatedAt));
+    if (!isAuthenticated || !user) {
+      toast.error('로그인이 필요합니다.');
+      return;
+    }
+
+    try {
+      await deleteDiagramFromMongoDB(diagramId);
+      
+      // 현재 다이어그램을 보고 있다면 홈으로 이동
+      if (window.location.pathname === `/erd/${diagramId}`) {
+        router.push('/home');
+        closeDashboardModal();
+      } else {
+        // 목록 새로고침
+        const response = await fetchDiagrams();
+        const formattedDiagrams = response.diagrams.map((diagram: any) => ({
+          id: diagram.id, // MongoDB 스키마의 toJSON 변환에 의해 id로 제공됨
+          name: diagram.title || '제목 없는 다이어그램',
+          createdAt: new Date(diagram.createdAt).getTime(),
+          updatedAt: new Date(diagram.updatedAt).getTime(),
+          description: diagram.description || '',
+          isPublic: diagram.isPublic || false,
+          tags: diagram.tags || []
+        }));
+        setDiagrams(formattedDiagrams);
+      }
+      
+      toast.success('다이어그램이 삭제되었습니다.');
+    } catch (error) {
+      console.error('다이어그램 삭제 실패:', error);
+      toast.error('다이어그램 삭제에 실패했습니다.');
     }
   };
 
@@ -894,23 +1030,24 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
     }, 0);
   };
 
-  const saveNameChange = () => {
+  const saveNameChange = async () => {
     const newName = tempName.trim() || '제목 없는 다이어그램';
     setDiagramName(newName);
     setIsEditingName(false);
     
-    // localStorage에 저장된 다이어그램 이름 업데이트
+    // MongoDB에 저장된 다이어그램 이름 업데이트
     const currentUrl = window.location.pathname;
     const erdIdMatch = currentUrl.match(/\/erd\/(.+)/);
-    if (erdIdMatch) {
+    if (erdIdMatch && isAuthenticated && user) {
       const erdId = erdIdMatch[1];
-      const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-      const diagramIndex = diagramsList.findIndex((d: any) => d.id === erdId);
-      
-      if (diagramIndex >= 0) {
-        diagramsList[diagramIndex].name = newName;
-        diagramsList[diagramIndex].updatedAt = Date.now();
-        localStorage.setItem('erd-diagrams-list', JSON.stringify(diagramsList));
+      try {
+        await updateDiagram(erdId, { 
+          title: newName
+        });
+        toast.success('다이어그램 이름이 변경되었습니다.');
+      } catch (error) {
+        console.error('다이어그램 이름 업데이트 실패:', error);
+        toast.error('이름 변경에 실패했습니다.');
       }
     }
   };
@@ -928,28 +1065,13 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
     }
   };
 
-  // 현재 ERD ID에 따라 다이어그램 이름 로드
+  // 현재 ERD ID에 따라 다이어그램 이름 로드 (MongoDB에서 자동 처리됨)
   useEffect(() => {
-    if (currentErdId) {
-      const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-      const diagram = diagramsList.find((d: any) => d.id === currentErdId);
-      
-      if (diagram) {
-        setDiagramName(diagram.name);
-      } else {
-        // 새 다이어그램인 경우 목록에 추가
-        const newDiagram = {
-          id: currentErdId,
-          name: '제목 없는 다이어그램',
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        };
-        diagramsList.push(newDiagram);
-        localStorage.setItem('erd-diagrams-list', JSON.stringify(diagramsList));
-        setDiagramName('제목 없는 다이어그램');
-      }
+    if (currentErdId && !isAuthenticated) {
+      // 로그인하지 않은 경우 기본 이름 설정
+      setDiagramName('제목 없는 다이어그램');
     }
-  }, [currentErdId]);
+  }, [currentErdId, isAuthenticated]);
 
   // 엔티티 존재 여부 확인
   const hasEntities = nodes.some(node => node.type === 'entity');
@@ -974,7 +1096,23 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
       darkMode: theme === 'dark'
     });
     if (confirmed) {
-      clearLocalStorage();
+      // MongoDB 환경에서는 다이어그램을 삭제하지 않고 데이터만 비움
+      if (currentDiagramId && isAuthenticated) {
+        try {
+          // 먼저 로컬 상태를 클리어 (이미 토스트 메시지 포함)
+          clearLocalStorage();
+          
+          // 클리어된 상태를 MongoDB에 저장
+          await saveToMongoDB(false); // 토스트 없이 저장
+          
+        } catch (error) {
+          console.error('데이터 삭제 실패:', error);
+          toast.error('데이터 삭제에 실패했습니다.');
+        }
+      } else {
+        // 로그인하지 않은 경우 로컬 데이터만 클리어
+        clearLocalStorage();
+      }
     }
   };
 
@@ -994,6 +1132,37 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
       return;
     }
     exportToSQL();
+  };
+
+  // Public/Private 상태 토글 함수
+  const togglePublicStatus = async () => {
+    if (!currentDiagramId || !isAuthenticated || !user) {
+      toast.error('로그인이 필요합니다.');
+      return;
+    }
+
+    try {
+      const newIsPublic = !isPublic;
+      const response = await fetch(`/api/diagrams/${currentDiagramId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          isPublic: newIsPublic
+        }),
+      });
+
+      if (response.ok) {
+        setIsPublic(newIsPublic);
+        // 토스트 메시지 제거
+      } else {
+        throw new Error('상태 변경에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Public/Private 상태 변경 실패:', error);
+      toast.error('상태 변경에 실패했습니다.');
+    }
   };
 
   // JSON 관련 함수들 제거
@@ -1042,14 +1211,28 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
   return (
     <HeaderContainer $darkMode={theme === 'dark'}>
       <LeftSection>
-        {/* localStorage 버튼들 */}
+        {/* MongoDB 저장 버튼 */}
         <ThemeToggleButton 
           $darkMode={theme === 'dark'} 
-          onClick={(e) => {
+          onClick={async (e) => {
             e.stopPropagation();
-            saveToLocalStorage(true); // 수동 저장시에는 토스트 표시
+            if (isAuthenticated && currentDiagramId) {
+              try {
+                await saveToMongoDB(true); // 수동 저장시에는 토스트 표시
+              } catch (error) {
+                console.error('저장 실패:', error);
+                toast.error('저장에 실패했습니다.');
+              }
+            } else {
+              toast.error('로그인이 필요합니다.');
+            }
           }}
           title="Ctrl+S로도 저장할 수 있습니다"
+          disabled={!isAuthenticated || !currentDiagramId}
+          style={{ 
+            opacity: (isAuthenticated && currentDiagramId) ? 1 : 0.5,
+            cursor: (isAuthenticated && currentDiagramId) ? 'pointer' : 'not-allowed'
+          }}
         >
           <FaSave />
           저장
@@ -1088,25 +1271,7 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
           <FaRedo />
         </ThemeToggleButton>
       
-      <ThemeToggleButton 
-        $darkMode={theme === 'dark'} 
-        onClick={(e) => {
-          e.stopPropagation();
-          if (!hasSavedData) {
-            return; // 저장된 데이터가 없으면 불러오지 않음
-          }
-          loadFromLocalStorage();
-        }}
-        title={hasSavedData ? "저장된 데이터를 불러옵니다" : "불러올 데이터가 없습니다"}
-        disabled={!hasSavedData}
-        style={{ 
-          opacity: hasSavedData ? 1 : 0.5,
-          cursor: hasSavedData ? 'pointer' : 'not-allowed'
-        }}
-      >
-        <FaFolderOpen />
-        불러오기
-      </ThemeToggleButton>
+      {/* 불러오기 버튼 제거 - MongoDB에서 자동 로드됨 */}
       
       <ThemeToggleButton 
         $darkMode={theme === 'dark'} 
@@ -1193,6 +1358,30 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
         {/* Navigation 드롭다운 */}
         <NavDropdownContainer ref={navDropdownRef}>
           <DiagramNameContainer>
+            {/* Public/Private 토글 스위치 (로그인되고 다이어그램이 있을 때만 표시) */}
+            {isAuthenticated && currentDiagramId && (
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <ToggleSwitch $darkMode={theme === 'dark'}>
+                  <ToggleInput
+                    type="checkbox"
+                    checked={isPublic}
+                    onChange={togglePublicStatus}
+                  />
+                  <ToggleSlider 
+                    $darkMode={theme === 'dark'} 
+                    $isPublic={isPublic}
+                  >
+                    <ToggleIcon $isPublic={isPublic}>
+                      {isPublic ? <FaUnlock /> : <FaLock />}
+                    </ToggleIcon>
+                  </ToggleSlider>
+                </ToggleSwitch>
+                <ToggleLabel $darkMode={theme === 'dark'} $isPublic={isPublic}>
+                  {isPublic ? '공개' : '비공개'}
+                </ToggleLabel>
+              </div>
+            )}
+            
             {isEditingName ? (
               <DiagramNameInput
                 ref={nameInputRef}
@@ -1251,9 +1440,9 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
               
               <SubMenu $darkMode={theme === 'dark'}>
                 {diagrams.length > 0 ? (
-                  diagrams.map((diagram) => (
+                  diagrams.map((diagram, index) => (
                     <SubMenuItem
-                      key={diagram.id}
+                      key={`${diagram.id}-${index}`}
                       $darkMode={theme === 'dark'}
                       onClick={async () => await openDiagram(diagram.id)}
                       style={{
@@ -1262,24 +1451,35 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
                           : 'transparent'
                       }}
                     >
-                      {currentErdId === diagram.id ? (
-                        <div style={{
-                          width: '16px',
-                          height: '16px',
-                          backgroundColor: '#4ade80',
-                          borderRadius: '50%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#000',
-                          fontSize: '10px',
-                          fontWeight: 'bold'
-                        }}>
-                          ●
-                        </div>
-                      ) : (
-                        <FaEdit />
-                      )}
+                      <div>
+                        {currentErdId === diagram.id ? (
+                          <div style={{
+                            width: '16px',
+                            height: '16px',
+                            backgroundColor: '#4ade80',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#000',
+                            fontSize: '10px',
+                            fontWeight: 'bold'
+                          }}>
+                            ●
+                          </div>
+                        ) : (
+                          <div style={{
+                            width: '16px',
+                            height: '16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '14px'
+                          }}>
+                            <FaEdit />
+                          </div>
+                        )}
+                      </div>
                       <div>
                         <div>{diagram.name}</div>
                         <DiagramMeta>{formatDate(diagram.updatedAt)}</DiagramMeta>
@@ -1287,7 +1487,7 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
                     </SubMenuItem>
                   ))
                 ) : (
-                  <EmptySubmenu $darkMode={theme === 'dark'}>
+                  <EmptySubmenu key="empty-submenu" $darkMode={theme === 'dark'}>
                     생성된 다이어그램이 없습니다
                   </EmptySubmenu>
                 )}

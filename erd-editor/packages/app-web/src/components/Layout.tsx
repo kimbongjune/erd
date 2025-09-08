@@ -105,13 +105,13 @@ const ProgressBar = styled.div<{ $darkMode?: boolean }>`
   overflow: hidden;
 `;
 
-const ProgressFill = styled.div<{ progress: number; $darkMode?: boolean }>`
+const ProgressFill = styled.div<{ $progress: number; $darkMode?: boolean }>`
   height: 100%;
   background: ${props => props.$darkMode 
     ? 'linear-gradient(90deg, #63b3ed 0%, #90cdf4 100%)' 
     : 'linear-gradient(90deg, #3182ce 0%, #4299e1 100%)'};
   border-radius: 3px;
-  width: ${props => props.progress}%;
+  width: ${props => props.$progress}%;
   transition: width 0.3s ease-in-out;
 `;
 
@@ -3691,7 +3691,7 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
               <Spinner $darkMode={isDarkMode} />
               <LoadingText $darkMode={isDarkMode}>{loadingMessage}</LoadingText>
               <ProgressBar $darkMode={isDarkMode}>
-                <ProgressFill progress={loadingProgress} $darkMode={isDarkMode} />
+                <ProgressFill $progress={loadingProgress} $darkMode={isDarkMode} />
                 <ProgressPercentage $darkMode={isDarkMode}>{loadingProgress}%</ProgressPercentage>
               </ProgressBar>
             </LoadingContainer>

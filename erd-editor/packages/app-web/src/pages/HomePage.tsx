@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import styled from 'styled-components';
-import { FaPlus, FaSearch, FaEllipsisV, FaGlobe, FaFolder, FaClock, FaEdit, FaDatabase, FaChartLine, FaUsers, FaCubes, FaProjectDiagram, FaSitemap, FaTable, FaTrash, FaComment, FaImage, FaLock, FaUnlock  } from 'react-icons/fa';
+import { FaPlus, FaSearch, FaEllipsisV, FaGlobe, FaFolder, FaClock, FaEdit, FaDatabase, FaChartLine, FaUsers, FaCubes, FaProjectDiagram, FaSitemap, FaTable, FaTrash, FaComment, FaImage, FaLock, FaUnlock } from 'react-icons/fa';
 import { FaNoteSticky } from "react-icons/fa6";
 import { GrMysql } from "react-icons/gr";
-
 import { BsFillDiagram3Fill } from "react-icons/bs";
 import UserMenu from '../components/UserMenu';
 import LoginModal from '../components/auth/LoginModal';
 import SignupModal from '../components/auth/SignupModal';
 import MyPageModal from '../components/auth/MyPageModal';
+import { useAuth } from '../hooks/useAuth';
+import { useMongoDBDiagrams } from '../hooks/useMongoDBDiagrams';
+import { toast } from 'react-toastify';
 const HomeContainer = styled.div`
   min-height: 100vh;
   background: #0f1419;
@@ -535,6 +537,11 @@ interface Diagram {
   createdAt: number;
   updatedAt: number;
   visibility?: 'public' | 'private' | 'team';
+  isPublic?: boolean; // MongoDB의 isPublic 필드 추가
+  entityCount?: number;
+  relationCount?: number;
+  commentCount?: number;
+  imageCount?: number;
 }
 
 const HomePage: React.FC = () => {
@@ -547,18 +554,35 @@ const HomePage: React.FC = () => {
     diagramId: null,
     diagramName: ''
   });
+  const [isLoading, setIsLoading] = useState(false);
   
   // 모달 상태 관리
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [signupModalOpen, setSignupModalOpen] = useState(false);
   const [myPageModalOpen, setMyPageModalOpen] = useState(false);
 
+  // 인증 및 MongoDB 훅
+  const { user, isAuthenticated, loading } = useAuth();
+  const { fetchDiagrams, saveAsNew, deleteDiagram: deleteMongoDBDiagram } = useMongoDBDiagrams();
+
+  // 초기 다이어그램 목록 로드 (NextAuth 세션이 로드된 후)
   useEffect(() => {
-    loadDiagrams();
+    if (!loading) {
+      loadDiagrams();
+    }
+  }, [loading]);
+
+  useEffect(() => {
+    // NextAuth 세션이 로드된 후 한 번만 실행
+    if (!loading) {
+      loadDiagrams();
+    }
     
     // 페이지가 다시 포커스될 때 다이어그램 목록 새로고침
     const handleFocus = () => {
-      loadDiagrams();
+      if (!loading) {
+        loadDiagrams();
+      }
     };
     
     window.addEventListener('focus', handleFocus);
@@ -576,97 +600,91 @@ const HomePage: React.FC = () => {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [menuOpenId]);
+  }, [menuOpenId]); // loading 제거하고 초기 로드는 별도 useEffect로
 
-  const loadDiagrams = () => {
-    // localStorage에서 실제 erd- 키로 저장된 모든 다이어그램 찾기
-    const actualDiagrams: Diagram[] = [];
+  const loadDiagrams = async () => {
+    setIsLoading(true);
     
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('erd-') && key !== 'erd-diagrams-list') {
-        const erdId = key.replace('erd-', '');
-        try {
-          const erdData = JSON.parse(localStorage.getItem(key) || '{}');
-          
-          // 다이어그램 이름 결정 (우선순위: erd-diagrams-list > 기본값)
-          let diagramName = '제목 없는 다이어그램';
-          
-          // erd-diagrams-list에서 해당 ID의 이름을 찾아보기
-          try {
-            const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-            const existingDiagram = diagramsList.find((d: any) => d.id === erdId);
-            if (existingDiagram && existingDiagram.name) {
-              diagramName = existingDiagram.name;
-            }
-          } catch (error) {
-            // erd-diagrams-list 파싱 실패 시 기본값 사용
-          }
-          
-          actualDiagrams.push({
-            id: erdId,
-            name: diagramName,
-            createdAt: erdData.timestamp || Date.now(),
-            updatedAt: erdData.timestamp || Date.now()
-          });
-        } catch (error) {
-          // 파싱 에러 시 해당 키는 무시
-          continue;
-        }
+    try {
+      if (isAuthenticated && user) {
+        // 로그인된 사용자: MongoDB에서 다이어그램 목록 가져오기
+        const result = await fetchDiagrams({ limit: 50 });
+        
+        const mongoDBDiagrams: Diagram[] = result.diagrams.map(diagram => ({
+          id: diagram.id,
+          name: diagram.title,
+          createdAt: new Date(diagram.createdAt).getTime(),
+          updatedAt: new Date(diagram.updatedAt).getTime(),
+          visibility: 'private', // 기본값
+          isPublic: diagram.isPublic || false, // MongoDB의 isPublic 필드 추가
+          entityCount: diagram.entityCount || 0,
+          relationCount: diagram.relationCount || 0,
+          commentCount: diagram.commentCount || 0,
+          imageCount: diagram.imageCount || 0
+        }));
+        
+        setDiagrams(mongoDBDiagrams);
+      } else {
+        // 로그인하지 않은 사용자: 빈 배열
+        setDiagrams([]);
       }
+    } catch (error) {
+      console.error('MongoDB 다이어그램 로드 실패:', error);
+      setDiagrams([]);
+      toast.error('다이어그램을 불러오는데 실패했습니다.');
+    } finally {
+      setIsLoading(false);
     }
-    
-    // 업데이트 시간순으로 정렬
-    setDiagrams(actualDiagrams.sort((a: Diagram, b: Diagram) => b.updatedAt - a.updatedAt));
   };
 
-  const createNewDiagram = (event?: React.MouseEvent) => {
+  const createNewDiagram = async (event?: React.MouseEvent) => {
     if (event) {
       event.preventDefault();
       event.stopPropagation();
     }
     
-    const id = `erd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    if (!isAuthenticated || !user) {
+      setLoginModalOpen(true);
+      return;
+    }
     
-    // 새 다이어그램을 다이어그램 목록에 즉시 추가
-    const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-    const newDiagram = {
-      id: id,
-      name: '제목 없는 다이어그램',
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-    diagramsList.push(newDiagram);
-    localStorage.setItem('erd-diagrams-list', JSON.stringify(diagramsList));
-    
-    // 새 다이어그램의 초기 ERD 데이터도 저장
-    const initialErdData = {
-      version: '1.0',
-      timestamp: Date.now(),
-      nodes: [],
-      edges: [],
-      nodeColors: {},
-      edgeColors: {},
-      commentColors: {},
-      viewSettings: {
-        entityView: 'logical',
-        showKeys: true,
-        showPhysicalName: true,
-        showLogicalName: false,
-        showDataType: true,
-        showConstraints: false,
-        showDefaults: false,
-      },
-      theme: 'light',
-      showGrid: false,
-      hiddenEntities: [],
-      viewport: { x: 0, y: 0, zoom: 1 },
-      viewportRestoreTrigger: Date.now()
-    };
-    localStorage.setItem(`erd-${id}`, JSON.stringify(initialErdData));
-    
-    // 강제로 네비게이션 실행
-    router.push(`/erd/${id}`);
+    try {
+      setIsLoading(true);
+      
+      // 초기 ERD 데이터
+      const initialErdData = {
+        version: '1.0',
+        timestamp: Date.now(),
+        nodes: [],
+        edges: [],
+        nodeColors: {},
+        edgeColors: {},
+        commentColors: {},
+        viewSettings: {
+          entityView: 'logical',
+          showKeys: true,
+          showPhysicalName: true,
+          showLogicalName: false,
+          showDataType: true,
+          showConstraints: false,
+          showDefaults: false,
+        },
+        theme: 'light',
+        showGrid: false,
+        hiddenEntities: [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+        viewportRestoreTrigger: Date.now()
+      };
+
+      const result = await saveAsNew('제목 없는 다이어그램', '', false, [], initialErdData);
+      // MongoDB에 저장 성공하면 해당 다이어그램으로 이동
+      router.push(`/erd/${result.diagram.id}`);
+    } catch (error) {
+      console.error('다이어그램 생성 실패:', error);
+      toast.error('다이어그램 생성에 실패했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const openDiagram = (id: string) => {
@@ -685,25 +703,30 @@ const HomePage: React.FC = () => {
     setMenuOpenId(null);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deleteModal.diagramId) {
-      // 다이어그램 목록에서 제거
-      const diagramsList = JSON.parse(localStorage.getItem('erd-diagrams-list') || '[]');
-      const updatedList = diagramsList.filter((diagram: Diagram) => diagram.id !== deleteModal.diagramId);
-      localStorage.setItem('erd-diagrams-list', JSON.stringify(updatedList));
-      
-      // 다이어그램 데이터 제거
-      localStorage.removeItem(`erd-${deleteModal.diagramId}`);
-      
-      // loadDiagrams로 상태 새로고침 (중복 방지)
-      loadDiagrams();
+      try {
+        setIsLoading(true);
+        
+        // MongoDB 다이어그램 삭제
+        await deleteMongoDBDiagram(deleteModal.diagramId);
+        
+        // 다이어그램 목록 새로고침
+        await loadDiagrams();
+        toast.success('다이어그램이 삭제되었습니다.');
+      } catch (error) {
+        console.error('다이어그램 삭제 오류:', error);
+        toast.error('다이어그램 삭제에 실패했습니다.');
+      } finally {
+        setIsLoading(false);
+      }
     }
     
     // 모달을 먼저 숨기고, 트랜지션이 완료된 후에 상태 초기화
     setDeleteModal(prev => ({ ...prev, show: false }));
     setTimeout(() => {
       setDeleteModal({ show: false, diagramId: null, diagramName: '' });
-    }, 300); // 트랜지션 시간과 동일하게 설정
+    }, 300);
   };
 
   const cancelDelete = () => {
@@ -720,19 +743,18 @@ const HomePage: React.FC = () => {
   };
 
   const getDiagramStats = (diagramId: string) => {
-    const savedData = localStorage.getItem(`erd-${diagramId}`);
-    if (savedData) {
-      try {
-        const erdData = JSON.parse(savedData);
-        const entityCount = erdData.nodes?.filter((node: any) => node.type === 'entity').length || 0;
-        const relationCount = erdData.edges?.length || 0;
-        const commentCount = erdData.nodes?.filter((node: any) => node.type === 'comment').length || 0;
-        const imageCount = erdData.nodes?.filter((node: any) => node.type === 'image').length || 0;
-        return { entityCount, relationCount, commentCount, imageCount };
-      } catch (error) {
-        return { entityCount: 0, relationCount: 0, commentCount: 0, imageCount: 0 };
-      }
+    // MongoDB에서 로드된 diagrams 배열에서 해당 다이어그램 찾기
+    const diagram = diagrams.find(d => d.id === diagramId);
+    if (diagram) {
+      return {
+        entityCount: diagram.entityCount || 0,
+        relationCount: diagram.relationCount || 0,
+        commentCount: diagram.commentCount || 0,
+        imageCount: diagram.imageCount || 0
+      };
     }
+    
+    // 다이어그램을 찾을 수 없는 경우 기본값
     return { entityCount: 0, relationCount: 0, commentCount: 0, imageCount: 0 };
   };
 
@@ -818,34 +840,9 @@ const HomePage: React.FC = () => {
     diagram.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // 실제 엔티티와 관계 수 계산
-  const totalEntities = diagrams.reduce((total, diagram) => {
-    const savedData = localStorage.getItem(`erd-${diagram.id}`);
-    if (savedData) {
-      try {
-        const erdData = JSON.parse(savedData);
-        const entityCount = erdData.nodes?.filter((node: any) => node.type === 'entity').length || 0;
-        return total + entityCount;
-      } catch (error) {
-        return total;
-      }
-    }
-    return total;
-  }, 0);
-
-  const totalRelations = diagrams.reduce((total, diagram) => {
-    const savedData = localStorage.getItem(`erd-${diagram.id}`);
-    if (savedData) {
-      try {
-        const erdData = JSON.parse(savedData);
-        const relationCount = erdData.edges?.length || 0;
-        return total + relationCount;
-      } catch (error) {
-        return total;
-      }
-    }
-    return total;
-  }, 0);
+  // MongoDB에서 가져온 통계로 총계 계산
+  const totalEntities = diagrams.reduce((total, diagram) => total + (diagram.entityCount || 0), 0);
+  const totalRelations = diagrams.reduce((total, diagram) => total + (diagram.relationCount || 0), 0);
 
   return (
     <HomeContainer>
@@ -930,18 +927,15 @@ const HomePage: React.FC = () => {
                 const { entityCount, relationCount, commentCount, imageCount } = getDiagramStats(diagram.id);
                 
                 // 상태에 따른 아이콘과 텍스트 정의
-                const getStatusInfo = (visibility: 'public' | 'private' | 'team' = 'public') => {
-                  switch (visibility) {
-                    case 'private':
-                      return { icon: <FaLock />, text: '비공개' };
-                    case 'team':
-                      return { icon: <FaUsers />, text: '팀' };
-                    default:
-                      return { icon: <FaUnlock />, text: '공개' };
+                const getStatusInfo = () => {
+                  if (diagram.isPublic) {
+                    return { icon: <FaUnlock />, text: '공개' };
+                  } else {
+                    return { icon: <FaLock />, text: '비공개' };
                   }
                 };
                 
-                const statusInfo = getStatusInfo(diagram.visibility);
+                const statusInfo = getStatusInfo();
                 
                 return (
                   <DiagramCard key={diagram.id} onClick={() => openDiagram(diagram.id)}>
@@ -962,7 +956,7 @@ const HomePage: React.FC = () => {
                       </MenuItem>
                     </MenuDropdown>
                     <DiagramIcon>
-                      <FaDatabase />
+                      {statusInfo.icon}
                     </DiagramIcon>
                     <DiagramName>
                       {highlightSearchTerm(diagram.name, searchTerm)}

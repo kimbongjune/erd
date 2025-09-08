@@ -57,7 +57,7 @@ const nodeTypes = {
   image: ImageNode,
 };
 
-const Canvas = () => {
+const Canvas = React.memo(() => {
   const nodes = useStore((state) => state.nodes);
   const edges = useStore((state) => state.edges);
   const onNodesChange = useStore((state) => state.onNodesChange);
@@ -121,10 +121,6 @@ const Canvas = () => {
       return !hiddenEntities.has(edge.source) && !hiddenEntities.has(edge.target);
     });
   }, [edges, hiddenEntities]);
-  
-  // nodeTypes를 메모이제이션하여 재생성 방지
-  const memoizedNodeTypes = useMemo(() => nodeTypes, []);
-  const memoizedEdgeTypes = useMemo(() => edgeTypes, []);
   
   // 컨텍스트 메뉴 상태
   const [contextMenu, setContextMenu] = useState({
@@ -1016,8 +1012,8 @@ const Canvas = () => {
         onMove={handleViewportChange}
         onMoveEnd={handleViewportChangeEnd}
         onInit={handleReactFlowInit}
-        nodeTypes={memoizedNodeTypes}
-        edgeTypes={memoizedEdgeTypes}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
         onNodeContextMenu={handleNodeContextMenu}
@@ -1153,6 +1149,8 @@ const Canvas = () => {
       <SearchPanel />
     </div>
   );
-};
+});
+
+Canvas.displayName = 'Canvas';
 
 export default Canvas;

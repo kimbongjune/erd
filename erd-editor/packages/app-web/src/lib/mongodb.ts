@@ -16,7 +16,7 @@ if (!cached) {
   cached = global.mongoose = { conn: null, promise: null };
 }
 
-export async function connectDB() {
+export async function connectToDatabase() {
   if (cached.conn) {
     return cached.conn;
   }
@@ -40,3 +40,6 @@ export async function connectDB() {
 
   return cached.conn;
 }
+
+// 기존 함수명과의 호환성을 위해 export
+export const connectDB = connectToDatabase;

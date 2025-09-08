@@ -118,8 +118,8 @@ const getCurrentStorageKey = () => {
 // 자동저장을 위한 debounce 변수
 let autoSaveTimeout: NodeJS.Timeout | null = null;
 
-// debounced 자동저장 함수
-const debouncedAutoSave = (saveFunction: () => void, delay: number = 500) => {
+// debounced 자동저장 함수 - MongoDB 우선, localStorage 백업
+const debouncedAutoSave = (mongoSaveFunction: () => void, localSaveFunction: () => void, delay: number = 500) => {
   if (autoSaveTimeout) {
     clearTimeout(autoSaveTimeout);
   }
@@ -127,7 +127,13 @@ const debouncedAutoSave = (saveFunction: () => void, delay: number = 500) => {
   autoSaveTimeout = setTimeout(() => {
     // ERD 페이지에서만 자동저장 실행
     if (window.location.pathname.startsWith('/erd/')) {
-      saveFunction();
+      // MongoDB 저장 시도, 실패하면 localStorage로 백업
+      try {
+        mongoSaveFunction();
+      } catch (error) {
+        console.warn('MongoDB 자동저장 실패, localStorage로 백업:', error);
+        localSaveFunction();
+      }
     }
   }, delay);
 };
@@ -1291,13 +1297,22 @@ type RFState = {
   arrangeSnowflake: () => void;
   arrangeCompact: () => void;
   
-  // localStorage 관련 함수들
+  // localStorage 관련 함수들 (UI 설정만 저장)
   hasSavedData: boolean;
   setHasSavedData: (value: boolean) => void;
   checkSavedData: () => void;
   saveToLocalStorage: (showToast?: boolean) => void;
   loadFromLocalStorage: () => void;
   clearLocalStorage: () => void;
+  
+  // MongoDB 관련 상태 및 함수들
+  currentDiagramId: string | null;
+  setCurrentDiagramId: (id: string | null) => void;
+  isAuthenticated: boolean;
+  setIsAuthenticated: (authenticated: boolean) => void;
+  saveToMongoDB: (showToast?: boolean) => Promise<void>;
+  loadFromMongoDB: (diagramId: string) => Promise<void>;
+  autoSaveToMongoDB: () => void;
   
   // 히스토리 관련 함수들
   saveHistoryState: (actionType: HistoryActionType, metadata?: any) => void;
@@ -1348,6 +1363,10 @@ const useStore = create<RFState>((set, get) => ({
   
   // localStorage 관련 상태
   hasSavedData: false,
+  
+  // MongoDB 관련 상태
+  currentDiagramId: null,
+  isAuthenticated: false,
   
   // 색상 팔레트 관련 초기값
   nodeColors: new Map(),
@@ -1426,7 +1445,7 @@ const useStore = create<RFState>((set, get) => ({
     });
     
     // 자동저장
-    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
   },
   onEdgesChange: (changes) => {
     set({
@@ -1434,7 +1453,7 @@ const useStore = create<RFState>((set, get) => ({
     });
     
     // 자동저장
-    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
   },
   addNode: (type) => {
     const newNode = {
@@ -1465,7 +1484,7 @@ const useStore = create<RFState>((set, get) => ({
     }, 0);
     
     // 자동저장
-    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
   },
   setSelectedNodeId: (id) => {
     const state = get();
@@ -1495,7 +1514,7 @@ const useStore = create<RFState>((set, get) => ({
     
     // 코멘트 편집 완료 시에만 자동저장 (id가 null이 될 때)
     if (id === null) {
-      debouncedAutoSave(() => get().saveToLocalStorage(false));
+      debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
     }
   },
   setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
@@ -1751,7 +1770,7 @@ const useStore = create<RFState>((set, get) => ({
     }
     
     // 자동저장
-    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
   },
 
   deleteEdge: (id, skipHistory = false) => {
@@ -1910,7 +1929,7 @@ const useStore = create<RFState>((set, get) => ({
     }
     
     // 자동저장
-    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
   },
 
   deleteSelected: () => {
@@ -1925,17 +1944,17 @@ const useStore = create<RFState>((set, get) => ({
     }
     
     // 자동저장
-    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
   },
   setNodes: (nodes) => {
     set({ nodes });
     // 자동저장
-    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
   },
   setEdges: (edges) => {
     set({ edges });
     // 자동저장
-    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
   },
   onConnect: (connection) => {
     set((state) => {
@@ -2449,7 +2468,7 @@ const useStore = create<RFState>((set, get) => ({
     }
     
     // 자동저장
-    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
   },
   setConnectionMode: (mode) => {
     set({ connectionMode: mode });
@@ -2505,7 +2524,7 @@ const useStore = create<RFState>((set, get) => ({
     });
     
     // 자동저장
-    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
   },
 
   setCreateMode: (mode: string | null) => set({ createMode: mode }),
@@ -4244,7 +4263,7 @@ const useStore = create<RFState>((set, get) => ({
     get().updateEdgeHandles();
     
     // 자동저장
-    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
   },
   
   // 🎯 P5) 정렬·관계선 유지: 그룹별 첫 번째 컬럼에만 연결 (요구사항 10-11)
@@ -4368,7 +4387,7 @@ const useStore = create<RFState>((set, get) => ({
     toast.info('모든 관계가 삭제되었습니다. 새로운 관계를 생성해주세요.');
     
     // 자동저장
-    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
   },
   
   // 색상 팔레트 함수들
@@ -4591,7 +4610,7 @@ const useStore = create<RFState>((set, get) => ({
     });
     
     // 자동 저장
-    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
     
     // 히스토리 저장
     const historyAction = newNode.type === 'entity' ? HISTORY_ACTIONS.CREATE_ENTITY :
@@ -5171,7 +5190,8 @@ const useStore = create<RFState>((set, get) => ({
         state.historyManager.saveState('INITIAL_STATE' as HistoryActionType, currentState, { name: '초기 상태' });
         state.updateHistoryFlags();
         
-        toast.success('ERD 데이터를 성공적으로 불러왔습니다!');
+        // MongoDB 환경에서는 loadFromMongoDB를 사용하므로 여기서 토스트 제거
+        // toast.success('ERD 데이터를 성공적으로 불러왔습니다!');
         
         // 로드 성공 후 hasSavedData 상태 업데이트
         set({ hasSavedData: true });
@@ -5311,6 +5331,232 @@ const useStore = create<RFState>((set, get) => ({
     set({ hasSavedData: value });
   },
   
+  // MongoDB 관련 함수들
+  setCurrentDiagramId: (id: string | null) => {
+    set({ currentDiagramId: id });
+  },
+  
+  setIsAuthenticated: (authenticated: boolean) => {
+    set({ isAuthenticated: authenticated });
+  },
+  
+  saveToMongoDB: async (showToast = true) => {
+    const state = get();
+    
+    if (!state.isAuthenticated || !state.currentDiagramId) {
+      if (showToast) {
+        toast.error('로그인이 필요하거나 다이어그램 ID가 없습니다.');
+      }
+      return;
+    }
+    
+    try {
+      // 현재 ReactFlow의 실제 viewport를 가져와서 사용
+      let currentViewport = state.viewport;
+      if ((window as any).reactFlowInstance) {
+        try {
+          const realViewport = (window as any).reactFlowInstance.getViewport();
+          currentViewport = {
+            x: typeof realViewport.x === 'number' && !isNaN(realViewport.x) ? realViewport.x : 0,
+            y: typeof realViewport.y === 'number' && !isNaN(realViewport.y) ? realViewport.y : 0,
+            zoom: typeof realViewport.zoom === 'number' && !isNaN(realViewport.zoom) ? realViewport.zoom : 1
+          };
+        } catch (error) {
+          // fallback to state viewport
+        }
+      }
+      
+      const erdData = {
+        version: STORAGE_VERSION,
+        timestamp: Date.now(),
+        nodes: state.nodes,
+        edges: state.edges,
+        nodeColors: Object.fromEntries(state.nodeColors),
+        edgeColors: Object.fromEntries(state.edgeColors),
+        commentColors: Object.fromEntries(state.commentColors),
+        viewSettings: state.viewSettings,
+        theme: state.theme,
+        showGrid: state.showGrid,
+        hiddenEntities: Array.from(state.hiddenEntities),
+        viewport: currentViewport,
+        viewportRestoreTrigger: state.viewportRestoreTrigger,
+      };
+      
+      const response = await fetch(`/api/diagrams/${state.currentDiagramId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ erdData }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      if (showToast) {
+        toast.success('ERD 데이터가 성공적으로 저장되었습니다!');
+      }
+      
+      set({ hasSavedData: true });
+    } catch (error) {
+      console.error('MongoDB 저장 오류:', error);
+      if (showToast) {
+        toast.error('데이터 저장에 실패했습니다.');
+      }
+    }
+  },
+  
+  loadFromMongoDB: async (diagramId: string) => {
+    const state = get();
+    
+    if (!state.isAuthenticated) {
+      toast.error('로그인이 필요합니다.');
+      return;
+    }
+    
+    if (state.isLoading) {
+      return;
+    }
+    
+    try {
+      // 먼저 데이터 요청 (프로그래스바 없이)
+      const response = await fetch(`/api/diagrams/${diagramId}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('다이어그램을 찾을 수 없습니다.');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const { diagram } = await response.json();
+      const data = diagram.erdData;
+      
+      // 데이터가 비어있는지 확인 (노드나 엣지가 없는 경우)
+      const isEmpty = (!data.nodes || data.nodes.length === 0) && (!data.edges || data.edges.length === 0);
+      
+      if (isEmpty) {
+        // 빈 다이어그램인 경우 프로그래스바 없이 바로 로드
+        set({
+          currentDiagramId: diagramId,
+          nodes: [],
+          edges: [],
+          nodeColors: new Map(),
+          edgeColors: new Map(),
+          commentColors: new Map(),
+          viewSettings: data.viewSettings || {
+            entityView: 'logical',
+            showKeys: true,
+            showPhysicalName: true,
+            showLogicalName: false,
+            showDataType: true,
+            showConstraints: false,
+            showDefaults: false,
+          },
+          theme: data.theme || 'light',
+          showGrid: data.showGrid ?? false,
+          hiddenEntities: new Set(),
+          viewport: data.viewport || { x: 0, y: 0, zoom: 1 },
+          viewportRestoreTrigger: Date.now(),
+          hasSavedData: true
+        });
+        
+        // 빈 다이어그램에도 히스토리 초기화 및 초기 상태 저장
+        const emptyState = get();
+        emptyState.historyManager.clearHistory();
+        const currentState = serializeState({
+          nodes: [],
+          edges: [],
+          nodeColors: new Map(),
+          edgeColors: new Map(),
+          commentColors: new Map(),
+          hiddenEntities: new Set()
+        });
+        emptyState.historyManager.saveState('INITIAL_STATE' as HistoryActionType, currentState, { name: '초기 상태 (빈 다이어그램)' });
+        emptyState.updateHistoryFlags();
+        
+        return;
+      }
+      
+      // 데이터가 있는 경우에만 프로그래스바 표시
+      set({ isLoading: true, loadingMessage: '저장된 ERD 데이터 검색 중...', loadingProgress: 10 });
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
+      set({ loadingMessage: '데이터 파싱 및 검증 중...', loadingProgress: 25 });
+      
+      await new Promise(resolve => setTimeout(resolve, 200));
+      set({ loadingMessage: '엔티티 및 관계선 복원 중...', loadingProgress: 45 });
+      
+      await new Promise(resolve => setTimeout(resolve, 200));
+      set({ loadingMessage: '캔버스 위치 및 설정 복원 중...', loadingProgress: 65 });
+      
+      // 최종 데이터 설정 먼저 수행
+      set({
+        currentDiagramId: diagramId,
+        nodes: data.nodes || [],
+        edges: data.edges || [],
+        nodeColors: new Map(Object.entries(data.nodeColors || {})),
+        edgeColors: new Map(Object.entries(data.edgeColors || {})),
+        commentColors: new Map(Object.entries(data.commentColors || {})),
+        viewSettings: data.viewSettings || {
+          entityView: 'logical',
+          showKeys: true,
+          showPhysicalName: true,
+          showLogicalName: false,
+          showDataType: true,
+          showConstraints: false,
+          showDefaults: false,
+        },
+        theme: data.theme || 'light',
+        showGrid: data.showGrid ?? false,
+        hiddenEntities: new Set(data.hiddenEntities || []),
+        viewport: data.viewport || { x: 0, y: 0, zoom: 1 },
+        viewportRestoreTrigger: data.viewportRestoreTrigger || Date.now(),
+        hasSavedData: true
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 200));
+      set({ loadingMessage: '최종 렌더링 완료 중...', loadingProgress: 85 });
+      
+      await new Promise(resolve => setTimeout(resolve, 200));
+      set({ loadingMessage: '로드 완료', loadingProgress: 100 });
+      
+      // 로딩 완료 후 상태 초기화 및 히스토리 설정
+      setTimeout(() => {
+        const finalState = get();
+        set({ isLoading: false, loadingMessage: '', loadingProgress: 0 });
+        
+        // GitHub 원본처럼 히스토리 초기화 및 초기 상태 저장
+        finalState.historyManager.clearHistory();
+        const currentState = serializeState({
+          nodes: finalState.nodes,
+          edges: finalState.edges,
+          nodeColors: finalState.nodeColors,
+          edgeColors: finalState.edgeColors,
+          commentColors: finalState.commentColors,
+          hiddenEntities: finalState.hiddenEntities
+        });
+        finalState.historyManager.saveState('INITIAL_STATE' as HistoryActionType, currentState, { name: '초기 상태' });
+        finalState.updateHistoryFlags();
+      }, 500);
+      
+      toast.success('ERD 데이터를 성공적으로 불러왔습니다!');
+      
+    } catch (error) {
+      console.error('MongoDB 로드 오류:', error);
+      set({ isLoading: false, loadingMessage: '', loadingProgress: 0 });
+      toast.error(error instanceof Error ? error.message : '데이터 로드에 실패했습니다.');
+    }
+  },
+  
+  autoSaveToMongoDB: () => {
+    const state = get();
+    if (state.isAuthenticated && state.currentDiagramId) {
+      state.saveToMongoDB(false); // 토스트 메시지 없이 저장
+    }
+  },
+  
   checkSavedData: () => {
     const savedData = localStorage.getItem(getCurrentStorageKey());
     if (!savedData || savedData === '{}') {
@@ -5346,7 +5592,7 @@ const useStore = create<RFState>((set, get) => ({
     
     set({ viewport: validViewport });
     // 자동저장
-    debouncedAutoSave(() => get().saveToLocalStorage(false));
+    debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
   },
   
   // SQL import 함수
@@ -5403,6 +5649,20 @@ const useStore = create<RFState>((set, get) => ({
   // 히스토리 관련 함수들
   saveHistoryState: (actionType: HistoryActionType, metadata?: any) => {
     const state = get();
+    
+    // 첫 번째 동작일 때 (히스토리가 비어있을 때) 현재 상태를 먼저 저장
+    if (state.historyManager.getHistorySize() === 0) {
+      const initialState = serializeState({
+        nodes: state.nodes,
+        edges: state.edges,
+        nodeColors: state.nodeColors,
+        edgeColors: state.edgeColors,
+        commentColors: state.commentColors,
+        hiddenEntities: state.hiddenEntities
+      });
+      state.historyManager.saveState('INITIAL_STATE' as HistoryActionType, initialState, { name: '초기 상태' });
+    }
+    
     const currentState = serializeState({
       nodes: state.nodes,
       edges: state.edges,

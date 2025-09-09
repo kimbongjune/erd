@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import styled from 'styled-components';
 import { FaTimes, FaUser, FaEdit, FaTrash, FaSpinner, FaSignOutAlt, FaCamera } from 'react-icons/fa';
 import { useAuth } from '../../hooks/useAuth';
+import { normalizeGoogleImageUrl, hasImageFailed, recordImageFailure, recordImageSuccess } from '../../utils/imageCache';
 
 interface MyPageModalProps {
   isOpen: boolean;
@@ -344,31 +345,61 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
   const [success, setSuccess] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [imageError, setImageError] = useState(false);
-  const [imageSize, setImageSize] = useState('s96-c');
+  const [retryCount, setRetryCount] = useState(0);
 
-  // 이미지 URL에서 크기 부분을 변경하는 함수
-  const getModifiedPhotoURL = (originalURL: string, size: string) => {
-    if (!originalURL) return originalURL;
+  // 프로필 이미지 URL 메모이제이션 및 캐싱
+  const profileImageUrl = useMemo(() => {
+    if (!user?.image || imageError) return null;
     
-    // base64 이미지인 경우 그대로 반환
-    if (originalURL.startsWith('data:image/')) {
-      return originalURL;
+    // 이미지 URL 정규화
+    const url = normalizeGoogleImageUrl(user.image);
+    
+    // Google 이미지가 아니거나 base64 이미지인 경우 캐시 로직 건너뛰기
+    if (url.startsWith('data:image/') || !url.includes('googleusercontent.com')) {
+      return url;
     }
     
-    // Google 프로필 이미지 URL에서 크기 부분 변경
-    return originalURL.replace(/=s\d+(-c)?$/, `=${size}`);
-  };
+    // 이전에 실패한 URL이라면 null 반환
+    if (hasImageFailed(url)) {
+      return null;
+    }
+    
+    return url;
+  }, [user?.image, imageError]);
 
-  // 이미지 로딩 실패 시 다른 크기로 시도
-  const handleImageError = () => {
-    if (imageSize === 's96-c') {
-      setImageSize('s128-c');
-    } else if (imageSize === 's128-c') {
-      setImageSize('s64-c');
+  // 이미지 로딩 실패 시 처리 (재시도 방지)
+  const handleImageError = useCallback(() => {
+    if (profileImageUrl && profileImageUrl.includes('googleusercontent.com')) {
+      recordImageFailure(profileImageUrl);
+    }
+    
+    setRetryCount(prev => prev + 1);
+    
+    // Google 이미지가 아닌 경우나 base64 이미지인 경우 바로 에러 처리
+    if (!profileImageUrl || !profileImageUrl.includes('googleusercontent.com')) {
+      setImageError(true);
+      return;
+    }
+    
+    // 최대 1번만 재시도하고 그 이후엔 기본 아바타 사용
+    if (retryCount < 1) {
+      // 짧은 지연 후 재시도 (rate limit 회피)
+      setTimeout(() => {
+        setImageError(false);
+      }, 2000);
     } else {
       setImageError(true);
     }
-  };
+  }, [retryCount, profileImageUrl]);
+
+  // 이미지 로딩 성공 시 처리
+  const handleImageLoad = useCallback(() => {
+    if (profileImageUrl && profileImageUrl.includes('googleusercontent.com')) {
+      recordImageSuccess(profileImageUrl);
+    }
+    setImageError(false);
+    setRetryCount(0);
+  }, [profileImageUrl]);
 
   // 모달이 닫힐 때 편집 상태 초기화
   useEffect(() => {
@@ -391,7 +422,7 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
   useEffect(() => {
     if (user?.image) {
       setImageError(false);
-      setImageSize('s96-c');
+      setRetryCount(0);
     }
   }, [user?.image]);
 
@@ -527,13 +558,14 @@ const MyPageModal: React.FC<MyPageModalProps> = ({ isOpen, onClose }) => {
           <UserInfo>
             <UserAvatar>
               <div className="avatar-container">
-                {user.image && !imageError ? (
+                {profileImageUrl && !imageError ? (
                   <img 
-                    src={getModifiedPhotoURL(user.image, imageSize)} 
+                    src={profileImageUrl} 
                     alt="프로필" 
                     crossOrigin="anonymous"
+                    loading="lazy"
                     onError={handleImageError}
-                    onLoad={() => setImageError(false)}
+                    onLoad={handleImageLoad}
                   />
                 ) : (
                   <FaUser />

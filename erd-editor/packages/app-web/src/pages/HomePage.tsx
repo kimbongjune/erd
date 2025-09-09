@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import styled from 'styled-components';
 import { FaPlus, FaSearch, FaEllipsisV, FaGlobe, FaFolder, FaClock, FaEdit, FaDatabase, FaChartLine, FaUsers, FaCubes, FaProjectDiagram, FaSitemap, FaTable, FaTrash, FaComment, FaImage, FaLock, FaUnlock } from 'react-icons/fa';
@@ -565,6 +565,19 @@ const HomePage: React.FC = () => {
   const { user, isAuthenticated, loading } = useAuth();
   const { fetchDiagrams, saveAsNew, deleteDiagram: deleteMongoDBDiagram } = useMongoDBDiagrams();
 
+  // UserMenu 콜백 함수들을 useCallback으로 최적화
+  const handleOpenLogin = useCallback(() => {
+    setLoginModalOpen(true);
+  }, []);
+
+  const handleOpenSignup = useCallback(() => {
+    setSignupModalOpen(true);
+  }, []);
+
+  const handleOpenMyPage = useCallback(() => {
+    setMyPageModalOpen(true);
+  }, []);
+
   // 초기 다이어그램 목록 로드 (NextAuth 세션이 로드된 후)
   useEffect(() => {
     if (!loading) {
@@ -853,9 +866,9 @@ const HomePage: React.FC = () => {
         </Logo>
         <UserInfo>
           <UserMenu
-            onOpenLogin={() => setLoginModalOpen(true)}
-            onOpenSignup={() => setSignupModalOpen(true)}
-            onOpenMyPage={() => setMyPageModalOpen(true)}
+            onOpenLogin={handleOpenLogin}
+            onOpenSignup={handleOpenSignup}
+            onOpenMyPage={handleOpenMyPage}
           />
         </UserInfo>
       </Header>

@@ -740,6 +740,7 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
     checkSavedData,
     saveToMongoDB,
     currentDiagramId,
+    setCurrentDiagramName,
     isAuthenticated,
     isReadOnlyMode,
     clearLocalStorage // 데이터 삭제를 위해 추가
@@ -1031,6 +1032,7 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
   const saveNameChange = async () => {
     const newName = tempName.trim() || '제목 없는 다이어그램';
     setDiagramName(newName);
+    setCurrentDiagramName(newName); // store에도 업데이트
     setIsEditingName(false);
     
     // MongoDB에 저장된 다이어그램 이름 업데이트

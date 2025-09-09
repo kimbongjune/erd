@@ -565,6 +565,11 @@ const HomePage: React.FC = () => {
   const { user, isAuthenticated, loading } = useAuth();
   const { fetchDiagrams, saveAsNew, deleteDiagram: deleteMongoDBDiagram } = useMongoDBDiagrams();
 
+  // 페이지 타이틀 설정
+  useEffect(() => {
+    document.title = '홈';
+  }, []);
+
   // UserMenu 콜백 함수들을 useCallback으로 최적화
   const handleOpenLogin = useCallback(() => {
     setLoginModalOpen(true);

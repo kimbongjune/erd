@@ -41,6 +41,12 @@ export default function RootLayout({
 
   return (
     <html lang="ko">
+      <head>
+        <link rel="icon" href="/favicon.ico" sizes="32x32" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <title>ERD Editor</title>
+        <meta name="description" content="MySQL Workbench style ERD Editor" />
+      </head>
       <body className="lang-ko">
         <SessionProvider>
           <StyledComponentsRegistry>

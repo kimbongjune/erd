@@ -1313,7 +1313,9 @@ type RFState = {
   
   // MongoDB 관련 상태 및 함수들
   currentDiagramId: string | null;
+  currentDiagramName: string | null;
   setCurrentDiagramId: (id: string | null) => void;
+  setCurrentDiagramName: (name: string | null) => void;
   isAuthenticated: boolean;
   setIsAuthenticated: (authenticated: boolean) => void;
   isReadOnlyMode: boolean;
@@ -1377,6 +1379,7 @@ const useStore = create<RFState>((set, get) => ({
   
   // MongoDB 관련 상태
   currentDiagramId: null,
+  currentDiagramName: null,
   isAuthenticated: false,
   isReadOnlyMode: false,
   diagramOwner: null,
@@ -5365,6 +5368,10 @@ const useStore = create<RFState>((set, get) => ({
   setCurrentDiagramId: (id: string | null) => {
     set({ currentDiagramId: id });
   },
+
+  setCurrentDiagramName: (name: string | null) => {
+    set({ currentDiagramName: name });
+  },
   
   setIsAuthenticated: (authenticated: boolean) => {
     set({ isAuthenticated: authenticated });
@@ -5461,6 +5468,7 @@ const useStore = create<RFState>((set, get) => ({
         // 빈 다이어그램인 경우 프로그래스바 없이 바로 로드
         set({
           currentDiagramId: diagramId,
+          currentDiagramName: diagram.title,
           nodes: [],
           edges: [],
           nodeColors: new Map(),
@@ -5515,6 +5523,7 @@ const useStore = create<RFState>((set, get) => ({
       // 최종 데이터 설정 먼저 수행
       set({
         currentDiagramId: diagramId,
+        currentDiagramName: diagram.title,
         nodes: data.nodes || [],
         edges: data.edges || [],
         nodeColors: new Map(Object.entries(data.nodeColors || {})),

@@ -29,7 +29,8 @@ const ERDEditor: React.FC<ERDEditorProps> = ({ erdId }) => {
     nodes, 
     theme, 
     setLoading, 
-    currentDiagramId 
+    currentDiagramId,
+    currentDiagramName
   } = useStore();
   const { isAuthenticated, user, loading } = useAuth();
   const { fetchDiagram } = useMongoDBDiagrams();
@@ -84,6 +85,13 @@ const ERDEditor: React.FC<ERDEditorProps> = ({ erdId }) => {
 
     checkPermissionAndLoad();
   }, [erdId, loading]); // isAuthenticated와 user 의존성 제거
+
+  // 다이어그램 이름이 로드되면 페이지 타이틀 설정
+  useEffect(() => {
+    if (currentDiagramName) {
+      document.title = currentDiagramName;
+    }
+  }, [currentDiagramName]);
 
   if (!erdId) {
     return <div>잘못된 접근입니다.</div>;

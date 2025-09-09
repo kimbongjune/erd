@@ -1,4 +1,5 @@
 import { useSession, signIn, signOut } from 'next-auth/react';
+import axios from 'axios';
 
 export const useAuth = () => {
   const { data: session, status, update } = useSession();
@@ -20,61 +21,35 @@ export const useAuth = () => {
 
   const updateDisplayName = async (displayName: string) => {
     try {
-      const response = await fetch('/api/user/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: displayName }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        return { success: false, error: error.error || '이름 변경에 실패했습니다.' };
-      }
-
-      const result = await response.json();
+      const response = await axios.put('/api/user/profile', { name: displayName });
       
       // 세션 강제 업데이트
       await update({
-        name: result.user.name,
-        image: result.user.image
+        name: response.data.user.name,
+        image: response.data.user.image
       });
       
       return { success: true };
-    } catch (error) {
+    } catch (error: any) {
       console.error('이름 변경 오류:', error);
-      return { success: false, error: '이름 변경 중 오류가 발생했습니다.' };
+      return { success: false, error: error.response?.data?.error || '이름 변경에 실패했습니다.' };
     }
   };
 
   const updateProfileImage = async (imageUrl: string) => {
     try {
-      const response = await fetch('/api/user/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ image: imageUrl }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        return { success: false, error: error.error || '프로필 이미지 변경에 실패했습니다.' };
-      }
-
-      const result = await response.json();
+      const response = await axios.put('/api/user/profile', { image: imageUrl });
       
       // 세션 강제 업데이트
       await update({
-        name: result.user.name,
-        image: result.user.image
+        name: response.data.user.name,
+        image: response.data.user.image
       });
       
       return { success: true };
-    } catch (error) {
+    } catch (error: any) {
       console.error('프로필 이미지 변경 오류:', error);
-      return { success: false, error: '프로필 이미지 변경 중 오류가 발생했습니다.' };
+      return { success: false, error: error.response?.data?.error || '프로필 이미지 변경에 실패했습니다.' };
     }
   };
 

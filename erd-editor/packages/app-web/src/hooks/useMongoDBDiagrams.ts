@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from './useAuth';
 import { toast } from 'react-toastify';
+import axios from 'axios';
 
 interface DiagramMetadata {
   id: string;
@@ -67,14 +68,9 @@ export const useMongoDBDiagrams = () => {
       if (params.sortBy) searchParams.append('sortBy', params.sortBy);
       if (params.sortOrder) searchParams.append('sortOrder', params.sortOrder);
 
-      const response = await fetch(`/api/diagrams?${searchParams.toString()}`);
+      const response = await axios.get(`/api/diagrams?${searchParams.toString()}`);
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
+      return response.data;
 
     } catch (error) {
       console.error('Error fetching diagrams:', error);
@@ -91,17 +87,9 @@ export const useMongoDBDiagrams = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/diagrams/${id}`);
+      const response = await axios.get(`/api/diagrams/${id}`);
       
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Diagram not found');
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data.diagram;
+      return response.data.diagram;
 
     } catch (error) {
       console.error('Error fetching diagram:', error);
@@ -149,26 +137,15 @@ export const useMongoDBDiagrams = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/diagrams', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title,
-          description,
-          isPublic,
-          tags,
-          erdData: defaultErdData
-        }),
+      const response = await axios.post('/api/diagrams', {
+        title,
+        description,
+        isPublic,
+        tags,
+        erdData: defaultErdData
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data;
+      return response.data;
 
     } catch (error) {
       console.error('Error creating diagram:', error);
@@ -194,23 +171,9 @@ export const useMongoDBDiagrams = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/diagrams/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updates),
-      });
+      const response = await axios.put(`/api/diagrams/${id}`, updates);
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Diagram not found');
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data;
+      return response.data;
 
     } catch (error) {
       console.error('Error updating diagram:', error);
@@ -227,16 +190,7 @@ export const useMongoDBDiagrams = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/diagrams/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Diagram not found');
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      await axios.delete(`/api/diagrams/${id}`);
 
     } catch (error) {
       console.error('Error deleting diagram:', error);

@@ -8,6 +8,7 @@ import { toast } from 'react-toastify';
 import { customConfirm } from '../utils/confirmUtils';
 import { useMongoDBDiagrams } from '../hooks/useMongoDBDiagrams';
 import { useAuth } from '../hooks/useAuth';
+import axios from 'axios';
 
 const HeaderContainer = styled.header<{ $darkMode?: boolean }>`
   grid-area: header;
@@ -840,15 +841,10 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
       }
 
       try {
-        const response = await fetch(`/api/diagrams/${currentDiagramId}`);
-        if (response.ok) {
-          const { diagram } = await response.json();
-          setDiagramName(diagram.title || '제목 없는 다이어그램');
-          setIsPublic(diagram.isPublic || false); // isPublic 상태도 로드
-        } else {
-          setDiagramName('제목 없는 다이어그램');
-          setIsPublic(false);
-        }
+        const response = await axios.get(`/api/diagrams/${currentDiagramId}`);
+        const { diagram } = response.data;
+        setDiagramName(diagram.title || '제목 없는 다이어그램');
+        setIsPublic(diagram.isPublic || false); // isPublic 상태도 로드
       } catch (error) {
         console.error('다이어그램 이름 로드 실패:', error);
         setDiagramName('제목 없는 다이어그램');
@@ -1144,22 +1140,12 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
 
     try {
       const newIsPublic = !isPublic;
-      const response = await fetch(`/api/diagrams/${currentDiagramId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          isPublic: newIsPublic
-        }),
+      await axios.put(`/api/diagrams/${currentDiagramId}`, {
+        isPublic: newIsPublic
       });
 
-      if (response.ok) {
-        setIsPublic(newIsPublic);
-        // 토스트 메시지 제거
-      } else {
-        throw new Error('상태 변경에 실패했습니다.');
-      }
+      setIsPublic(newIsPublic);
+      // 토스트 메시지 제거
     } catch (error) {
       console.error('Public/Private 상태 변경 실패:', error);
       toast.error('상태 변경에 실패했습니다.');

@@ -5,6 +5,7 @@ import useStore from '../store/useStore';
 import { useAuth } from '../hooks/useAuth';
 import { useMongoDBDiagrams } from '../hooks/useMongoDBDiagrams';
 import styled from 'styled-components';
+import axios from 'axios';
 
 const ERDContainer = styled.div`
   width: 100vw;
@@ -55,19 +56,9 @@ const ERDEditor: React.FC<ERDEditorProps> = ({ erdId }) => {
     const checkPermissionAndLoad = async () => {
       try {
         // 다이어그램 정보 먼저 조회
-        const response = await fetch(`/api/diagrams/${erdId}`);
+        const response = await axios.get(`/api/diagrams/${erdId}`);
         
-        if (response.status === 401) {
-          // 권한 없음 - 로그인이 필요하거나 비공개 다이어그램
-          router.push('/home');
-          return;
-        }
-        
-        if (!response.ok) {
-          throw new Error('다이어그램을 찾을 수 없습니다.');
-        }
-        
-        const data = await response.json();
+        const data = response.data;
         const { diagram, isOwner, userEmail } = data;
         
         // 다이어그램 소유자 정보 설정
@@ -80,8 +71,13 @@ const ERDEditor: React.FC<ERDEditorProps> = ({ erdId }) => {
         setCurrentDiagramId(erdId);
         await loadFromMongoDB(erdId);
         
-      } catch (error) {
+      } catch (error: any) {
         console.error('다이어그램 로드 실패:', error);
+        // 401 오류인 경우 권한 없음 처리
+        if (error?.response?.status === 401) {
+          router.push('/home');
+          return;
+        }
         router.push('/home');
       }
     };

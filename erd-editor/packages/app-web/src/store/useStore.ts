@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Node, Edge, OnNodesChange, OnEdgesChange, applyNodeChanges, applyEdgeChanges, addEdge, Connection, NodeChange, MarkerType } from 'reactflow';
 import { toast } from 'react-toastify';
+import axios from 'axios';
 import { createHandleId } from '../utils/handleUtils';
 import { validateDataTypeForSQL } from '../utils/mysqlTypes';
 import { 
@@ -5424,17 +5425,7 @@ const useStore = create<RFState>((set, get) => ({
         viewportRestoreTrigger: state.viewportRestoreTrigger,
       };
       
-      const response = await fetch(`/api/diagrams/${state.currentDiagramId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ erdData }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const response = await axios.put(`/api/diagrams/${state.currentDiagramId}`, { erdData });
       
       if (showToast) {
         toast.success('ERD 데이터가 성공적으로 저장되었습니다!');
@@ -5458,16 +5449,9 @@ const useStore = create<RFState>((set, get) => ({
     
     try {
       // 먼저 데이터 요청 (프로그래스바 없이)
-      const response = await fetch(`/api/diagrams/${diagramId}`);
+      const response = await axios.get(`/api/diagrams/${diagramId}`);
       
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('다이어그램을 찾을 수 없습니다.');
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const { diagram } = await response.json();
+      const { diagram } = response.data;
       const data = diagram.erdData;
       
       // 데이터가 비어있는지 확인 (노드나 엣지가 없는 경우)

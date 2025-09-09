@@ -200,12 +200,42 @@ export const useMongoDBDiagrams = () => {
     }
   };
 
+  const cloneDiagram = async (
+    originalDiagram: any,
+    newTitle?: string
+  ): Promise<any> => {
+    if (!isAuthenticated) {
+      throw new Error('User not authenticated');
+    }
+
+    setIsLoading(true);
+    try {
+      const clonedData = {
+        title: newTitle || `${originalDiagram.title} - 복제`,
+        description: originalDiagram.description || '',
+        isPublic: false, // 복제본은 기본적으로 비공개
+        tags: originalDiagram.tags || [],
+        erdData: originalDiagram.erdData
+      };
+
+      const response = await axios.post('/api/diagrams', clonedData);
+      return response.data;
+
+    } catch (error) {
+      console.error('Error cloning diagram:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     isLoading,
     fetchDiagrams,
     fetchDiagram,
     saveAsNew,
     updateDiagram,
-    deleteDiagram
+    deleteDiagram,
+    cloneDiagram
   };
 };

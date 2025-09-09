@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash, FaUpload, FaImage, FaPlus, FaHome, FaEdit, FaSearch, FaTimes, FaGlobe, FaEllipsisV, FaTachometerAlt, FaUndo, FaRedo, FaLock, FaUnlock } from 'react-icons/fa';
+import { FaDownload, FaChevronDown, FaSave, FaFolderOpen, FaTrash, FaUpload, FaImage, FaPlus, FaHome, FaEdit, FaSearch, FaTimes, FaGlobe, FaEllipsisV, FaTachometerAlt, FaUndo, FaRedo, FaLock, FaUnlock, FaCopy } from 'react-icons/fa';
 import { GrMysql } from "react-icons/gr";
 import { useRouter } from 'next/navigation';
 import useStore from '../store/useStore';
@@ -750,7 +750,8 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
     fetchDiagrams,
     saveAsNew,
     updateDiagram,
-    deleteDiagram: deleteDiagramFromMongoDB
+    deleteDiagram: deleteDiagramFromMongoDB,
+    cloneDiagram
   } = useMongoDBDiagrams();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1076,6 +1077,43 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
   // 엔티티가 없을 때 경고 메시지 표시
   const showNoEntitiesWarning = () => {
     toast.warning('내보낼 엔티티가 없습니다. 먼저 엔티티를 생성해주세요.');
+  };
+
+  // 현재 다이어그램 복제 함수
+  const handleCloneDiagram = async () => {
+    if (!isAuthenticated || !user) {
+      toast.error('로그인이 필요합니다.');
+      return;
+    }
+
+    if (!currentErdId) {
+      toast.error('복제할 다이어그램이 없습니다.');
+      return;
+    }
+
+    try {
+      // 현재 다이어그램 정보를 먼저 가져오기
+      const response = await axios.get(`/api/diagrams/${currentErdId}`);
+      const { diagram } = response.data;
+
+      // 다이어그램 복제
+      const clonedDiagram = await cloneDiagram(diagram);
+      
+      if (clonedDiagram.diagram && clonedDiagram.diagram.id) {
+        toast.success('다이어그램이 성공적으로 복제되었습니다.');
+        router.push(`/erd/${clonedDiagram.diagram.id}`);
+        setIsNavDropdownOpen(false);
+      } else {
+        throw new Error('복제된 다이어그램 정보가 올바르지 않습니다.');
+      }
+    } catch (error: any) {
+      console.error('다이어그램 복제 실패:', error);
+      if (error?.response?.status === 401) {
+        toast.error('다이어그램에 접근할 권한이 없습니다.');
+      } else {
+        toast.error('다이어그램 복제에 실패했습니다.');
+      }
+    }
   };
 
   // 데이터 삭제 함수 (엔티티 존재 여부 체크)
@@ -1418,6 +1456,16 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
                 홈으로 가기
               </div>
             </NavDropdownItem>
+            
+            {/* 읽기 전용 모드이면서 로그인한 경우 복제 버튼 표시 */}
+            {isReadOnlyMode && isAuthenticated && user && (
+              <NavDropdownItem $darkMode={theme === 'dark'} onClick={handleCloneDiagram}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <FaCopy />
+                  복제
+                </div>
+              </NavDropdownItem>
+            )}
             
             {/* 읽기 전용 모드가 아닐 때만 표시 (본인 다이어그램일 때) */}
             {!isReadOnlyMode && (

@@ -1310,6 +1310,10 @@ type RFState = {
   setCurrentDiagramId: (id: string | null) => void;
   isAuthenticated: boolean;
   setIsAuthenticated: (authenticated: boolean) => void;
+  isReadOnlyMode: boolean;
+  setIsReadOnlyMode: (readOnly: boolean) => void;
+  diagramOwner: string | null;
+  setDiagramOwner: (owner: string | null) => void;
   saveToMongoDB: (showToast?: boolean) => Promise<void>;
   loadFromMongoDB: (diagramId: string) => Promise<void>;
   autoSaveToMongoDB: () => void;
@@ -1367,6 +1371,8 @@ const useStore = create<RFState>((set, get) => ({
   // MongoDB 관련 상태
   currentDiagramId: null,
   isAuthenticated: false,
+  isReadOnlyMode: false,
+  diagramOwner: null,
   
   // 색상 팔레트 관련 초기값
   nodeColors: new Map(),
@@ -3073,10 +3079,13 @@ const useStore = create<RFState>((set, get) => ({
     set((state) => ({ 
       viewSettings: { ...state.viewSettings, ...settings } 
     }));
-    // 뷰 설정 변경 시 localStorage에 자동 저장
-    setTimeout(() => {
-      get().saveToLocalStorage(false);
-    }, 0);
+    // 읽기 전용 모드가 아닐 때만 localStorage에 자동 저장
+    const state = get();
+    if (!state.isReadOnlyMode) {
+      setTimeout(() => {
+        get().saveToLocalStorage(false);
+      }, 0);
+    }
   },
   
   // 테마 함수들
@@ -5340,8 +5349,21 @@ const useStore = create<RFState>((set, get) => ({
     set({ isAuthenticated: authenticated });
   },
   
+  setIsReadOnlyMode: (readOnly: boolean) => {
+    set({ isReadOnlyMode: readOnly });
+  },
+  
+  setDiagramOwner: (owner: string | null) => {
+    set({ diagramOwner: owner });
+  },
+  
   saveToMongoDB: async (showToast = true) => {
     const state = get();
+    
+    // 읽기 전용 모드에서는 저장하지 않음
+    if (state.isReadOnlyMode) {
+      return;
+    }
     
     if (!state.isAuthenticated || !state.currentDiagramId) {
       if (showToast) {
@@ -5409,11 +5431,6 @@ const useStore = create<RFState>((set, get) => ({
   
   loadFromMongoDB: async (diagramId: string) => {
     const state = get();
-    
-    if (!state.isAuthenticated) {
-      toast.error('로그인이 필요합니다.');
-      return;
-    }
     
     if (state.isLoading) {
       return;

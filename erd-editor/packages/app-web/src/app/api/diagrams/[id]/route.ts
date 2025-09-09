@@ -11,23 +11,35 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     await connectToDatabase();
     const { id } = await params;
 
-    const diagram = await Diagram.findOne({
-      _id: id,
-      userEmail: session.user.email
-    });
+    // 먼저 다이어그램이 존재하는지 확인
+    const diagram = await Diagram.findById(id);
 
     if (!diagram) {
       return NextResponse.json({ error: 'Diagram not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ diagram });
+    // 소유자인지 확인
+    const isOwner = session?.user?.email === diagram.userEmail;
+    
+    // 로그인하지 않았고 비공개 다이어그램인 경우
+    if (!session?.user?.email && !diagram.isPublic) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // 로그인했지만 소유자가 아니고 비공개 다이어그램인 경우
+    if (session?.user?.email && !isOwner && !diagram.isPublic) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // 응답에 소유자 정보 포함
+    return NextResponse.json({ 
+      diagram,
+      isOwner,
+      userEmail: diagram.userEmail
+    });
 
   } catch (error) {
     const { id } = await params;

@@ -74,11 +74,17 @@ const ToolButton = styled.button<{ $isActive?: boolean; $darkMode?: boolean }>`
   font-size: 20px;
   transition: all 0.2s ease-in-out;
   position: relative;
+  z-index: 100;
 
   &:hover {
     border-color: #007acc;
     background-color: ${props => props.$darkMode ? '#4a5568' : '#f0f8ff'};
     color: #007acc;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   &::after {
@@ -97,10 +103,16 @@ const ToolButton = styled.button<{ $isActive?: boolean; $darkMode?: boolean }>`
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease-in-out;
-    z-index: 1000;
+    z-index: 10000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
   &:hover::after {
+    opacity: 1;
+  }
+
+  /* disabled 상태에서도 툴팁이 보이도록 */
+  &:disabled:hover::after {
     opacity: 1;
   }
 `;
@@ -113,10 +125,16 @@ const Toolbox = () => {
   const setCreateMode = useStore((state) => state.setCreateMode);
   const setSelectMode = useStore((state) => state.setSelectMode);
   const theme = useStore((state) => state.theme);
+  const isReadOnlyMode = useStore((state) => state.isReadOnlyMode);
 
   const isDarkMode = theme === 'dark';
 
   const handleToolClick = (tool: string) => {
+    // 읽기 전용 모드에서는 선택 모드만 허용
+    if (isReadOnlyMode && tool !== 'select') {
+      return;
+    }
+    
     if (tool === 'select') {
       setSelectMode(true);
       setConnectionMode(null);
@@ -147,7 +165,12 @@ const Toolbox = () => {
         $isActive={createMode === 'entity'}
         $darkMode={isDarkMode}
         onClick={() => handleToolClick('entity')}
-        title="엔터티 생성"
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 엔터티를 생성할 수 없습니다" : "엔터티 생성"}
+        disabled={isReadOnlyMode}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
       >
         <FaTable />
       </ToolButton>
@@ -156,7 +179,12 @@ const Toolbox = () => {
         $isActive={createMode === 'comment'}
         $darkMode={isDarkMode}
         onClick={() => handleToolClick('comment')}
-        title="코멘트 생성"
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 코멘트를 생성할 수 없습니다" : "코멘트 생성"}
+        disabled={isReadOnlyMode}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
       >
         <FiMessageSquare />
       </ToolButton>
@@ -165,7 +193,12 @@ const Toolbox = () => {
         $isActive={createMode === 'image'}
         $darkMode={isDarkMode}
         onClick={() => handleToolClick('image')}
-        title="이미지 생성"
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 이미지를 생성할 수 없습니다" : "이미지 생성"}
+        disabled={isReadOnlyMode}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
       >
         <FiImage />
       </ToolButton>
@@ -174,7 +207,12 @@ const Toolbox = () => {
         $isActive={connectionMode === 'oneToOneIdentifying'}
         $darkMode={isDarkMode}
         onClick={() => handleToolClick('oneToOneIdentifying')}
-        title="1:1 식별 관계"
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 관계를 생성할 수 없습니다" : "1:1 식별 관계"}
+        disabled={isReadOnlyMode}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
       >
         <OneToOneIdentifyingIcon />
       </ToolButton>
@@ -183,7 +221,12 @@ const Toolbox = () => {
         $isActive={connectionMode === 'oneToOneNonIdentifying'}
         $darkMode={isDarkMode}
         onClick={() => handleToolClick('oneToOneNonIdentifying')}
-        title="1:1 비식별 관계"
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 관계를 생성할 수 없습니다" : "1:1 비식별 관계"}
+        disabled={isReadOnlyMode}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
       >
         <OneToOneNonIdentifyingIcon />
       </ToolButton>
@@ -192,7 +235,12 @@ const Toolbox = () => {
         $isActive={connectionMode === 'oneToManyIdentifying'}
         $darkMode={isDarkMode}
         onClick={() => handleToolClick('oneToManyIdentifying')}
-        title="1:N 식별 관계"
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 관계를 생성할 수 없습니다" : "1:N 식별 관계"}
+        disabled={isReadOnlyMode}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
       >
         <OneToManyIdentifyingIcon />
       </ToolButton>
@@ -201,7 +249,12 @@ const Toolbox = () => {
         $isActive={connectionMode === 'oneToManyNonIdentifying'}
         $darkMode={isDarkMode}
         onClick={() => handleToolClick('oneToManyNonIdentifying')}
-        title="1:N 비식별 관계"
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 관계를 생성할 수 없습니다" : "1:N 비식별 관계"}
+        disabled={isReadOnlyMode}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
       >
         <OneToManyNonIdentifyingIcon />
       </ToolButton>

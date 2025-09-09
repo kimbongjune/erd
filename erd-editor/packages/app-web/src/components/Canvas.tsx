@@ -77,6 +77,7 @@ const Canvas = React.memo(() => {
   const theme = useStore((state) => state.theme);
   const hiddenEntities = useStore((state) => state.hiddenEntities);
   const exportToImage = useStore((state) => state.exportToImage);
+  const isReadOnlyMode = useStore((state) => state.isReadOnlyMode);
   
   // 복사-붙여넣기 관련
   const copyNode = useStore((state) => state.copyNode);
@@ -202,6 +203,7 @@ const Canvas = React.memo(() => {
       if (event.key === 'c' || event.key === 'C') {
         // Ctrl+C = Copy
         event.preventDefault();
+        if (isReadOnlyMode) return; // 읽기 전용 모드에서는 복사 차단
         const selectedNodeId = useStore.getState().selectedNodeId;
         if (selectedNodeId) {
           copyNode(selectedNodeId);
@@ -211,6 +213,7 @@ const Canvas = React.memo(() => {
       if (event.key === 'v' || event.key === 'V') {
         // Ctrl+V = Paste (원본 노드 오른쪽 아래)
         event.preventDefault();
+        if (isReadOnlyMode) return; // 읽기 전용 모드에서는 붙여넣기 차단
         pasteNode();
         return;
       }
@@ -228,6 +231,11 @@ const Canvas = React.memo(() => {
       // 커멘트 편집 중일 때는 노드 삭제하지 않음
       const editingCommentId = useStore.getState().editingCommentId;
       if (editingCommentId) {
+        return;
+      }
+      
+      // 읽기 전용 모드에서는 삭제 차단
+      if (isReadOnlyMode) {
         return;
       }
       
@@ -483,7 +491,8 @@ const Canvas = React.memo(() => {
     const setSelectedSearchEntity = useStore.getState().setSelectedSearchEntity;
     setSelectedSearchEntity(null);
     
-    if (createMode) {
+    // 읽기 전용 모드가 아닐 때만 노드 생성 처리
+    if (!isReadOnlyMode && createMode) {
       const position = screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
@@ -545,7 +554,10 @@ const Canvas = React.memo(() => {
         useStore.getState().setCreateMode(null);
         useStore.getState().setSelectMode(true);
       }
-    } else {
+    }
+    
+    // 노드 생성 모드가 아니거나 읽기 전용 모드일 때는 선택 해제
+    if (!createMode || isReadOnlyMode) {
       // 캔버스 빈 공간 클릭 시 모든 선택 해제
       setSelectedNodeId(null);
       setSelectedEdgeId(null);
@@ -640,26 +652,29 @@ const Canvas = React.memo(() => {
   }, [copiedNode]);
 
   const handleContextMenuDelete = useCallback(() => {
+    if (isReadOnlyMode) return; // 읽기 전용 모드에서는 삭제 차단
     if (contextMenu.type === 'node') {
       useStore.getState().deleteNode(contextMenu.targetId);
     } else if (contextMenu.type === 'edge') {
       useStore.getState().deleteEdge(contextMenu.targetId);
     }
-  }, [contextMenu]);
+  }, [contextMenu, isReadOnlyMode]);
 
   const handleContextMenuCopy = useCallback(() => {
+    if (isReadOnlyMode) return; // 읽기 전용 모드에서는 복사 차단
     if (contextMenu.type === 'node') {
       copyNode(contextMenu.targetId);
     }
     setContextMenu(prev => ({ ...prev, visible: false }));
-  }, [contextMenu, copyNode]);
+  }, [contextMenu, copyNode, isReadOnlyMode]);
 
   const handleContextMenuPaste = useCallback(() => {
+    if (isReadOnlyMode) return; // 읽기 전용 모드에서는 붙여넣기 차단
     if (contextMenu.type === 'pane' && contextMenu.clickPosition) {
       pasteNode(contextMenu.clickPosition);
     }
     setContextMenu(prev => ({ ...prev, visible: false }));
-  }, [contextMenu, pasteNode]);
+  }, [contextMenu, pasteNode, isReadOnlyMode]);
 
   const handleContextMenuClose = useCallback(() => {
     setContextMenu(prev => ({ ...prev, visible: false }));
@@ -1028,8 +1043,12 @@ const Canvas = React.memo(() => {
         onPaneContextMenu={handlePaneContextMenu}
         defaultEdgeOptions={{}}
         panOnDrag={!connectionMode && !createMode && !editingCommentId}
-        selectionOnDrag={!connectionMode && !createMode && !editingCommentId}
-        nodesDraggable={!connectionMode && !editingCommentId}
+        selectionOnDrag={!connectionMode && !createMode && !editingCommentId && !isReadOnlyMode}
+        nodesDraggable={!connectionMode && !editingCommentId && !isReadOnlyMode}
+        nodesConnectable={!isReadOnlyMode}
+        edgesFocusable={!isReadOnlyMode}
+        edgesUpdatable={!isReadOnlyMode}
+        elementsSelectable={!isReadOnlyMode}
         connectionLineComponent={connectionMode ? CustomConnectionLine : undefined}
         elevateNodesOnSelect={false}
         elevateEdgesOnSelect={false}
@@ -1045,10 +1064,9 @@ const Canvas = React.memo(() => {
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         attributionPosition="bottom-left"
         proOptions={{ hideAttribution: true }}
-        deleteKeyCode={editingCommentId ? null : undefined}
-        multiSelectionKeyCode={editingCommentId ? null : undefined}
+        deleteKeyCode={editingCommentId || isReadOnlyMode ? null : undefined}
+        multiSelectionKeyCode={editingCommentId || isReadOnlyMode ? null : undefined}
         onlyRenderVisibleElements={false}
-        elementsSelectable={true}
         fitView={false}
         snapToGrid={false}
         snapGrid={[15, 15]}
@@ -1141,8 +1159,9 @@ const Canvas = React.memo(() => {
         onClose={handleContextMenuClose}
         onCopy={handleContextMenuCopy}
         onPaste={handleContextMenuPaste}
-        canCopy={contextMenu.type === 'node'}
-        canPaste={contextMenu.type === 'pane' && !!copiedNode}
+        canCopy={contextMenu.type === 'node' && !isReadOnlyMode}
+        canPaste={contextMenu.type === 'pane' && !!copiedNode && !isReadOnlyMode}
+        canDelete={!isReadOnlyMode}
       />
       
       {/* 검색 패널 */}

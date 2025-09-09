@@ -73,26 +73,35 @@ const ZoomDisplay = styled.div<{ $darkMode?: boolean }>`
   }
 `;
 
-const ToolbarButton = styled.button<{ $active?: boolean; $darkMode?: boolean }>`
+const ToolbarButton = styled.button<{ $active?: boolean; $darkMode?: boolean; $disabled?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
   width: 40px;
   height: 40px;
   border: none;
-  background: ${props => props.$active ? (props.$darkMode ? 'rgba(96, 165, 250, 0.25)' : 'rgba(0, 122, 204, 0.15)') : 'transparent'};
+  background: ${props => 
+    props.$disabled ? 'transparent' :
+    props.$active ? (props.$darkMode ? 'rgba(96, 165, 250, 0.25)' : 'rgba(0, 122, 204, 0.15)') : 'transparent'};
   border-radius: 6px;
-  cursor: pointer;
-  color: ${props => props.$active ? (props.$darkMode ? '#60a5fa' : '#007acc') : (props.$darkMode ? '#cbd5e0' : '#666')};
+  cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
+  color: ${props => 
+    props.$disabled ? (props.$darkMode ? '#4a5568' : '#ccc') :
+    props.$active ? (props.$darkMode ? '#60a5fa' : '#007acc') : (props.$darkMode ? '#cbd5e0' : '#666')};
+  opacity: ${props => props.$disabled ? 0.5 : 1};
   transition: all 0.2s ease;
   
   &:hover {
-    background: ${props => props.$darkMode ? 'rgba(96, 165, 250, 0.15)' : 'rgba(0, 122, 204, 0.1)'};
-    color: ${props => props.$darkMode ? '#60a5fa' : '#007acc'};
+    background: ${props => 
+      props.$disabled ? 'transparent' :
+      props.$darkMode ? 'rgba(96, 165, 250, 0.15)' : 'rgba(0, 122, 204, 0.1)'};
+    color: ${props => 
+      props.$disabled ? (props.$darkMode ? '#4a5568' : '#ccc') :
+      props.$darkMode ? '#60a5fa' : '#007acc'};
   }
   
   &:active {
-    transform: scale(0.95);
+    transform: ${props => props.$disabled ? 'none' : 'scale(0.95)'};
   }
 `;
 
@@ -150,6 +159,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   const theme = useStore((state) => state.theme);
   const edges = useStore((state) => state.edges);
   const nodes = useStore((state) => state.nodes);
+  const isReadOnlyMode = useStore((state) => state.isReadOnlyMode);
   
   // 복사-붙여넣기 관련
   const selectedNodeId = useStore((state) => state.selectedNodeId);
@@ -255,6 +265,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   };
 
   const handleAlign = () => {
+    if (isReadOnlyMode) return;
     setShowAlignPopup(!showAlignPopup);
   };
 
@@ -309,12 +320,14 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   };
 
   const handleCopy = () => {
+    if (isReadOnlyMode) return;
     if (selectedNodeId) {
       copyNode(selectedNodeId);
     }
   };
 
   const handlePaste = () => {
+    if (isReadOnlyMode) return;
     pasteNode(); // Ctrl+V와 동일하게 원본 노드 오른쪽 아래에 붙여넣기
   };
 
@@ -359,14 +372,24 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
         
         <Divider $darkMode={isDarkMode} />
         
-        <div onMouseEnter={(e) => handleMouseEnter(e, '복사')} onMouseLeave={handleMouseLeave}>
-          <ToolbarButton onClick={handleCopy} $darkMode={isDarkMode} $active={!!selectedNodeId}>
+        <div onMouseEnter={(e) => handleMouseEnter(e, isReadOnlyMode ? '읽기 전용 모드에서는 복사할 수 없습니다' : '복사')} onMouseLeave={handleMouseLeave}>
+          <ToolbarButton 
+            onClick={handleCopy} 
+            $darkMode={isDarkMode} 
+            $active={!!selectedNodeId && !isReadOnlyMode}
+            $disabled={isReadOnlyMode}
+          >
             <FaCopy size={16} />
           </ToolbarButton>
         </div>
         
-        <div onMouseEnter={(e) => handleMouseEnter(e, '붙여넣기')} onMouseLeave={handleMouseLeave}>
-          <ToolbarButton onClick={handlePaste} $darkMode={isDarkMode} $active={!!copiedNode}>
+        <div onMouseEnter={(e) => handleMouseEnter(e, isReadOnlyMode ? '읽기 전용 모드에서는 붙여넣기할 수 없습니다' : '붙여넣기')} onMouseLeave={handleMouseLeave}>
+          <ToolbarButton 
+            onClick={handlePaste} 
+            $darkMode={isDarkMode} 
+            $active={!!copiedNode && !isReadOnlyMode}
+            $disabled={isReadOnlyMode}
+          >
             <FaPaste size={16} />
           </ToolbarButton>
         </div>
@@ -385,8 +408,13 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
           </ToolbarButton>
         </div>
         
-        <div onMouseEnter={(e) => handleMouseEnter(e, '정렬')} onMouseLeave={handleMouseLeave}>
-          <ToolbarButton onClick={handleAlign} $active={showAlignPopup} $darkMode={isDarkMode}>
+        <div onMouseEnter={(e) => handleMouseEnter(e, isReadOnlyMode ? '읽기 전용 모드에서는 정렬할 수 없습니다' : '정렬')} onMouseLeave={handleMouseLeave}>
+          <ToolbarButton 
+            onClick={handleAlign} 
+            $active={showAlignPopup && !isReadOnlyMode} 
+            $darkMode={isDarkMode}
+            $disabled={isReadOnlyMode}
+          >
             <FaTh size={16} />
           </ToolbarButton>
         </div>

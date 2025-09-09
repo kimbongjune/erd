@@ -68,6 +68,7 @@ const OneToManyNonIdentifyingEdge: React.FC<OneToManyNonIdentifyingEdgeProps> = 
   const paletteTarget = useStore((state) => state.paletteTarget);
   const showPalette = useStore((state) => state.showPalette);
   const hidePalette = useStore((state) => state.hidePalette);
+  const isReadOnlyMode = useStore((state) => state.isReadOnlyMode);
   const saveHistoryState = useStore((state) => state.saveHistoryState);
   const clearRelationsHighlight = useStore((state) => state.clearRelationsHighlight);
   
@@ -91,6 +92,7 @@ const OneToManyNonIdentifyingEdge: React.FC<OneToManyNonIdentifyingEdgeProps> = 
   
   // 팔레트 핸들러들
   const handlePaletteClick = useCallback((e: React.MouseEvent) => {
+    if (isReadOnlyMode) return; // 읽기 전용 모드에서는 색상 변경 차단
     e.stopPropagation();
     e.preventDefault();
     
@@ -98,7 +100,7 @@ const OneToManyNonIdentifyingEdge: React.FC<OneToManyNonIdentifyingEdgeProps> = 
       { type: 'edge', id }, 
       { x: 0, y: 0 }
     );
-  }, [id, showPalette]);
+  }, [id, showPalette, isReadOnlyMode]);
 
   const handleColorSelect = useCallback((color: string) => {
     const oldColor = getEdgeColor(id);
@@ -294,13 +296,15 @@ const OneToManyNonIdentifyingEdge: React.FC<OneToManyNonIdentifyingEdgeProps> = 
           top: labelY - 12,
           pointerEvents: 'all'
         }}>
-          <PaletteButton 
-            $isVisible={isSelected}
-            $color={actualColor}
-            onClick={handlePaletteClick}
-          >
-            <FaPalette />
-          </PaletteButton>
+          {!isReadOnlyMode && (
+            <PaletteButton 
+              $isVisible={isSelected}
+              $color={actualColor}
+              onClick={handlePaletteClick}
+            >
+              <FaPalette />
+            </PaletteButton>
+          )}
         </div>
       </EdgeLabelRenderer>
     </>

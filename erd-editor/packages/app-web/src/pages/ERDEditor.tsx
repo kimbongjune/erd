@@ -23,6 +23,8 @@ const ERDEditor: React.FC<ERDEditorProps> = ({ erdId }) => {
     loadFromMongoDB, 
     setCurrentDiagramId, 
     setIsAuthenticated, 
+    setIsReadOnlyMode,
+    setDiagramOwner,
     nodes, 
     theme, 
     setLoading, 
@@ -49,26 +51,43 @@ const ERDEditor: React.FC<ERDEditorProps> = ({ erdId }) => {
       return;
     }
 
-    if (!isAuthenticated || !user) {
-      // 로그인하지 않은 경우 즉시 홈페이지로 리다이렉트 (로딩 표시 안함)
-      router.push('/home');
-      return;
-    }
-
-    // MongoDB에서 다이어그램 로드 (로그인된 사용자만)
-    const loadDiagram = async () => {
+    // 다이어그램 권한 확인 및 로드
+    const checkPermissionAndLoad = async () => {
       try {
+        // 다이어그램 정보 먼저 조회
+        const response = await fetch(`/api/diagrams/${erdId}`);
+        
+        if (response.status === 401) {
+          // 권한 없음 - 로그인이 필요하거나 비공개 다이어그램
+          router.push('/home');
+          return;
+        }
+        
+        if (!response.ok) {
+          throw new Error('다이어그램을 찾을 수 없습니다.');
+        }
+        
+        const data = await response.json();
+        const { diagram, isOwner, userEmail } = data;
+        
+        // 다이어그램 소유자 정보 설정
+        setDiagramOwner(userEmail);
+        
+        // 읽기 전용 모드 설정 (소유자가 아닌 경우)
+        setIsReadOnlyMode(!isOwner);
+        
+        // 다이어그램 로드
         setCurrentDiagramId(erdId);
         await loadFromMongoDB(erdId);
+        
       } catch (error) {
-        console.error('ERD 다이어그램 로드 실패:', error);
-        // 로드 실패시 홈페이지로 리다이렉트
+        console.error('다이어그램 로드 실패:', error);
         router.push('/home');
       }
     };
 
-    loadDiagram();
-  }, [erdId, isAuthenticated, user, loading]); // 의존성 배열에 loading 추가
+    checkPermissionAndLoad();
+  }, [erdId, loading]); // isAuthenticated와 user 의존성 제거
 
   if (!erdId) {
     return <div>잘못된 접근입니다.</div>;

@@ -61,6 +61,7 @@ interface ContextMenuProps {
   type: 'node' | 'edge' | 'pane';
   canCopy?: boolean;
   canPaste?: boolean;
+  canDelete?: boolean;
 }
 
 const ContextMenu: React.FC<ContextMenuProps> = ({ 
@@ -73,7 +74,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
   onPaste,
   type,
   canCopy = false,
-  canPaste = false
+  canPaste = false,
+  canDelete = true
 }) => {
   const handleDelete = () => {
     onDelete();
@@ -150,7 +152,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
           붙여넣기
         </MenuItem>
       )}
-      {(type === 'node' || type === 'edge') && (
+      {canDelete && (type === 'node' || type === 'edge') && (
         <MenuItem onClick={handleDelete}>
           <FaTrash className="icon" />
           삭제

@@ -169,6 +169,7 @@ const CommentNode = ({ data, selected, id }: any) => {
   const editingCommentId = useStore((state) => state.editingCommentId);
   const setEditingCommentId = useStore((state) => state.setEditingCommentId);
   const saveHistoryState = useStore((state) => state.saveHistoryState);
+  const isReadOnlyMode = useStore((state) => state.isReadOnlyMode);
   
   // 편집 상태는 useStore에서 관리
   const isEditing = editingCommentId === id;
@@ -390,6 +391,7 @@ const CommentNode = ({ data, selected, id }: any) => {
 
   // 팔레트 관련 핸들러들
   const handlePaletteClick = useCallback((e: React.MouseEvent) => {
+    if (isReadOnlyMode) return; // 읽기 전용 모드에서는 색상 변경 차단
     e.stopPropagation();
     e.preventDefault();
     
@@ -397,7 +399,7 @@ const CommentNode = ({ data, selected, id }: any) => {
       { type: 'comment', id }, 
       { x: 0, y: 0 }
     );
-  }, [id, showPalette]);
+  }, [id, showPalette, isReadOnlyMode]);
 
   const handleColorSelect = useCallback((color: string) => {
     const oldColor = getCommentColor(id);
@@ -503,7 +505,7 @@ const CommentNode = ({ data, selected, id }: any) => {
           )}
 
           {/* 헤더 (선택된 상태일 때만 표시) */}
-          {isSelected && (
+          {isSelected && !isReadOnlyMode && (
             <Header $color={actualColor}>
               <PaletteIcon 
                 $isVisible={isSelected}

@@ -452,6 +452,7 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   const setNodeColor = useStore((state) => state.setNodeColor);
   const getNodeColor = useStore((state) => state.getNodeColor);
   const saveHistoryState = useStore((state) => state.saveHistoryState);
+  const isReadOnlyMode = useStore((state) => state.isReadOnlyMode);
   
   const nodeColor = getNodeColor(id);
   const isHidden = hiddenEntities.has(id);
@@ -578,13 +579,14 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
 
   // 팔레트 핸들러
   const handlePaletteClick = useCallback((e: React.MouseEvent) => {
+    if (isReadOnlyMode) return; // 읽기 전용 모드에서는 색상 변경 차단
     e.stopPropagation();
     
     showPalette(
       { type: 'node', id }, 
       { x: 0, y: 0 } // 상대 위치로 배치할 것이므로 의미없음
     );
-  }, [id, showPalette]);
+  }, [id, showPalette, isReadOnlyMode]);
 
   const handleColorSelect = useCallback((color: string) => {
     const oldColor = getNodeColor(id);
@@ -739,9 +741,11 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
             )}
             
             {/* 팔레트 아이콘 - 선택된 상태일 때만 표시 */}
-            <PaletteIcon $isVisible={isSelected} $headerColor={actualNodeColor} onClick={handlePaletteClick}>
-              <FaPalette />
-            </PaletteIcon>
+            {!isReadOnlyMode && (
+              <PaletteIcon $isVisible={isSelected} $headerColor={actualNodeColor} onClick={handlePaletteClick}>
+                <FaPalette />
+              </PaletteIcon>
+            )}
           </Header>
           
           <ColumnsContainer $darkMode={isDarkMode}>

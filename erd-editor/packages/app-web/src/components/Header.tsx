@@ -740,6 +740,7 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
     saveToMongoDB,
     currentDiagramId,
     isAuthenticated,
+    isReadOnlyMode,
     clearLocalStorage // 데이터 삭제를 위해 추가
   } = useStore();
   
@@ -1216,6 +1217,7 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
           $darkMode={theme === 'dark'} 
           onClick={async (e) => {
             e.stopPropagation();
+            if (isReadOnlyMode) return;
             if (isAuthenticated && currentDiagramId) {
               try {
                 await saveToMongoDB(true); // 수동 저장시에는 토스트 표시
@@ -1223,15 +1225,13 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
                 console.error('저장 실패:', error);
                 toast.error('저장에 실패했습니다.');
               }
-            } else {
-              toast.error('로그인이 필요합니다.');
             }
           }}
-          title="Ctrl+S로도 저장할 수 있습니다"
-          disabled={!isAuthenticated || !currentDiagramId}
+          title={isReadOnlyMode ? "읽기 전용 모드에서는 저장할 수 없습니다" : "Ctrl+S로도 저장할 수 있습니다"}
+          disabled={!isAuthenticated || !currentDiagramId || isReadOnlyMode}
           style={{ 
-            opacity: (isAuthenticated && currentDiagramId) ? 1 : 0.5,
-            cursor: (isAuthenticated && currentDiagramId) ? 'pointer' : 'not-allowed'
+            opacity: (isAuthenticated && currentDiagramId && !isReadOnlyMode) ? 1 : 0.5,
+            cursor: (isAuthenticated && currentDiagramId && !isReadOnlyMode) ? 'pointer' : 'not-allowed'
           }}
         >
           <FaSave />
@@ -1239,17 +1239,18 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
         </ThemeToggleButton>
 
         {/* Undo/Redo 버튼들 */}
+        {/* 실행 취소/다시 실행 버튼 (읽기 전용 모드에서는 비활성화) */}
         <ThemeToggleButton 
           $darkMode={theme === 'dark'} 
           onClick={(e) => {
             e.stopPropagation();
-            undo();
+            if (!isReadOnlyMode) undo();
           }}
-          disabled={!canUndo}
-          title="실행 취소 (Ctrl+Z)"
+          disabled={!canUndo || isReadOnlyMode}
+          title={isReadOnlyMode ? "읽기 전용 모드에서는 사용할 수 없습니다" : "실행 취소 (Ctrl+Z)"}
           style={{ 
-            opacity: canUndo ? 1 : 0.5, 
-            cursor: canUndo ? 'pointer' : 'not-allowed' 
+            opacity: (canUndo && !isReadOnlyMode) ? 1 : 0.5, 
+            cursor: (canUndo && !isReadOnlyMode) ? 'pointer' : 'not-allowed' 
           }}
         >
           <FaUndo />
@@ -1259,13 +1260,13 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
           $darkMode={theme === 'dark'} 
           onClick={(e) => {
             e.stopPropagation();
-            redo();
+            if (!isReadOnlyMode) redo();
           }}
-          disabled={!canRedo}
-          title="다시 실행 (Ctrl+Y)"
+          disabled={!canRedo || isReadOnlyMode}
+          title={isReadOnlyMode ? "읽기 전용 모드에서는 사용할 수 없습니다" : "다시 실행 (Ctrl+Y)"}
           style={{ 
-            opacity: canRedo ? 1 : 0.5, 
-            cursor: canRedo ? 'pointer' : 'not-allowed' 
+            opacity: (canRedo && !isReadOnlyMode) ? 1 : 0.5, 
+            cursor: (canRedo && !isReadOnlyMode) ? 'pointer' : 'not-allowed' 
           }}
         >
           <FaRedo />
@@ -1273,9 +1274,16 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
       
       {/* 불러오기 버튼 제거 - MongoDB에서 자동 로드됨 */}
       
+      {/* 데이터 삭제 버튼 */}
       <ThemeToggleButton 
         $darkMode={theme === 'dark'} 
-        onClick={handleDataDelete}
+        onClick={isReadOnlyMode ? undefined : handleDataDelete}
+        disabled={isReadOnlyMode}
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 삭제할 수 없습니다" : "저장된 모든 데이터를 삭제합니다"}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
       >
         <FaTrash />
         데이터 삭제
@@ -1308,7 +1316,15 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
           $darkMode={theme === 'dark'} 
           onClick={(e) => {
             e.stopPropagation();
-            setIsExportOpen(!isExportOpen);
+            if (!isReadOnlyMode) {
+              setIsExportOpen(!isExportOpen);
+            }
+          }}
+          disabled={isReadOnlyMode}
+          title={isReadOnlyMode ? "읽기 전용 모드에서는 내보내기를 사용할 수 없습니다" : "파일로 내보내기"}
+          style={{ 
+            opacity: isReadOnlyMode ? 0.5 : 1,
+            cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
           }}
         >
           <FaDownload />
@@ -1316,7 +1332,7 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
           <FaChevronDown />
         </ThemeToggleButton>
         
-        <ExportDropdown $darkMode={theme === 'dark'} $isOpen={isExportOpen}>
+        <ExportDropdown $darkMode={theme === 'dark'} $isOpen={isExportOpen && !isReadOnlyMode}>
           <ExportOption 
             $darkMode={theme === 'dark'}
             onClick={(e) => {
@@ -1358,28 +1374,23 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
         {/* Navigation 드롭다운 */}
         <NavDropdownContainer ref={navDropdownRef}>
           <DiagramNameContainer>
-            {/* Public/Private 토글 스위치 (로그인되고 다이어그램이 있을 때만 표시) */}
-            {isAuthenticated && currentDiagramId && (
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <ToggleSwitch $darkMode={theme === 'dark'}>
-                  <ToggleInput
-                    type="checkbox"
-                    checked={isPublic}
-                    onChange={togglePublicStatus}
-                  />
-                  <ToggleSlider 
-                    $darkMode={theme === 'dark'} 
-                    $isPublic={isPublic}
-                  >
-                    <ToggleIcon $isPublic={isPublic}>
-                      {isPublic ? <FaUnlock /> : <FaLock />}
-                    </ToggleIcon>
-                  </ToggleSlider>
-                </ToggleSwitch>
-                <ToggleLabel $darkMode={theme === 'dark'} $isPublic={isPublic}>
-                  {isPublic ? '공개' : '비공개'}
-                </ToggleLabel>
-              </div>
+            {/* Public/Private 토글 스위치 (로그인되고 다이어그램이 있고 소유자일 때만 표시) */}
+            {isAuthenticated && currentDiagramId && !isReadOnlyMode && (
+              <ToggleSwitch $darkMode={theme === 'dark'}>
+                <ToggleInput
+                  type="checkbox"
+                  checked={isPublic}
+                  onChange={togglePublicStatus}
+                />
+                <ToggleSlider 
+                  $darkMode={theme === 'dark'} 
+                  $isPublic={isPublic}
+                >
+                  <ToggleIcon $isPublic={isPublic}>
+                    {isPublic ? <FaUnlock /> : <FaLock />}
+                  </ToggleIcon>
+                </ToggleSlider>
+              </ToggleSwitch>
             )}
             
             {isEditingName ? (
@@ -1394,8 +1405,13 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
             ) : (
               <DiagramNameButton
                 $darkMode={theme === 'dark'}
-                onClick={startEditingName}
-                title="클릭하여 다이어그램 이름 변경"
+                onClick={isReadOnlyMode ? undefined : startEditingName}
+                title={isReadOnlyMode ? "읽기 전용 모드에서는 이름을 변경할 수 없습니다" : "클릭하여 다이어그램 이름 변경"}
+                disabled={isReadOnlyMode}
+                style={{ 
+                  opacity: isReadOnlyMode ? 0.7 : 1,
+                  cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+                }}
               >
                 {diagramName}
               </DiagramNameButton>
@@ -1417,82 +1433,87 @@ const Header: React.FC<HeaderProps> = ({ erdId }) => {
               </div>
             </NavDropdownItem>
             
-            <NavDropdownItem $darkMode={theme === 'dark'} onClick={openDashboardModal}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <FaTachometerAlt />
-                대시보드
-              </div>
-            </NavDropdownItem>
-            
-            <NavDropdownItem $darkMode={theme === 'dark'} onClick={async () => await createNewDiagram()}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <FaPlus />
-                새 다이어그램
-              </div>
-            </NavDropdownItem>
-            
-            <NavDropdownItem $darkMode={theme === 'dark'} $hasSubmenu>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <FaFolderOpen />
-                내 다이어그램
-              </div>
-              <FaChevronDown style={{ fontSize: '10px' }} />
-              
-              <SubMenu $darkMode={theme === 'dark'}>
-                {diagrams.length > 0 ? (
-                  diagrams.map((diagram, index) => (
-                    <SubMenuItem
-                      key={`${diagram.id}-${index}`}
-                      $darkMode={theme === 'dark'}
-                      onClick={async () => await openDiagram(diagram.id)}
-                      style={{
-                        backgroundColor: currentErdId === diagram.id 
-                          ? (theme === 'dark' ? '#4a5568' : '#e6fffa') 
-                          : 'transparent'
-                      }}
-                    >
-                      <div>
-                        {currentErdId === diagram.id ? (
-                          <div style={{
-                            width: '16px',
-                            height: '16px',
-                            backgroundColor: '#4ade80',
-                            borderRadius: '50%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#000',
-                            fontSize: '10px',
-                            fontWeight: 'bold'
-                          }}>
-                            ●
+            {/* 읽기 전용 모드가 아닐 때만 표시 (본인 다이어그램일 때) */}
+            {!isReadOnlyMode && (
+              <>
+                <NavDropdownItem $darkMode={theme === 'dark'} onClick={openDashboardModal}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FaTachometerAlt />
+                    대시보드
+                  </div>
+                </NavDropdownItem>
+                
+                <NavDropdownItem $darkMode={theme === 'dark'} onClick={async () => await createNewDiagram()}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FaPlus />
+                    새 다이어그램
+                  </div>
+                </NavDropdownItem>
+                
+                <NavDropdownItem $darkMode={theme === 'dark'} $hasSubmenu>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FaFolderOpen />
+                    내 다이어그램
+                  </div>
+                  <FaChevronDown style={{ fontSize: '10px' }} />
+                  
+                  <SubMenu $darkMode={theme === 'dark'}>
+                    {diagrams.length > 0 ? (
+                      diagrams.map((diagram, index) => (
+                        <SubMenuItem
+                          key={`${diagram.id}-${index}`}
+                          $darkMode={theme === 'dark'}
+                          onClick={async () => await openDiagram(diagram.id)}
+                          style={{
+                            backgroundColor: currentErdId === diagram.id 
+                              ? (theme === 'dark' ? '#4a5568' : '#e6fffa') 
+                              : 'transparent'
+                          }}
+                        >
+                          <div>
+                            {currentErdId === diagram.id ? (
+                              <div style={{
+                                width: '16px',
+                                height: '16px',
+                                backgroundColor: '#4ade80',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#000',
+                                fontSize: '10px',
+                                fontWeight: 'bold'
+                              }}>
+                                ●
+                              </div>
+                            ) : (
+                              <div style={{
+                                width: '16px',
+                                height: '16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '14px'
+                              }}>
+                                <FaEdit />
+                              </div>
+                            )}
                           </div>
-                        ) : (
-                          <div style={{
-                            width: '16px',
-                            height: '16px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '14px'
-                          }}>
-                            <FaEdit />
+                          <div>
+                            <div>{diagram.name}</div>
+                            <DiagramMeta>{formatDate(diagram.updatedAt)}</DiagramMeta>
                           </div>
-                        )}
-                      </div>
-                      <div>
-                        <div>{diagram.name}</div>
-                        <DiagramMeta>{formatDate(diagram.updatedAt)}</DiagramMeta>
-                      </div>
-                    </SubMenuItem>
-                  ))
-                ) : (
-                  <EmptySubmenu key="empty-submenu" $darkMode={theme === 'dark'}>
-                    생성된 다이어그램이 없습니다
-                  </EmptySubmenu>
-                )}
-              </SubMenu>
-            </NavDropdownItem>
+                        </SubMenuItem>
+                      ))
+                    ) : (
+                      <EmptySubmenu key="empty-submenu" $darkMode={theme === 'dark'}>
+                        생성된 다이어그램이 없습니다
+                      </EmptySubmenu>
+                    )}
+                  </SubMenu>
+                </NavDropdownItem>
+              </>
+            )}
           </NavDropdownMenu>
         </NavDropdownContainer>
       </RightSection>

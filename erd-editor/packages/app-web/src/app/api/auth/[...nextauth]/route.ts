@@ -104,7 +104,7 @@ export const authOptions: NextAuthOptions = {
         session.user.email = token.email as string
         session.user.name = token.name as string
         session.user.image = token.picture as string
-        session.user.membershipType = token.membershipType as 'FREE' | 'PREMIUM'
+        session.user.membershipType = token.membershipType as 'FREE' | 'PREMIUM' | 'ADMIN'
       }
       
       return session

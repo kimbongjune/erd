@@ -7,7 +7,7 @@ export interface IUser {
   image?: string;
   provider: 'google' | 'github';
   providerId: string;
-  membershipType: 'FREE' | 'PREMIUM';
+  membershipType: 'FREE' | 'PREMIUM' | 'ADMIN';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -37,7 +37,7 @@ const UserSchema = new mongoose.Schema<IUser>({
   },
   membershipType: {
     type: String,
-    enum: ['FREE', 'PREMIUM'],
+    enum: ['FREE', 'PREMIUM', 'ADMIN'],
     default: 'FREE',
   },
 }, {

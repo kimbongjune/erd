@@ -2902,6 +2902,38 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
           }
           
           // FK 제약조건 처리 완료 - 일반 필드 처리 건너뛰고 계속 진행
+        } else if (field === 'comment') {
+          // 컬럼 주석 처리
+          const originalValue = col.comment;
+          updatedCol.comment = value;
+          
+          // 히스토리 저장
+          if (!skipHistory && originalValue !== value) {
+            updatedCol._historyInfo = {
+              actionType: 'CHANGE_COLUMN_COMMENT',
+              metadata: {
+                columnName: col.name,
+                oldValue: originalValue || '',
+                newValue: value
+              }
+            };
+          }
+        } else if (field === 'fkName') {
+          // FK 이름 처리
+          const originalValue = col.fkName;
+          updatedCol.fkName = value;
+          
+          // 히스토리 저장
+          if (!skipHistory && originalValue !== value) {
+            updatedCol._historyInfo = {
+              actionType: 'CHANGE_FK_NAME',
+              metadata: {
+                columnName: col.name,
+                oldValue: originalValue || '',
+                newValue: value
+              }
+            };
+          }
         } else {
           // 일반 필드 처리 (FK 제약조건이 아닌 경우에만)
           updatedCol = { ...col, [field]: value };
@@ -3473,7 +3505,7 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
     });
     
     // FK 제약조건 히스토리 정보 처리
-    let fkHistoryInfo = null;
+    let fkHistoryInfo: any = null;
     newColumns.forEach(col => {
       if (col._historyInfo) {
         fkHistoryInfo = col._historyInfo;
@@ -4177,8 +4209,7 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
                     AI
                   </HeaderCell>
                   <HeaderCell $darkMode={isDarkMode} key="default">기본값</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="onDelete">On Delete</HeaderCell>
-                  <HeaderCell $darkMode={isDarkMode} key="onUpdate">On Update</HeaderCell>
+                  <HeaderCell $darkMode={isDarkMode} key="comment">주석</HeaderCell>
                   <HeaderCell $darkMode={isDarkMode} key="delete">삭제</HeaderCell>
                 </HeaderRow>
               </TableHeader>
@@ -4462,97 +4493,21 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
                         placeholder="null"
                       />
                     </TableCell>
-                    {column.fk ? (
-                      <>
-                        <TableCell $darkMode={isDarkMode} key={`${column.id}-onDelete`}>
-                          <div
-                            data-dropdown-button="fk-options"
-                            style={{
-                              width: '100%',
-                              padding: '2px 4px',
-                              fontSize: '11px',
-                              border: `1px solid ${isDarkMode ? '#4a5568' : '#d0d0d0'}`,
-                              borderRadius: '2px',
-                              backgroundColor: isDarkMode ? '#374151' : 'white',
-                              color: isDarkMode ? '#e2e8f0' : 'inherit',
-                              cursor: 'pointer',
-                              position: 'relative',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between'
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              
-                              // 이미 열린 드롭다운이면 닫기
-                              if (dropdownOpen === 'fk-options') {
-                                setDropdownOpen(null);
-                                setDropdownPosition(null);
-                                setDropdownType(null);
-                                setDropdownColumnId(null);
-                                return;
-                              }
-                              
-                              // 새로 열기
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setDropdownPosition({ top: rect.bottom + 2, left: rect.left });
-                              setDropdownType('onDelete');
-                              setDropdownColumnId(column.id);
-                              setDropdownOpen('fk-options');
-                            }}
-                          >
-                            <span>{column.onDelete || 'NO ACTION'}</span>
-                            <span style={{ fontSize: '8px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>▼</span>
-                          </div>
-                        </TableCell>
-                        <TableCell $darkMode={isDarkMode} key={`${column.id}-onUpdate`}>
-                          <div
-                            data-dropdown-button="fk-options"
-                            style={{
-                              width: '100%',
-                              padding: '2px 4px',
-                              fontSize: '11px',
-                              border: `1px solid ${isDarkMode ? '#4a5568' : '#d0d0d0'}`,
-                              borderRadius: '2px',
-                              backgroundColor: isDarkMode ? '#374151' : 'white',
-                              color: isDarkMode ? '#e2e8f0' : 'inherit',
-                              cursor: 'pointer',
-                              position: 'relative',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between'
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              
-                              // 이미 열린 드롭다운이면 닫기
-                              if (dropdownOpen === 'fk-options') {
-                                setDropdownOpen(null);
-                                setDropdownPosition(null);
-                                setDropdownType(null);
-                                setDropdownColumnId(null);
-                                return;
-                              }
-                              
-                              // 새로 열기
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setDropdownPosition({ top: rect.bottom + 2, left: rect.left });
-                              setDropdownType('onUpdate');
-                              setDropdownColumnId(column.id);
-                              setDropdownOpen('fk-options');
-                            }}
-                          >
-                            <span>{column.onUpdate || 'NO ACTION'}</span>
-                            <span style={{ fontSize: '8px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>▼</span>
-                          </div>
-                        </TableCell>
-                      </>
-                    ) : (
-                      <>
-                        <TableCell $darkMode={isDarkMode} key={`${column.id}-onDelete`}></TableCell>
-                        <TableCell $darkMode={isDarkMode} key={`${column.id}-onUpdate`}></TableCell>
-                      </>
-                    )}
+                    <TableCell $darkMode={isDarkMode} key={`${column.id}-comment`} onDoubleClick={() => handleCellDoubleClick(column.id, 'comment')}>
+                      <EditableCell 
+                        $darkMode={isDarkMode}
+                        className={editingCell === `${column.id}-comment` ? 'editing' : ''}
+                        data-editing={editingCell === `${column.id}-comment` ? `${column.id}-comment` : ''}
+                        value={column.comment || ''}
+                        onChange={(e) => updateColumnField(column.id, 'comment', e.target.value)}
+                        onBlur={() => {
+                          handleCellBlur();
+                        }}
+                        onKeyDown={handleCellKeyDown}
+                        readOnly={editingCell !== `${column.id}-comment`}
+                        placeholder="컬럼에 대한 설명을 입력하세요"
+                      />
+                    </TableCell>
                     <TableCell $darkMode={isDarkMode} key={`${column.id}-delete`}>
                       <DeleteButton $darkMode={isDarkMode} onClick={() => deleteColumn(column.id)}>
                         Delete
@@ -4561,7 +4516,7 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
                   </TableRow>
                 ))}
                 <AddColumnRow $darkMode={isDarkMode} key="add-column">
-                  <AddColumnCell $darkMode={isDarkMode} colSpan={12} onClick={addColumn}>
+                  <AddColumnCell $darkMode={isDarkMode} colSpan={11} onClick={addColumn}>
                     + Add Column
                   </AddColumnCell>
                 </AddColumnRow>
@@ -4580,9 +4535,172 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
           
           {/* Foreign Keys 탭 컨텐츠 */}
           {activeTab === 'foreignKeys' && (
-            <EmptyTabContent $darkMode={isDarkMode}>
-              외래키 기능은 곧 추가될 예정입니다.
-            </EmptyTabContent>
+            <TableContainer $darkMode={isDarkMode}>
+                <TableScrollContainer>
+                  <Table $darkMode={isDarkMode}>
+                    <TableHeader $darkMode={isDarkMode}>
+                      <HeaderRow>
+                        <HeaderCell $darkMode={isDarkMode} style={{ width: '200px' }}>Foreign Key Name</HeaderCell>
+                        <HeaderCell $darkMode={isDarkMode} style={{ width: '300px' }}>Referenced Table.Column</HeaderCell>
+                        <HeaderCell $darkMode={isDarkMode} style={{ width: '150px' }}>On Update</HeaderCell>
+                        <HeaderCell $darkMode={isDarkMode} style={{ width: '150px' }}>On Delete</HeaderCell>
+                      </HeaderRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(() => {
+                        // 현재 엔티티의 FK 컬럼들 추출
+                        const fkColumns = columns.filter(col => col.fk && col.parentEntityId);
+                        
+                        return fkColumns.map((fkColumn) => {
+                          // 부모 엔티티 정보 가져오기
+                          const parentEntity = nodes.find(node => node.id === fkColumn.parentEntityId);
+                          const parentTableName = parentEntity?.data?.label || 'Unknown';
+                          
+                          // 부모 엔티티의 컬럼 정보 가져오기
+                          const parentColumns = parentEntity?.data?.columns || [];
+                          const parentColumn = parentColumns.find((col: any) => 
+                            col.id === fkColumn.parentColumnId || col.name === fkColumn.parentColumnId
+                          );
+                          const parentColumnName = parentColumn?.name || fkColumn.parentColumnId || 'Unknown';
+                          
+                          // FK 이름 생성 (없으면 자동 생성)
+                          const fkName = fkColumn.fkName || `fk_${tableName}_${fkColumn.name}`;
+                          
+                          return (
+                            <TableRow 
+                              key={`fk-${fkColumn.id}`}
+                              $selected={false}
+                              $darkMode={isDarkMode}
+                            >
+                              {/* FK 이름 */}
+                              <TableCell $darkMode={isDarkMode}>
+                                <EditableCell 
+                                  $darkMode={isDarkMode}
+                                  value={fkName}
+                                  onChange={(e) => updateColumnField(fkColumn.id, 'fkName', e.target.value)}
+                                  onBlur={() => {}}
+                                  placeholder="FK 이름"
+                                  style={{ fontSize: '12px' }}
+                                />
+                              </TableCell>
+                              
+                              {/* 참조 테이블.컬럼 */}
+                              <TableCell $darkMode={isDarkMode}>
+                                <span style={{ 
+                                  fontSize: '12px',
+                                  color: isDarkMode ? '#e2e8f0' : '#374151'
+                                }}>
+                                  {parentTableName}.{parentColumnName}
+                                </span>
+                              </TableCell>
+                              
+                              {/* On Update 드롭다운 */}
+                              <TableCell $darkMode={isDarkMode}>
+                                <div
+                                  data-dropdown-button="fk-options"
+                                  style={{
+                                    width: '100%',
+                                    padding: '4px 8px',
+                                    fontSize: '11px',
+                                    border: `1px solid ${isDarkMode ? '#4a5568' : '#d0d0d0'}`,
+                                    borderRadius: '3px',
+                                    backgroundColor: isDarkMode ? '#374151' : 'white',
+                                    color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                    cursor: 'pointer',
+                                    position: 'relative',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between'
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    
+                                    // 이미 열린 드롭다운이면 닫기
+                                    if (dropdownOpen === 'fk-options') {
+                                      setDropdownOpen(null);
+                                      setDropdownPosition(null);
+                                      setDropdownType(null);
+                                      setDropdownColumnId(null);
+                                      return;
+                                    }
+                                    
+                                    // 새로 열기
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setDropdownPosition({ top: rect.bottom + 2, left: rect.left });
+                                    setDropdownType('onUpdate');
+                                    setDropdownColumnId(fkColumn.id);
+                                    setDropdownOpen('fk-options');
+                                  }}
+                                >
+                                  <span>{fkColumn.onUpdate || 'NO ACTION'}</span>
+                                  <span style={{ fontSize: '8px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>▼</span>
+                                </div>
+                              </TableCell>
+                              
+                              {/* On Delete 드롭다운 */}
+                              <TableCell $darkMode={isDarkMode}>
+                                <div
+                                  data-dropdown-button="fk-options"
+                                  style={{
+                                    width: '100%',
+                                    padding: '4px 8px',
+                                    fontSize: '11px',
+                                    border: `1px solid ${isDarkMode ? '#4a5568' : '#d0d0d0'}`,
+                                    borderRadius: '3px',
+                                    backgroundColor: isDarkMode ? '#374151' : 'white',
+                                    color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                    cursor: 'pointer',
+                                    position: 'relative',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between'
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    
+                                    // 이미 열린 드롭다운이면 닫기
+                                    if (dropdownOpen === 'fk-options') {
+                                      setDropdownOpen(null);
+                                      setDropdownPosition(null);
+                                      setDropdownType(null);
+                                      setDropdownColumnId(null);
+                                      return;
+                                    }
+                                    
+                                    // 새로 열기
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setDropdownPosition({ top: rect.bottom + 2, left: rect.left });
+                                    setDropdownType('onDelete');
+                                    setDropdownColumnId(fkColumn.id);
+                                    setDropdownOpen('fk-options');
+                                  }}
+                                >
+                                  <span>{fkColumn.onDelete || 'NO ACTION'}</span>
+                                  <span style={{ fontSize: '8px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>▼</span>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        });
+                      })()}
+                      
+                      {/* FK가 없는 경우 메시지 표시 */}
+                      {columns.filter(col => col.fk && col.parentEntityId).length === 0 && (
+                        <TableRow $selected={false} $darkMode={isDarkMode}>
+                          <TableCell $darkMode={isDarkMode} colSpan={4} style={{ 
+                            textAlign: 'center', 
+                            color: isDarkMode ? '#9ca3af' : '#6b7280',
+                            fontStyle: 'italic',
+                            padding: '20px'
+                          }}>
+                            외래키가 없습니다. 엔티티 간 관계를 생성하면 여기에 표시됩니다.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableScrollContainer>
+            </TableContainer>
           )}
           
           {/* 툴팁 렌더링 */}
@@ -4672,8 +4790,8 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
             </div>
           </div>
           )}
-          
-          {/* 탭 바 */}
+
+          {/* 탭 바 - 항상 바닥에 고정 */}
           <TabBar $darkMode={isDarkMode}>
             <Tab 
               $darkMode={isDarkMode} 

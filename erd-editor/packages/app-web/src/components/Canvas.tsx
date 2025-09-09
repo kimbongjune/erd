@@ -17,6 +17,7 @@ import ContextMenu from './ContextMenu';
 import CanvasToolbar from './CanvasToolbar';
 import SnapGuides from './SnapGuides';
 import SearchPanel from './SearchPanel';
+import HistoryPanel from './HistoryPanel';
 
 const edgeTypes = {
   'one-to-one-identifying': OneToOneIdentifyingEdge,
@@ -78,6 +79,10 @@ const Canvas = React.memo(() => {
   const hiddenEntities = useStore((state) => state.hiddenEntities);
   const exportToImage = useStore((state) => state.exportToImage);
   const isReadOnlyMode = useStore((state) => state.isReadOnlyMode);
+  
+  // 히스토리 패널 관련
+  const showHistoryPanel = useStore((state) => state.showHistoryPanel);
+  const setShowHistoryPanel = useStore((state) => state.setShowHistoryPanel);
   
   // 복사-붙여넣기 관련
   const copyNode = useStore((state) => state.copyNode);
@@ -1166,6 +1171,12 @@ const Canvas = React.memo(() => {
       
       {/* 검색 패널 */}
       <SearchPanel />
+      
+      {/* 히스토리 패널 */}
+      <HistoryPanel 
+        visible={showHistoryPanel}
+        onClose={() => setShowHistoryPanel(false)}
+      />
     </div>
   );
 });

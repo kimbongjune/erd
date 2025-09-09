@@ -1161,7 +1161,28 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
         const columnId = target.getAttribute('data-editing')?.replace('-dataType', '') || '';
         setColumnControlledValues(prev => ({ ...prev, [`${columnId}-dataType`]: newValue }));
         setColumnDisplayValues(prev => ({ ...prev, [`${columnId}-dataType`]: newValue }));
-        updateColumnField(columnId, 'dataType', newValue);
+        
+        // 데이터 타입 변경 시 debouncing 적용 - 즉시 UI 업데이트, 지연된 히스토리 저장
+        updateColumnField(columnId, 'dataType', newValue, true); // skipHistory = true
+        
+        // debounced 히스토리 저장
+        if (historyTimeouts[`dataType-${columnId}`]) {
+          clearTimeout(historyTimeouts[`dataType-${columnId}`]);
+        }
+        
+        const timeoutId = setTimeout(() => {
+          updateColumnField(columnId, 'dataType', newValue, false); // skipHistory = false
+          setHistoryTimeouts(prev => {
+            const updated = { ...prev };
+            delete updated[`dataType-${columnId}`];
+            return updated;
+          });
+        }, 500);
+        
+        setHistoryTimeouts(prev => ({
+          ...prev,
+          [`dataType-${columnId}`]: timeoutId
+        }));
         
         // 자동완성 트리거 (원래 기능 복구 - Backspace)
         const column = columns.find(col => col.id === columnId);
@@ -1224,7 +1245,28 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
         const columnId = target.getAttribute('data-editing')?.replace('-dataType', '') || '';
         setColumnControlledValues(prev => ({ ...prev, [`${columnId}-dataType`]: newValue }));
         setColumnDisplayValues(prev => ({ ...prev, [`${columnId}-dataType`]: newValue }));
-        updateColumnField(columnId, 'dataType', newValue);
+        
+        // 데이터 타입 변경 시 debouncing 적용 - 즉시 UI 업데이트, 지연된 히스토리 저장  
+        updateColumnField(columnId, 'dataType', newValue, true); // skipHistory = true
+        
+        // debounced 히스토리 저장
+        if (historyTimeouts[`dataType-${columnId}`]) {
+          clearTimeout(historyTimeouts[`dataType-${columnId}`]);
+        }
+        
+        const timeoutId = setTimeout(() => {
+          updateColumnField(columnId, 'dataType', newValue, false); // skipHistory = false
+          setHistoryTimeouts(prev => {
+            const updated = { ...prev };
+            delete updated[`dataType-${columnId}`];
+            return updated;
+          });
+        }, 500);
+        
+        setHistoryTimeouts(prev => ({
+          ...prev,
+          [`dataType-${columnId}`]: timeoutId
+        }));
         
         // 자동완성 트리거 (원래 기능 복구 - Delete)
         const column = columns.find(col => col.id === columnId);
@@ -1346,7 +1388,28 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
           const upperValue = newValue.toUpperCase();
           setColumnControlledValues(prev => ({ ...prev, [`${columnId}-dataType`]: upperValue }));
           setColumnDisplayValues(prev => ({ ...prev, [`${columnId}-dataType`]: upperValue }));
-          updateColumnField(columnId, 'dataType', upperValue);
+          
+          // 데이터 타입 변경 시 debouncing 적용 - 즉시 UI 업데이트, 지연된 히스토리 저장
+          updateColumnField(columnId, 'dataType', upperValue, true); // skipHistory = true
+          
+          // debounced 히스토리 저장
+          if (historyTimeouts[`dataType-${columnId}`]) {
+            clearTimeout(historyTimeouts[`dataType-${columnId}`]);
+          }
+          
+          const timeoutId = setTimeout(() => {
+            updateColumnField(columnId, 'dataType', upperValue, false); // skipHistory = false
+            setHistoryTimeouts(prev => {
+              const updated = { ...prev };
+              delete updated[`dataType-${columnId}`];
+              return updated;
+            });
+          }, 500);
+          
+          setHistoryTimeouts(prev => ({
+            ...prev,
+            [`dataType-${columnId}`]: timeoutId
+          }));
           
           // 자동완성 트리거 (원래 기능 복구)
           const column = columns.find(col => col.id === columnId);
@@ -1609,7 +1672,24 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
   }, [isBottomPanelOpen, selectedNodeId]);
 
   // undo/redo 후 selectedNodeId 복원 (하단 패널이 열려있을 때)
+  // bottomPanelRefreshKey 변경 시 UI 상태 초기화 (undo/redo 시)
   React.useEffect(() => {
+    // FK 제약조건 드롭다운 닫기
+    setDropdownOpen(null);
+    setDropdownPosition(null);
+    setDropdownType(null);
+    setDropdownColumnId(null);
+    
+    // 편집 상태 초기화
+    setEditingCell(null);
+    setIsEditingTableName(false);
+    setIsEditingLogicalName(false);
+    
+    // 자동완성 닫기
+    setShowAutocomplete(false);
+    setAutocompleteColumnId(null);
+    setSelectedAutocompleteIndex(-1);
+    
     if (isBottomPanelOpen && currentPanelNodeId && !selectedNodeId) {
       
       setSelectedNodeId(currentPanelNodeId);
@@ -2383,6 +2463,12 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
 
   // 히스토리 저장을 위한 debounce 타이머들
   const [historyTimeouts, setHistoryTimeouts] = useState<{[key: string]: any}>({});
+  
+  // 원본 값 저장 (히스토리 비교용)
+  const [originalValues, setOriginalValues] = useState<{[key: string]: any}>({});
+  
+  // 엔티티명 편집 시 원본 값 저장
+  const [originalEntityNames, setOriginalEntityNames] = useState<{physical: string, logical: string}>({physical: '', logical: ''});
 
   // 컴포넌트 언마운트 시 히스토리 타이머 정리
   useEffect(() => {
@@ -2771,9 +2857,21 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
         
         // FK onDelete, onUpdate 처리 - 복합키 동기화 포함
         if (field === 'onDelete' || field === 'onUpdate') {
-          
+          const originalValue = col[field];
           updatedCol[field] = value;
           
+          // FK 제약조건의 경우 나중에 히스토리 저장하기 위해 정보 저장
+          if (!skipHistory && originalValue !== value) {
+            updatedCol._historyInfo = {
+              actionType: 'CHANGE_COLUMN_FK_CONSTRAINT',
+              metadata: {
+                columnName: col.name,
+                field: field,
+                oldValue: originalValue || 'NONE',
+                newValue: value
+              }
+            };
+          }
           
           // 🎯 복합키 FK들의 onDelete, onUpdate 동기화 처리
           if (col.fk && col.relationshipGroupId && col.keyType === 'composite') {
@@ -2789,28 +2887,25 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
             if (sameGroupFkColumns.length > 0) {
               
               
-              // 다른 FK 컬럼들도 동일한 값으로 업데이트
-              sameGroupFkColumns.forEach(fkCol => {
-                const fkIndex = columns.findIndex(c => c.id === fkCol.id);
-                if (fkIndex !== -1) {
-                  // 해당 FK 컬럼의 onDelete 또는 onUpdate 값을 동기화
-                  columns[fkIndex] = {
-                    ...columns[fkIndex],
-                    [field]: value
-                  };
-                  
-                }
-              });
+              // 동기화할 컬럼 ID들 저장 (나중에 newColumns에서 처리)
+              const syncColumnIds = sameGroupFkColumns.map(fkCol => fkCol.id);
+              
+              // 이 정보를 나중에 사용하기 위해 임시 저장
+              updatedCol._syncInfo = {
+                field: field,
+                value: value,
+                syncColumnIds: syncColumnIds
+              };
               
               toast.info(`복합키 동기화: ${sameGroupFkColumns.length + 1}개 FK의 ${field === 'onDelete' ? 'ON DELETE' : 'ON UPDATE'}가 ${value}로 동기화되었습니다.`);
             }
           }
           
-          return updatedCol; // 다른 로직 건너뛰고 바로 반환
+          // FK 제약조건 처리 완료 - 일반 필드 처리 건너뛰고 계속 진행
+        } else {
+          // 일반 필드 처리 (FK 제약조건이 아닌 경우에만)
+          updatedCol = { ...col, [field]: value };
         }
-        
-        // 일반 필드 처리
-        updatedCol = { ...col, [field]: value };
         
         // PK 설정 시 NN도 자동으로 체크
         if (field === 'pk' && value === true) {
@@ -3287,6 +3382,20 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
       if (columnToUpdate) {
         const timeoutKey = `${columnId}-${field}`;
         
+        // 원본 값 저장 (최초 변경 시에만)
+        const originalKey = `${columnId}-${field}-original`;
+        if (!originalValues[originalKey]) {
+          const currentValue = field === 'name' ? columnToUpdate.name :
+                              field === 'logicalName' ? (columnToUpdate.logicalName || '') :
+                              field === 'dataType' ? columnToUpdate.dataType :
+                              field === 'defaultValue' ? (columnToUpdate.defaultValue || '') :
+                              field === 'comment' ? (columnToUpdate.comment || '') : '';
+          setOriginalValues(prev => ({
+            ...prev,
+            [originalKey]: currentValue
+          }));
+        }
+        
         // 기존 타이머가 있으면 클리어
         if (historyTimeouts[timeoutKey]) {
           clearTimeout(historyTimeouts[timeoutKey]);
@@ -3294,20 +3403,43 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
         
         // 새 타이머 설정 (1초 후 히스토리 저장)
         const newTimeout = setTimeout(() => {
+          const originalValue = originalValues[originalKey] || '';
           
-          useStore.getState().saveHistoryState(HISTORY_ACTIONS.MODIFY_COLUMN, {
-            columnName: columnToUpdate.name,
-            field: field,
-            newValue: value,
-            entityId: targetNodeId,
-            entityName: nodes.find(n => n.id === targetNodeId)?.data?.label
-          });
+          // 이름 필드는 물리명/논리명 구분하여 저장
+          if (field === 'name') {
+            useStore.getState().saveHistoryState(HISTORY_ACTIONS.CHANGE_COLUMN_PHYSICAL_NAME, {
+              oldName: originalValue,
+              newName: value,
+              entityName: nodes.find(n => n.id === targetNodeId)?.data?.label
+            });
+          } else if (field === 'logicalName') {
+            useStore.getState().saveHistoryState(HISTORY_ACTIONS.CHANGE_COLUMN_LOGICAL_NAME, {
+              oldName: originalValue,
+              newName: value,
+              entityName: nodes.find(n => n.id === targetNodeId)?.data?.label
+            });
+          } else {
+            useStore.getState().saveHistoryState(HISTORY_ACTIONS.MODIFY_COLUMN, {
+              columnName: columnToUpdate.name,
+              field: field,
+              oldValue: originalValue,
+              newValue: value,
+              entityId: targetNodeId,
+              entityName: nodes.find(n => n.id === targetNodeId)?.data?.label
+            });
+          }
           
-          // 완료된 타이머 제거
+          // 완료된 타이머와 원본 값 제거
           setHistoryTimeouts(prev => {
             const newTimeouts = { ...prev };
             delete newTimeouts[timeoutKey];
             return newTimeouts;
+          });
+          
+          setOriginalValues(prev => {
+            const newValues = { ...prev };
+            delete newValues[originalKey];
+            return newValues;
           });
         }, 1000);
         
@@ -3319,6 +3451,36 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
       }
     }
     
+    // FK 제약조건 복합키 동기화 처리
+    newColumns.forEach(col => {
+      if (col._syncInfo) {
+        const { field, value, syncColumnIds } = col._syncInfo;
+        
+        // 동기화할 다른 컬럼들 업데이트
+        syncColumnIds.forEach((syncId: string) => {
+          const syncIndex = newColumns.findIndex(c => c.id === syncId);
+          if (syncIndex !== -1) {
+            newColumns[syncIndex] = {
+              ...newColumns[syncIndex],
+              [field]: value
+            };
+          }
+        });
+        
+        // 임시 동기화 정보 제거
+        delete col._syncInfo;
+      }
+    });
+    
+    // FK 제약조건 히스토리 정보 처리
+    let fkHistoryInfo = null;
+    newColumns.forEach(col => {
+      if (col._historyInfo) {
+        fkHistoryInfo = col._historyInfo;
+        delete col._historyInfo;
+      }
+    });
+    
     // 일반적인 경우 updateNodeData 호출 (PK 해제, UQ 체크가 아닌 경우)
     if (targetNodeId) {
       const selectedNode = nodes.find(node => node.id === targetNodeId);
@@ -3328,6 +3490,13 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
           columns: newColumns,
           label: tableName
         });
+        
+        // FK 제약조건 변경의 경우 노드 업데이트 후에 히스토리 저장
+        if (fkHistoryInfo) {
+          setTimeout(() => {
+            useStore.getState().saveHistoryState(fkHistoryInfo.actionType as any, fkHistoryInfo.metadata);
+          }, 100);
+        }
       }
     }
   };
@@ -3364,6 +3533,17 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
   const handleTableNameDoubleClick = () => {
     setIsEditingTableName(true);
     
+    // 원본 값 저장 (히스토리용)
+    if (selectedNodeId) {
+      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+      if (selectedNode) {
+        setOriginalEntityNames(prev => ({
+          ...prev,
+          physical: selectedNode.data?.physicalName || selectedNode.data?.label || ''
+        }));
+      }
+    }
+    
     // controlled 상태 초기화 - 현재 테이블 이름으로 설정
     const currentValue = tableName || '';
     setTableControlledValue(currentValue);
@@ -3372,6 +3552,17 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
 
   const handleLogicalNameDoubleClick = () => {
     setIsEditingLogicalName(true);
+    
+    // 원본 값 저장 (히스토리용)
+    if (selectedNodeId) {
+      const selectedNode = nodes.find(node => node.id === selectedNodeId);
+      if (selectedNode) {
+        setOriginalEntityNames(prev => ({
+          ...prev,
+          logical: selectedNode.data?.logicalName || ''
+        }));
+      }
+    }
   };
 
   const handleTableNameBlur = () => {
@@ -3393,9 +3584,13 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
       }
     }
     
-    // 엔티티명 변경 후 히스토리 저장
-    
-    useStore.getState().saveHistoryState('CHANGE_ENTITY_NAME');
+    // 엔티티 물리명 변경 후 히스토리 저장
+    if (selectedNodeId && tableName !== undefined) {
+      useStore.getState().saveHistoryState(HISTORY_ACTIONS.CHANGE_ENTITY_PHYSICAL_NAME, {
+        oldName: originalEntityNames.physical,
+        newName: tableName
+      });
+    }
   };
 
   const handleLogicalNameBlur = () => {
@@ -3413,13 +3608,18 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
     }
     
     // 엔티티 논리명 변경 후 히스토리 저장
-    
-    useStore.getState().saveHistoryState('CHANGE_ENTITY_NAME');
+    if (selectedNodeId && tableLogicalName !== undefined) {
+      useStore.getState().saveHistoryState(HISTORY_ACTIONS.CHANGE_ENTITY_LOGICAL_NAME, {
+        oldName: originalEntityNames.logical,
+        newName: tableLogicalName
+      });
+    }
   };
 
   const handleLogicalNameKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      setIsEditingLogicalName(false);
+      // 엔터키 시에도 blur와 동일한 로직 실행
+      handleLogicalNameBlur();
     }
     if (e.key === 'Escape') {
       setIsEditingLogicalName(false);
@@ -4462,7 +4662,7 @@ const Layout: React.FC<LayoutProps> = ({ erdId }) => {
                   // 테이블 주석 변경 히스토리 저장
                   const targetNodeId = currentPanelNodeId || selectedNodeId;
                   
-                  useStore.getState().saveHistoryState('CHANGE_ENTITY_NAME', {
+                  useStore.getState().saveHistoryState(HISTORY_ACTIONS.CHANGE_COMMENT_TEXT, {
                     entityId: targetNodeId,
                     entityName: nodes.find(n => n.id === targetNodeId)?.data?.label
                   });

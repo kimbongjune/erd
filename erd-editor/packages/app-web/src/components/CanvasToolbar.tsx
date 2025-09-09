@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { FaSearch, FaExpand, FaTh, FaProjectDiagram, FaEye, FaPlus, FaMinus, FaTable, FaCopy, FaPaste } from 'react-icons/fa';
+import { FaSearch, FaExpand, FaTh, FaProjectDiagram, FaEye, FaPlus, FaMinus, FaTable, FaCopy, FaPaste, FaHistory } from 'react-icons/fa';
 import { MdGridOn } from 'react-icons/md';
 import { useReactFlow } from 'reactflow';
 import useStore from '../store/useStore';
@@ -156,6 +156,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   const showGrid = useStore((state) => state.showGrid);
   const showAlignPopup = useStore((state) => state.showAlignPopup);
   const showViewPopup = useStore((state) => state.showViewPopup);
+  const showHistoryPanel = useStore((state) => state.showHistoryPanel);
   const theme = useStore((state) => state.theme);
   const edges = useStore((state) => state.edges);
   const nodes = useStore((state) => state.nodes);
@@ -174,6 +175,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
   const setShowGrid = useStore((state) => state.setShowGrid);
   const setShowAlignPopup = useStore((state) => state.setShowAlignPopup);
   const setShowViewPopup = useStore((state) => state.setShowViewPopup);
+  const toggleHistoryPanel = useStore((state) => state.toggleHistoryPanel);
   const setHighlightedEdges = useStore((state) => state.setHighlightedEdges);
   const setHighlightedColumns = useStore((state) => state.setHighlightedColumns);
   const arrangeLeftRight = useStore((state) => state.arrangeLeftRight);
@@ -319,6 +321,10 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
     setShowViewPopup(!showViewPopup);
   };
 
+  const handleHistory = () => {
+    toggleHistoryPanel();
+  };
+
   const handleCopy = () => {
     if (isReadOnlyMode) return;
     if (selectedNodeId) {
@@ -428,6 +434,12 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom }) => {
         <div onMouseEnter={(e) => handleMouseEnter(e, '그리드')} onMouseLeave={handleMouseLeave}>
           <ToolbarButton onClick={handleGrid} $active={showGrid} $darkMode={isDarkMode}>
             <MdGridOn size={16} />
+          </ToolbarButton>
+        </div>
+        
+        <div onMouseEnter={(e) => handleMouseEnter(e, '히스토리')} onMouseLeave={handleMouseLeave}>
+          <ToolbarButton onClick={handleHistory} $active={showHistoryPanel} $darkMode={isDarkMode}>
+            <FaHistory size={16} />
           </ToolbarButton>
         </div>
         

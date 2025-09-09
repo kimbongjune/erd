@@ -591,17 +591,11 @@ const EntityNode = memo(({ data, id, onMouseDown }: any) => {
   const handleColorSelect = useCallback((color: string) => {
     const oldColor = getNodeColor(id);
     if (color !== oldColor) {
-      
-      saveHistoryState('CHANGE_NODE_COLOR', {
-        nodeId: id,
-        nodeType: 'entity',
-        oldColor,
-        newColor: color
-      });
+      // setNodeColor에서 히스토리 저장을 처리하므로 중복 제거
     }
     setNodeColor(id, color);
     setPreviewColor(null); // 미리보기 초기화
-  }, [id, setNodeColor, getNodeColor, saveHistoryState]);
+  }, [id, setNodeColor, getNodeColor]);
 
   const handlePreviewColor = useCallback((color: string) => {
     setPreviewColor(color);

@@ -21,14 +21,19 @@ export const HISTORY_ACTIONS = {
   CHANGE_COLUMN_NN: 'CHANGE_COLUMN_NN',
   CHANGE_COLUMN_UQ: 'CHANGE_COLUMN_UQ',
   CHANGE_COLUMN_AI: 'CHANGE_COLUMN_AI',
+  CHANGE_COLUMN_FK_CONSTRAINT: 'CHANGE_COLUMN_FK_CONSTRAINT',
   
   // Tier 2 - 중요 기록 (사용자 편의)
-  CHANGE_ENTITY_NAME: 'CHANGE_ENTITY_NAME',
+  CHANGE_ENTITY_PHYSICAL_NAME: 'CHANGE_ENTITY_PHYSICAL_NAME',
+  CHANGE_ENTITY_LOGICAL_NAME: 'CHANGE_ENTITY_LOGICAL_NAME',
+  CHANGE_COLUMN_PHYSICAL_NAME: 'CHANGE_COLUMN_PHYSICAL_NAME',
+  CHANGE_COLUMN_LOGICAL_NAME: 'CHANGE_COLUMN_LOGICAL_NAME',
   CHANGE_COMMENT_TEXT: 'CHANGE_COMMENT_TEXT',
   CHANGE_IMAGE_SOURCE: 'CHANGE_IMAGE_SOURCE',
   MOVE_NODE: 'MOVE_NODE',
   CHANGE_NODE_COLOR: 'CHANGE_NODE_COLOR',
-  RESIZE_NODE: 'RESIZE_NODE'
+  RESIZE_NODE: 'RESIZE_NODE',
+  PASTE_NODE: 'PASTE_NODE'
 } as const;
 
 export type HistoryActionType = typeof HISTORY_ACTIONS[keyof typeof HISTORY_ACTIONS];
@@ -87,8 +92,17 @@ export const getActionDescription = (actionType: HistoryActionType, metadata?: a
       return `컬럼 '${metadata?.columnName || '컬럼'}' UQ ${metadata?.value ? '설정' : '해제'}`;
     case HISTORY_ACTIONS.CHANGE_COLUMN_AI:
       return `컬럼 '${metadata?.columnName || '컬럼'}' AI ${metadata?.value ? '설정' : '해제'}`;
-    case HISTORY_ACTIONS.CHANGE_ENTITY_NAME:
-      return `엔티티명 변경 (${metadata?.oldName || '?'} → ${metadata?.newName || '?'})`;
+    case HISTORY_ACTIONS.CHANGE_COLUMN_FK_CONSTRAINT:
+      const constraintType = metadata?.field === 'onDelete' ? 'ON DELETE' : 'ON UPDATE';
+      return `컬럼 '${metadata?.columnName || '컬럼'}' ${constraintType} 변경 (${metadata?.oldValue || '?'} → ${metadata?.newValue || '?'})`;
+    case HISTORY_ACTIONS.CHANGE_ENTITY_PHYSICAL_NAME:
+      return `엔티티 물리명 변경 (${metadata?.oldName || '?'} → ${metadata?.newName || '?'})`;
+    case HISTORY_ACTIONS.CHANGE_ENTITY_LOGICAL_NAME:
+      return `엔티티 논리명 변경 (${metadata?.oldName || '?'} → ${metadata?.newName || '?'})`;
+    case HISTORY_ACTIONS.CHANGE_COLUMN_PHYSICAL_NAME:
+      return `컬럼 물리명 변경 (${metadata?.oldName || '?'} → ${metadata?.newName || '?'})`;
+    case HISTORY_ACTIONS.CHANGE_COLUMN_LOGICAL_NAME:
+      return `컬럼 논리명 변경 (${metadata?.oldName || '?'} → ${metadata?.newName || '?'})`;
     case HISTORY_ACTIONS.CHANGE_COMMENT_TEXT:
       return '커멘트 텍스트 변경';
     case HISTORY_ACTIONS.CHANGE_IMAGE_SOURCE:
@@ -96,9 +110,11 @@ export const getActionDescription = (actionType: HistoryActionType, metadata?: a
     case HISTORY_ACTIONS.MOVE_NODE:
       return metadata?.multiple ? `노드 ${metadata.count}개 이동` : '노드 이동';
     case HISTORY_ACTIONS.CHANGE_NODE_COLOR:
-      return '노드 색상 변경';
+      return metadata?.nodeType ? `${metadata.nodeType} 색상 변경` : '노드 색상 변경';
     case HISTORY_ACTIONS.RESIZE_NODE:
       return '노드 크기 변경';
+    case HISTORY_ACTIONS.PASTE_NODE:
+      return `${metadata?.nodeType || '노드'} 붙여넣기`;
     default:
       return '작업 수행';
   }

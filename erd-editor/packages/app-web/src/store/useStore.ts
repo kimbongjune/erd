@@ -7,6 +7,7 @@ import {
   HistoryManager, 
   HISTORY_ACTIONS, 
   HistoryActionType, 
+  HistoryEntry,
   serializeState, 
   deserializeState, 
   SerializableHistoryState 
@@ -1190,6 +1191,8 @@ type RFState = {
   historyManager: HistoryManager;
   canUndo: boolean;
   canRedo: boolean;
+  showHistoryPanel: boolean;
+  historyUpdateTrigger: number; // 히스토리 변경 감지를 위한 트리거
   
   // 뷰 설정
   viewSettings: ViewSettings;
@@ -1249,6 +1252,8 @@ type RFState = {
   setShowGrid: (show: boolean) => void;
   setShowAlignPopup: (show: boolean) => void;
   setShowViewPopup: (show: boolean) => void;
+  setShowHistoryPanel: (show: boolean) => void;
+  toggleHistoryPanel: () => void;
   updateEdgeHandles: () => void;
   clearAllEdges: () => void;
   
@@ -1324,6 +1329,7 @@ type RFState = {
   redo: () => void;
   clearHistory: () => void;
   updateHistoryFlags: () => void;
+  getHistoryList: () => HistoryEntry[];
   
   // SQL import 관련 함수들
   importFromSQL: (sqlContent: string) => void;
@@ -1969,6 +1975,12 @@ const useStore = create<RFState>((set, get) => ({
       const sourceNode = state.nodes.find((node) => node.id === connection.source);
       const targetNode = state.nodes.find((node) => node.id === connection.target);
 
+      // 엔티티가 아닌 노드들 간의 관계선은 생성하지 않음
+      if (!sourceNode || !targetNode || sourceNode.type !== 'entity' || targetNode.type !== 'entity') {
+        // 히스토리 저장하지 않고 상태 변경 없이 반환
+        return state;
+      }
+
       // 순환참조 체크: 이미 반대 방향으로 관계가 있는지 확인 (자기 자신과의 관계는 제외)
       const existingReverseEdge = state.edges.find(edge => 
         edge.source === connection.target && edge.target === connection.source
@@ -2548,6 +2560,10 @@ const useStore = create<RFState>((set, get) => ({
   showGrid: false,
   showAlignPopup: false,
   showViewPopup: false,
+  showHistoryPanel: false,
+  
+  // 히스토리 관련 상태 초기값
+  historyUpdateTrigger: 0,
   
   // 검색 패널 관련 상태 초기값
   isSearchPanelOpen: false,
@@ -2706,6 +2722,8 @@ const useStore = create<RFState>((set, get) => ({
   },
   setShowAlignPopup: (show: boolean) => set({ showAlignPopup: show }),
   setShowViewPopup: (show: boolean) => set({ showViewPopup: show }),
+  setShowHistoryPanel: (show: boolean) => set({ showHistoryPanel: show }),
+  toggleHistoryPanel: () => set((state) => ({ showHistoryPanel: !state.showHistoryPanel })),
   
   // 검색 패널 관련 함수들
   toggleSearchPanel: () => set((state) => ({ 
@@ -4428,8 +4446,11 @@ const useStore = create<RFState>((set, get) => ({
     const state = get();
     const node = state.nodes.find(n => n.id === nodeId);
     if (node) {
-      //
+      const nodeTypeKorean = node.type === 'entity' ? '엔티티' :
+                            node.type === 'comment' ? '커멘트' :
+                            node.type === 'image' ? '이미지' : '노드';
       state.saveHistoryState(HISTORY_ACTIONS.CHANGE_NODE_COLOR, {
+        nodeType: nodeTypeKorean,
         nodeName: node.data.label,
         nodeId: nodeId,
         color: color
@@ -4621,12 +4642,11 @@ const useStore = create<RFState>((set, get) => ({
     // 자동 저장
     debouncedAutoSave(() => get().autoSaveToMongoDB(), () => get().saveToLocalStorage(false));
     
-    // 히스토리 저장
-    const historyAction = newNode.type === 'entity' ? HISTORY_ACTIONS.CREATE_ENTITY :
-                         newNode.type === 'comment' ? HISTORY_ACTIONS.CREATE_COMMENT :
-                         newNode.type === 'image' ? HISTORY_ACTIONS.CREATE_IMAGE :
-                         HISTORY_ACTIONS.CREATE_COMMENT; // 기본값
-    state.saveHistoryState(historyAction);
+    // 히스토리 저장 - PASTE_NODE 액션 사용
+    const nodeTypeKorean = newNode.type === 'entity' ? '엔티티' :
+                          newNode.type === 'comment' ? '커멘트' :
+                          newNode.type === 'image' ? '이미지' : '노드';
+    state.saveHistoryState(HISTORY_ACTIONS.PASTE_NODE, { nodeType: nodeTypeKorean });
     
     toast.success('노드가 붙여넣어졌습니다.');
   },
@@ -5712,6 +5732,10 @@ const useStore = create<RFState>((set, get) => ({
     
     state.historyManager.saveState(actionType, currentState, metadata);
     state.updateHistoryFlags();
+    
+    // 히스토리 업데이트 트리거 증가
+    set({ historyUpdateTrigger: state.historyUpdateTrigger + 1 });
+    
     //console.log('📚 히스토리 개수:', state.historyManager.getHistorySize());
   },
 
@@ -5776,6 +5800,10 @@ const useStore = create<RFState>((set, get) => ({
       });
       
       state.updateHistoryFlags();
+      
+      // 히스토리 업데이트 트리거 증가
+      set({ historyUpdateTrigger: get().historyUpdateTrigger + 1 });
+      
       // toast.success(`${historyEntry.description} 취소됨`); // 토스트 제거
     } else {
     }
@@ -5820,6 +5848,10 @@ const useStore = create<RFState>((set, get) => ({
       });
       
       state.updateHistoryFlags();
+      
+      // 히스토리 업데이트 트리거 증가
+      set({ historyUpdateTrigger: get().historyUpdateTrigger + 1 });
+      
       // toast.success(`${historyEntry.description} 다시 실행됨`); // 토스트 제거
     } else {
     }
@@ -5837,6 +5869,11 @@ const useStore = create<RFState>((set, get) => ({
       canUndo: state.historyManager.canUndo(),
       canRedo: state.historyManager.canRedo()
     });
+  },
+
+  getHistoryList: () => {
+    const state = get();
+    return state.historyManager.getHistoryList();
   },
 }));
 

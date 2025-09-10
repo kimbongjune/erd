@@ -1,6 +1,6 @@
 'use client';
 
-import HomePage from '../../pages/HomePage';
+import HomePage from '../../views/HomePage';
 
 export default function HomePageRoute() {
   return <HomePage />;

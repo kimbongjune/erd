@@ -1045,166 +1045,169 @@ const HomePage: React.FC = () => {
           </ButtonGroup>
         </WelcomeSection>
 
-        <DiagramsSection>
-          <SectionHeader>
-            <SectionTitle>
-              <FaFolder className="icon" />
-              내 다이어그램
-            </SectionTitle>
-            <SearchContainer>
-              <FaSearch className="search-icon" />
-              <input
-                type="text"
-                placeholder="다이어그램 검색..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </SearchContainer>
-          </SectionHeader>
+        {/* 로그인한 경우에만 다이어그램 섹션 표시 */}
+        {isAuthenticated && (
+          <DiagramsSection>
+            <SectionHeader>
+              <SectionTitle>
+                <FaFolder className="icon" />
+                내 다이어그램
+              </SectionTitle>
+              <SearchContainer>
+                <FaSearch className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="다이어그램 검색..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </SearchContainer>
+            </SectionHeader>
 
-          {diagrams === null || loading || isDiagramsLoading ? (
-            // 데이터가 아직 없거나 로딩 중일 때 스켈레톤 다이어그램 카드들 표시
-            <DiagramsGrid>
-              {Array.from({ length: 6 }).map((_, index) => (
-                <SkeletonDiagramCard key={`skeleton-${index}`}>
-                  <SkeletonDiagramIcon />
-                  <SkeletonDiagramTitle />
-                  <SkeletonDiagramMeta />
-                  <SkeletonDiagramStats>
-                    <SkeletonStat />
-                    <SkeletonStat />
-                    <SkeletonStat />
-                  </SkeletonDiagramStats>
-                  <SkeletonDiagramTags>
-                    <SkeletonTag />
-                    <SkeletonTag />
-                  </SkeletonDiagramTags>
-                </SkeletonDiagramCard>
-              ))}
-            </DiagramsGrid>
-          ) : isAuthenticated && filteredDiagrams.length > 0 ? (
-            <DiagramsGrid>
-              {filteredDiagrams.map((diagram) => {
-                const { entityCount, relationCount, commentCount, imageCount } = getDiagramStats(diagram.id);
-                
-                // 상태에 따른 아이콘과 텍스트 정의
-                const getStatusInfo = () => {
-                  if (diagram.isPublic) {
-                    return { icon: <FaUnlock />, text: '공개' };
-                  } else {
-                    return { icon: <FaLock />, text: '비공개' };
-                  }
-                };
-                
-                const statusInfo = getStatusInfo();
-                
-                return (
-                  <DiagramCard key={diagram.id} onClick={() => openDiagram(diagram.id)}>
-                    <button 
-                      className="menu-button"
-                      onClick={(e) => handleMenuClick(diagram.id, e)}
-                      title="메뉴"
-                    >
-                      <FaEllipsisV />
-                    </button>
-                    <MenuDropdown $show={menuOpenId === diagram.id}>
-                      <MenuItem 
-                        className="delete"
-                        onClick={(e) => deleteDiagram(diagram.id, e)}
+            {diagrams === null || loading || isDiagramsLoading ? (
+              // 데이터가 아직 없거나 로딩 중일 때 스켈레톤 다이어그램 카드들 표시
+              <DiagramsGrid>
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <SkeletonDiagramCard key={`skeleton-${index}`}>
+                    <SkeletonDiagramIcon />
+                    <SkeletonDiagramTitle />
+                    <SkeletonDiagramMeta />
+                    <SkeletonDiagramStats>
+                      <SkeletonStat />
+                      <SkeletonStat />
+                      <SkeletonStat />
+                    </SkeletonDiagramStats>
+                    <SkeletonDiagramTags>
+                      <SkeletonTag />
+                      <SkeletonTag />
+                    </SkeletonDiagramTags>
+                  </SkeletonDiagramCard>
+                ))}
+              </DiagramsGrid>
+            ) : filteredDiagrams.length > 0 ? (
+              <DiagramsGrid>
+                {filteredDiagrams.map((diagram) => {
+                  const { entityCount, relationCount, commentCount, imageCount } = getDiagramStats(diagram.id);
+                  
+                  // 상태에 따른 아이콘과 텍스트 정의
+                  const getStatusInfo = () => {
+                    if (diagram.isPublic) {
+                      return { icon: <FaUnlock />, text: '공개' };
+                    } else {
+                      return { icon: <FaLock />, text: '비공개' };
+                    }
+                  };
+                  
+                  const statusInfo = getStatusInfo();
+                  
+                  return (
+                    <DiagramCard key={diagram.id} onClick={() => openDiagram(diagram.id)}>
+                      <button 
+                        className="menu-button"
+                        onClick={(e) => handleMenuClick(diagram.id, e)}
+                        title="메뉴"
                       >
-                        <FaTrash />
-                        삭제
-                      </MenuItem>
-                    </MenuDropdown>
-                    <DiagramIcon>
-                      {statusInfo.icon}
-                    </DiagramIcon>
-                    <DiagramName>
-                      {highlightSearchTerm(diagram.name, searchTerm)}
-                    </DiagramName>
-                    <DiagramMeta>
-                      <span>
-                        <FaClock style={{ marginRight: '6px' }} />
-                        수정: {formatTime(diagram.updatedAt)}
-                      </span>
-                      <span>
-                        생성: {formatDate(diagram.createdAt)}
-                      </span>
-                    </DiagramMeta>
-                    <DiagramStats>
-                      {entityCount > 0 && (
-                        <StatItem>
-                          <FaTable className="icon" />
-                          <span className="count">{entityCount}</span>
-                          <span>엔티티</span>
-                        </StatItem>
-                      )}
-                      {relationCount > 0 && (
-                        <StatItem>
-                          <FaProjectDiagram className="icon" />
-                          <span className="count">{relationCount}</span>
-                          <span>관계</span>
-                        </StatItem>
-                      )}
-                      {commentCount > 0 && (
-                        <StatItem>
-                          <FaNoteSticky className="icon" />
-                          <span className="count">{commentCount}</span>
-                          <span>메모</span>
-                        </StatItem>
-                      )}
-                      {imageCount > 0 && (
-                        <StatItem>
-                          <FaImage className="icon" />
-                          <span className="count">{imageCount}</span>
-                          <span>이미지</span>
-                        </StatItem>
-                      )}
-                      {entityCount === 0 && relationCount === 0 && commentCount === 0 && imageCount === 0 && (
-                        <StatItem>
-                          <span style={{ color: '#6b7280' }}>(비어있음)</span>
-                        </StatItem>
-                      )}
-                    </DiagramStats>
-                    <DiagramTags>
-                      <span className="tag">
-                        <GrMysql style={{ marginRight: '4px' }} />
-                        MySQL
-                      </span>
-                      <span className="tag status-tag">
+                        <FaEllipsisV />
+                      </button>
+                      <MenuDropdown $show={menuOpenId === diagram.id}>
+                        <MenuItem 
+                          className="delete"
+                          onClick={(e) => deleteDiagram(diagram.id, e)}
+                        >
+                          <FaTrash />
+                          삭제
+                        </MenuItem>
+                      </MenuDropdown>
+                      <DiagramIcon>
                         {statusInfo.icon}
-                        {statusInfo.text}
-                      </span>
-                    </DiagramTags>
-                  </DiagramCard>
-                );
-              })}
-            </DiagramsGrid>
-          ) : isAuthenticated && filteredDiagrams.length === 0 ? (
-            <EmptyState>
-              <div className="icon">
-                {searchTerm ? <FaSearch /> : <FaDatabase />}
-              </div>
-              <h3>
-                {searchTerm 
-                  ? `"${searchTerm}"에 대한 검색 결과가 없습니다`
-                  : '아직 생성된 다이어그램이 없습니다'
-                }
-              </h3>
-              <p>
-                {searchTerm
-                  ? '다른 검색어를 시도해보거나 새 다이어그램을 만들어보세요'
-                  : '새 다이어그램을 만들어 데이터베이스 설계를 시작해보세요!'
-                }
-              </p>
-              <ActionButton $primary onClick={createNewDiagram}>
-                <FaPlus />
-                새 다이어그램 만들기
-              </ActionButton>
-            </EmptyState>
-          ) : null
-          }
-        </DiagramsSection>
+                      </DiagramIcon>
+                      <DiagramName>
+                        {highlightSearchTerm(diagram.name, searchTerm)}
+                      </DiagramName>
+                      <DiagramMeta>
+                        <span>
+                          <FaClock style={{ marginRight: '6px' }} />
+                          수정: {formatTime(diagram.updatedAt)}
+                        </span>
+                        <span>
+                          생성: {formatDate(diagram.createdAt)}
+                        </span>
+                      </DiagramMeta>
+                      <DiagramStats>
+                        {entityCount > 0 && (
+                          <StatItem>
+                            <FaTable className="icon" />
+                            <span className="count">{entityCount}</span>
+                            <span>엔티티</span>
+                          </StatItem>
+                        )}
+                        {relationCount > 0 && (
+                          <StatItem>
+                            <FaProjectDiagram className="icon" />
+                            <span className="count">{relationCount}</span>
+                            <span>관계</span>
+                          </StatItem>
+                        )}
+                        {commentCount > 0 && (
+                          <StatItem>
+                            <FaNoteSticky className="icon" />
+                            <span className="count">{commentCount}</span>
+                            <span>메모</span>
+                          </StatItem>
+                        )}
+                        {imageCount > 0 && (
+                          <StatItem>
+                            <FaImage className="icon" />
+                            <span className="count">{imageCount}</span>
+                            <span>이미지</span>
+                          </StatItem>
+                        )}
+                        {entityCount === 0 && relationCount === 0 && commentCount === 0 && imageCount === 0 && (
+                          <StatItem>
+                            <span style={{ color: '#6b7280' }}>(비어있음)</span>
+                          </StatItem>
+                        )}
+                      </DiagramStats>
+                      <DiagramTags>
+                        <span className="tag">
+                          <GrMysql style={{ marginRight: '4px' }} />
+                          MySQL
+                        </span>
+                        <span className="tag status-tag">
+                          {statusInfo.icon}
+                          {statusInfo.text}
+                        </span>
+                      </DiagramTags>
+                    </DiagramCard>
+                  );
+                })}
+              </DiagramsGrid>
+            ) : filteredDiagrams.length === 0 ? (
+              <EmptyState>
+                <div className="icon">
+                  {searchTerm ? <FaSearch /> : <FaDatabase />}
+                </div>
+                <h3>
+                  {searchTerm 
+                    ? `"${searchTerm}"에 대한 검색 결과가 없습니다`
+                    : '아직 생성된 다이어그램이 없습니다'
+                  }
+                </h3>
+                <p>
+                  {searchTerm
+                    ? '다른 검색어를 시도해보거나 새 다이어그램을 만들어보세요'
+                    : '새 다이어그램을 만들어 데이터베이스 설계를 시작해보세요!'
+                  }
+                </p>
+                <ActionButton $primary onClick={createNewDiagram}>
+                  <FaPlus />
+                  새 다이어그램 만들기
+                </ActionButton>
+              </EmptyState>
+            ) : null
+            }
+          </DiagramsSection>
+        )}
       </MainContent>
       
       {/* 삭제 확인 모달 */}

@@ -12,6 +12,105 @@ import MyPageModal from '../components/auth/MyPageModal';
 import { useAuth } from '../hooks/useAuth';
 import { useMongoDBDiagrams } from '../hooks/useMongoDBDiagrams';
 import { toast } from 'react-toastify';
+
+// Skeleton Loading 컴포넌트들
+const shimmerAnimation = `
+  @keyframes shimmer {
+    0% {
+      background-position: -200px 0;
+    }
+    100% {
+      background-position: calc(200px + 100%) 0;
+    }
+  }
+`;
+
+const SkeletonBase = styled.div`
+  background: linear-gradient(90deg, #1f2937 25%, #374151 37%, #1f2937 63%);
+  background-size: 400px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+  
+  ${shimmerAnimation}
+`;
+
+const SkeletonStatCard = styled.div`
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  border: 1px solid #374151;
+  border-radius: 16px;
+  padding: 32px;
+  text-align: center;
+`;
+
+const SkeletonIcon = styled(SkeletonBase)`
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  margin: 0 auto 16px;
+`;
+
+const SkeletonNumber = styled(SkeletonBase)`
+  width: 60px;
+  height: 32px;
+  margin: 0 auto 8px;
+`;
+
+const SkeletonLabel = styled(SkeletonBase)`
+  width: 80px;
+  height: 14px;
+  margin: 0 auto;
+`;
+
+const SkeletonDiagramCard = styled.div`
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  border: 1px solid #374151;
+  border-radius: 16px;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+`;
+
+const SkeletonDiagramIcon = styled(SkeletonBase)`
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+`;
+
+const SkeletonDiagramTitle = styled(SkeletonBase)`
+  width: 80%;
+  height: 20px;
+  margin-bottom: 8px;
+`;
+
+const SkeletonDiagramMeta = styled(SkeletonBase)`
+  width: 60%;
+  height: 14px;
+  margin-bottom: 16px;
+`;
+
+const SkeletonDiagramStats = styled.div`
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+`;
+
+const SkeletonStat = styled(SkeletonBase)`
+  width: 60px;
+  height: 24px;
+`;
+
+const SkeletonDiagramTags = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+`;
+
+const SkeletonTag = styled(SkeletonBase)`
+  width: 50px;
+  height: 20px;
+  border-radius: 10px;
+`;
 const HomeContainer = styled.div`
   min-height: 100vh;
   background: #0f1419;
@@ -546,7 +645,7 @@ interface Diagram {
 
 const HomePage: React.FC = () => {
   const router = useRouter();
-  const [diagrams, setDiagrams] = useState<Diagram[]>([]);
+  const [diagrams, setDiagrams] = useState<Diagram[] | null>(null); // null로 초기화
   const [searchTerm, setSearchTerm] = useState('');
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deleteModal, setDeleteModal] = useState<{ show: boolean; diagramId: string | null; diagramName: string }>({
@@ -555,6 +654,7 @@ const HomePage: React.FC = () => {
     diagramName: ''
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [isDiagramsLoading, setIsDiagramsLoading] = useState(false);
   
   // 모달 상태 관리
   const [loginModalOpen, setLoginModalOpen] = useState(false);
@@ -586,19 +686,18 @@ const HomePage: React.FC = () => {
   // 초기 다이어그램 목록 로드 (NextAuth 세션이 로드된 후)
   useEffect(() => {
     if (!loading) {
-      loadDiagrams();
+      // 인증 상태가 확정된 후 짧은 지연 후 로드
+      const timer = setTimeout(() => {
+        loadDiagrams();
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [loading]);
+  }, [loading, isAuthenticated, user]); // 의존성 배열에 isAuthenticated, user 추가
 
   useEffect(() => {
-    // NextAuth 세션이 로드된 후 한 번만 실행
-    if (!loading) {
-      loadDiagrams();
-    }
-    
     // 페이지가 다시 포커스될 때 다이어그램 목록 새로고침
     const handleFocus = () => {
-      if (!loading) {
+      if (!loading && !isDiagramsLoading) {
         loadDiagrams();
       }
     };
@@ -621,7 +720,7 @@ const HomePage: React.FC = () => {
   }, [menuOpenId]); // loading 제거하고 초기 로드는 별도 useEffect로
 
   const loadDiagrams = async () => {
-    setIsLoading(true);
+    setIsDiagramsLoading(true); // 다이어그램 로딩 상태 시작
     
     try {
       if (isAuthenticated && user) {
@@ -651,7 +750,7 @@ const HomePage: React.FC = () => {
       setDiagrams([]);
       toast.error('다이어그램을 불러오는데 실패했습니다.');
     } finally {
-      setIsLoading(false);
+      setIsDiagramsLoading(false); // 다이어그램 로딩 상태 종료
     }
   };
 
@@ -712,7 +811,7 @@ const HomePage: React.FC = () => {
   const deleteDiagram = (id: string, event: React.MouseEvent) => {
     event.stopPropagation();
     
-    const diagram = diagrams.find(d => d.id === id);
+    const diagram = (diagrams || []).find(d => d.id === id);
     setDeleteModal({
       show: true,
       diagramId: id,
@@ -762,7 +861,7 @@ const HomePage: React.FC = () => {
 
   const getDiagramStats = (diagramId: string) => {
     // MongoDB에서 로드된 diagrams 배열에서 해당 다이어그램 찾기
-    const diagram = diagrams.find(d => d.id === diagramId);
+    const diagram = (diagrams || []).find(d => d.id === diagramId);
     if (diagram) {
       return {
         entityCount: diagram.entityCount || 0,
@@ -854,13 +953,13 @@ const HomePage: React.FC = () => {
     }
   };
 
-  const filteredDiagrams = diagrams.filter(diagram =>
+  const filteredDiagrams = (diagrams || []).filter(diagram =>
     diagram.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // MongoDB에서 가져온 통계로 총계 계산
-  const totalEntities = diagrams.reduce((total, diagram) => total + (diagram.entityCount || 0), 0);
-  const totalRelations = diagrams.reduce((total, diagram) => total + (diagram.relationCount || 0), 0);
+  const totalEntities = (diagrams || []).reduce((total, diagram) => total + (diagram.entityCount || 0), 0);
+  const totalRelations = (diagrams || []).reduce((total, diagram) => total + (diagram.relationCount || 0), 0);
 
   return (
     <HomeContainer>
@@ -887,27 +986,51 @@ const HomePage: React.FC = () => {
           </Subtitle>
 
           <StatsSection>
-            <StatCard>
-              <div className="icon">
-                <BsFillDiagram3Fill />
-              </div>
-              <div className="number">{diagrams.length}</div>
-              <div className="label">다이어그램</div>
-            </StatCard>
-            <StatCard>
-              <div className="icon">
-                <FaTable />
-              </div>
-              <div className="number">{totalEntities}</div>
-              <div className="label">엔티티</div>
-            </StatCard>
-            <StatCard>
-              <div className="icon">
-                <FaProjectDiagram />
-              </div>
-              <div className="number">{totalRelations}</div>
-              <div className="label">관계</div>
-            </StatCard>
+            {diagrams === null || loading || isDiagramsLoading ? (
+              // 데이터가 아직 없거나 로딩 중일 때 스켈레톤 카드들 표시
+              <>
+                <SkeletonStatCard>
+                  <SkeletonIcon />
+                  <SkeletonNumber />
+                  <SkeletonLabel />
+                </SkeletonStatCard>
+                <SkeletonStatCard>
+                  <SkeletonIcon />
+                  <SkeletonNumber />
+                  <SkeletonLabel />
+                </SkeletonStatCard>
+                <SkeletonStatCard>
+                  <SkeletonIcon />
+                  <SkeletonNumber />
+                  <SkeletonLabel />
+                </SkeletonStatCard>
+              </>
+            ) : (
+              // 로딩 완료 후 실제 데이터 표시
+              <>
+                <StatCard>
+                  <div className="icon">
+                    <BsFillDiagram3Fill />
+                  </div>
+                  <div className="number">{diagrams?.length || 0}</div>
+                  <div className="label">다이어그램</div>
+                </StatCard>
+                <StatCard>
+                  <div className="icon">
+                    <FaTable />
+                  </div>
+                  <div className="number">{totalEntities}</div>
+                  <div className="label">엔티티</div>
+                </StatCard>
+                <StatCard>
+                  <div className="icon">
+                    <FaProjectDiagram />
+                  </div>
+                  <div className="number">{totalRelations}</div>
+                  <div className="label">관계</div>
+                </StatCard>
+              </>
+            )}
           </StatsSection>
           
           <ButtonGroup>
@@ -939,7 +1062,27 @@ const HomePage: React.FC = () => {
             </SearchContainer>
           </SectionHeader>
 
-          {filteredDiagrams.length > 0 ? (
+          {diagrams === null || loading || isDiagramsLoading ? (
+            // 데이터가 아직 없거나 로딩 중일 때 스켈레톤 다이어그램 카드들 표시
+            <DiagramsGrid>
+              {Array.from({ length: 6 }).map((_, index) => (
+                <SkeletonDiagramCard key={`skeleton-${index}`}>
+                  <SkeletonDiagramIcon />
+                  <SkeletonDiagramTitle />
+                  <SkeletonDiagramMeta />
+                  <SkeletonDiagramStats>
+                    <SkeletonStat />
+                    <SkeletonStat />
+                    <SkeletonStat />
+                  </SkeletonDiagramStats>
+                  <SkeletonDiagramTags>
+                    <SkeletonTag />
+                    <SkeletonTag />
+                  </SkeletonDiagramTags>
+                </SkeletonDiagramCard>
+              ))}
+            </DiagramsGrid>
+          ) : isAuthenticated && filteredDiagrams.length > 0 ? (
             <DiagramsGrid>
               {filteredDiagrams.map((diagram) => {
                 const { entityCount, relationCount, commentCount, imageCount } = getDiagramStats(diagram.id);
@@ -1037,7 +1180,7 @@ const HomePage: React.FC = () => {
                 );
               })}
             </DiagramsGrid>
-          ) : (
+          ) : isAuthenticated && filteredDiagrams.length === 0 ? (
             <EmptyState>
               <div className="icon">
                 {searchTerm ? <FaSearch /> : <FaDatabase />}
@@ -1059,7 +1202,8 @@ const HomePage: React.FC = () => {
                 새 다이어그램 만들기
               </ActionButton>
             </EmptyState>
-          )}
+          ) : null
+          }
         </DiagramsSection>
       </MainContent>
       

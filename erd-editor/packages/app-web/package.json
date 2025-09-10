@@ -19,6 +19,7 @@
     "firebase": "^12.1.0",
     "html-to-image": "^1.11.13",
     "lodash.throttle": "^4.1.1",
+    "mongoose": "^8.18.1",
     "next": "^15.5.2",
     "next-auth": "^4.24.11",
     "react": "^19.1.0",
@@ -36,6 +37,7 @@
     "zustand": "^5.0.6"
   },
   "devDependencies": {
+    "@types/mongoose": "^5.11.96",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@types/styled-components": "^5.1.34",

@@ -18,6 +18,26 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
+  cookies: {
+    pkceCodeVerifier: {
+      name: "next-auth.pkce.code_verifier",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+    state: {
+      name: "next-auth.state",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
   callbacks: {
     async signIn({ user, account }) {
       if (!account || !user.email) return false;
@@ -48,12 +68,13 @@ export const authOptions: NextAuthOptions = {
         } else {
           console.log('기존 사용자 로그인:', existingUser.email);
         }
-
-        return true;
       } catch (error) {
         console.error('인증 처리 중 오류:', error);
-        return false;
+        // MongoDB 오류가 있어도 로그인은 허용
+        console.log('MongoDB 오류 무시하고 로그인 허용:', user.email);
       }
+
+      return true;
     },
     async jwt({ token, account, user, trigger, session }) {
       if (account && user) {

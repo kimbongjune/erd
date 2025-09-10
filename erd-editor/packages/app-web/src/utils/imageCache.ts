@@ -3,8 +3,11 @@
 // 이미지 URL 캐시 (전역)
 export const imageCache = new Set<string>();
 
-// 실패한 이미지 URL 캐시
-export const failedImageCache = new Set<string>();
+// 실패한 이미지 URL 캐시 (시간과 함께 저장)
+export const failedImageCache = new Map<string, number>();
+
+// 429 에러로 실패한 이미지 재시도 시간 (5분)
+const RETRY_DELAY = 5 * 60 * 1000;
 
 // 이미지 URL 정규화 함수
 export const normalizeGoogleImageUrl = (originalURL: string, size: string = 's96-c'): string => {
@@ -24,14 +27,23 @@ export const normalizeGoogleImageUrl = (originalURL: string, size: string = 's96
   return originalURL.replace(/=s\d+(-c)?$/, `=${size}`);
 };
 
-// 이미지 URL이 실패한 적이 있는지 확인
+// 이미지 URL이 실패한 적이 있는지 확인 (429 에러의 경우 시간 체크)
 export const hasImageFailed = (url: string): boolean => {
-  return failedImageCache.has(url);
+  const failedTime = failedImageCache.get(url);
+  if (!failedTime) return false;
+  
+  // 5분 후에는 다시 시도 허용
+  if (Date.now() - failedTime > RETRY_DELAY) {
+    failedImageCache.delete(url);
+    return false;
+  }
+  
+  return true;
 };
 
 // 이미지 실패 기록
 export const recordImageFailure = (url: string): void => {
-  failedImageCache.add(url);
+  failedImageCache.set(url, Date.now());
 };
 
 // 이미지 성공 기록

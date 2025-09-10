@@ -1,0 +1,14 @@
+# robots.txt for No ERD
+User-agent: *
+Allow: /
+Allow: /home
+Disallow: /erd/
+Disallow: /api/
+Disallow: /_next/
+Disallow: /test
+
+# Sitemap
+Sitemap: https://erd-dusky.vercel.app/sitemap.xml
+
+# Crawl-delay for better server performance
+Crawl-delay: 1

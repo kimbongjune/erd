@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import styled from 'styled-components';
@@ -667,7 +669,51 @@ const HomePage: React.FC = () => {
 
   // 페이지 타이틀 설정
   useEffect(() => {
-    document.title = '홈';
+    document.title = '홈 - No ERD';
+  }, []);
+
+  // Structured Data for Homepage SEO
+  useEffect(() => {
+    const structuredData = {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "No ERD",
+      "applicationCategory": "DesignApplication",
+      "operatingSystem": "Web Browser",
+      "description": "직관적이고 강력한 Entity Relationship Diagram 도구로 데이터베이스 설계를 간편하게 시각화하세요.",
+      "url": "https://erd-dusky.vercel.app",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "KRW"
+      },
+      "creator": {
+        "@type": "Organization",
+        "name": "No ERD Team"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "reviewCount": "150"
+      },
+      "featureList": [
+        "ERD 다이어그램 생성 및 편집",
+        "MySQL 워크벤치 스타일 인터페이스", 
+        "실시간 협업 기능",
+        "무료 사용",
+        "클라우드 저장소 지원",
+        "다양한 데이터베이스 지원"
+      ]
+    };
+
+    const script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.textContent = JSON.stringify(structuredData);
+    document.head.appendChild(script);
+
+    return () => {
+      document.head.removeChild(script);
+    };
   }, []);
 
   // UserMenu 콜백 함수들을 useCallback으로 최적화

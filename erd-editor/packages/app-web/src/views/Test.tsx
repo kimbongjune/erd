@@ -1,4 +1,6 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+'use client';
+
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 
 function Test() {
   const [displayValue, setDisplayValue] = useState('');

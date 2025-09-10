@@ -1,0 +1,28 @@
+{
+  "name": "No ERD - ERD 다이어그램 편집기",
+  "short_name": "No ERD",
+  "description": "직관적이고 강력한 Entity Relationship Diagram 도구",
+  "start_url": "/home",
+  "display": "standalone",
+  "background_color": "#0f1419",
+  "theme_color": "#4f46e5",
+  "orientation": "landscape-primary",
+  "categories": ["productivity", "developer", "utilities"],
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "32x32",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

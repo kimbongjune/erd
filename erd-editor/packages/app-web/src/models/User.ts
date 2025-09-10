@@ -47,7 +47,7 @@ const UserSchema = new mongoose.Schema<IUser>({
 // 복합 인덱스: provider + providerId 조합은 유일해야 함
 UserSchema.index({ provider: 1, providerId: 1 }, { unique: true });
 
-// 이메일 인덱스
-UserSchema.index({ email: 1 });
+// 이메일 인덱스는 스키마에서 unique: true로 이미 생성됨
+// UserSchema.index({ email: 1 }); // 중복 제거
 
 export const User = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);

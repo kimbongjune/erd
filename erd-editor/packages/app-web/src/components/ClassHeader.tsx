@@ -1,54 +1,55 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
-import { FaSave, FaUndo, FaRedo, FaTrash, FaChevronDown, FaImage, FaFilePdf, FaFileImage } from 'react-icons/fa';
+import {
+  FaHome, FaSave, FaDownload, FaMoon, FaSun, FaUndo, FaRedo, FaTrash,
+  FaChevronDown, FaTachometerAlt, FaPlus, FaFolderOpen, FaEdit, FaCopy,
+  FaImage, FaLock, FaUnlock, FaChevronUp, FaChevronRight
+} from 'react-icons/fa';
 import { GrMysql } from 'react-icons/gr';
+import { useRouter } from 'next/navigation';
 
 const HeaderContainer = styled.header<{ $darkMode?: boolean }>`
   grid-area: header;
+  background-color: ${props => props.$darkMode ? '#2d3748' : '#f0f0f0'};
+  color: ${props => props.$darkMode ? '#ffffff' : '#000000'};
+  padding: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
-  background: ${props => props.$darkMode ? '#1a202c' : '#ffffff'};
-  border-bottom: 1px solid ${props => props.$darkMode ? '#2d3748' : '#e2e8f0'};
-  height: 50px;
-  box-sizing: border-box;
+  gap: 10px;
+  transition: all 0.3s ease;
 `;
 
 const LeftSection = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 `;
 
 const RightSection = styled.div`
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 `;
 
-const ActionButton = styled.button<{ $disabled?: boolean; $darkMode?: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 8px;
+const ThemeToggleButton = styled.button<{ $darkMode?: boolean }>`
+  background: ${props => props.$darkMode ? '#4a5568' : '#ffffff'};
+  border: 2px solid ${props => props.$darkMode ? '#718096' : '#e2e8f0'};
+  color: ${props => props.$darkMode ? '#ffffff' : '#2d3748'};
   padding: 8px 12px;
-  border: none;
-  border-radius: 6px;
-  background: ${props => props.$disabled ? (props.$darkMode ? '#2d3748' : '#f7f7f7') : (props.$darkMode ? '#4a5568' : '#ffffff')};
-  color: ${props => props.$disabled ? (props.$darkMode ? '#4a5568' : '#a0a0a0') : (props.$darkMode ? '#e2e8f0' : '#374151')};
-  cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
-  border: 1px solid ${props => props.$darkMode ? '#4a5568' : '#d1d5db'};
+  border-radius: 8px;
+  cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  transition: all 0.2s ease;
-
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  
   &:hover {
-    background: ${props => props.$disabled ? undefined : (props.$darkMode ? '#718096' : '#f3f4f6')};
-    border-color: ${props => props.$disabled ? undefined : (props.$darkMode ? '#718096' : '#9ca3af')};
-  }
-
-  &:active {
-    transform: ${props => props.$disabled ? 'none' : 'translateY(1px)'};
+    background: ${props => props.$darkMode ? '#718096' : '#f7fafc'};
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   }
 `;
 
@@ -59,87 +60,209 @@ const DiagramName = styled.h1<{ $darkMode?: boolean }>`
   color: ${props => props.$darkMode ? '#e2e8f0' : '#1f2937'};
 `;
 
-const NavDropdown = styled.div`
+const ToggleSwitch = styled.label<{ $darkMode?: boolean }>`
   position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+  margin-right: 8px;
 `;
 
-const DropdownButton = styled.button<{ $darkMode?: boolean }>`
+const ToggleSlider = styled.span<{ $darkMode?: boolean; $isPublic?: boolean }>`
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: ${props => props.$isPublic ? '#48BB78' : '#CBD5E0'};
+  transition: .4s;
+  border-radius: 24px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border: 1px solid ${props => props.$darkMode ? '#4a5568' : '#d1d5db'};
-  border-radius: 6px;
-  background: ${props => props.$darkMode ? '#4a5568' : '#ffffff'};
-  color: ${props => props.$darkMode ? '#e2e8f0' : '#374151'};
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: ${props => props.$darkMode ? '#718096' : '#f3f4f6'};
-    border-color: ${props => props.$darkMode ? '#718096' : '#9ca3af'};
+  justify-content: ${props => props.$isPublic ? 'flex-start' : 'flex-end'};
+  padding: 0 6px;
+  
+  &:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: ${props => props.$isPublic ? '29px' : '3px'};
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+    z-index: 2;
   }
 `;
 
-const DropdownMenu = styled.div<{ $show: boolean; $darkMode?: boolean }>`
+const ToggleIcon = styled.span<{ $isPublic?: boolean }>`
+  font-size: 10px;
+  color: white;
+  z-index: 1;
+  margin: ${props => props.$isPublic ? '0 0 0 4px' : '0 4px 0 0'};
+`;
+
+const ToggleInput = styled.input`
+  opacity: 0;
+  width: 0;
+  height: 0;
+`;
+
+const ExportContainer = styled.div`
+  position: relative;
+  display: inline-block;
+`;
+
+const ExportDropdown = styled.div<{ $darkMode?: boolean; $isOpen?: boolean }>`
   position: absolute;
   top: 100%;
   right: 0;
-  margin-top: 4px;
-  background: ${props => props.$darkMode ? '#2d3748' : '#ffffff'};
-  border: 1px solid ${props => props.$darkMode ? '#4a5568' : '#e5e7eb'};
+  background: ${props => props.$darkMode ? '#4a5568' : '#ffffff'};
+  border: 1px solid ${props => props.$darkMode ? '#718096' : '#e2e8f0'};
   border-radius: 8px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  z-index: 100;
-  min-width: 160px;
-  display: ${props => props.$show ? 'block' : 'none'};
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  z-index: 1000;
+  opacity: ${props => props.$isOpen ? 1 : 0};
+  visibility: ${props => props.$isOpen ? 'visible' : 'hidden'};
+  transform: ${props => props.$isOpen ? 'translateY(4px)' : 'translateY(-4px)'};
+  transition: all 0.2s ease;
 `;
 
-const DropdownItem = styled.button<{ $darkMode?: boolean }>`
+const ExportOption = styled.button<{ $darkMode?: boolean }>`
   width: 100%;
   padding: 12px 16px;
-  text-align: left;
-  border: none;
   background: none;
-  color: ${props => props.$darkMode ? '#e2e8f0' : '#374151'};
-  font-size: 14px;
+  border: none;
+  text-align: left;
+  color: ${props => props.$darkMode ? '#ffffff' : '#2d3748'};
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  font-size: 14px;
   transition: background-color 0.2s ease;
-
+  
   &:hover {
-    background: ${props => props.$darkMode ? '#4a5568' : '#f3f4f6'};
+    background: ${props => props.$darkMode ? '#718096' : '#f7fafc'};
   }
-
+  
   &:first-child {
     border-radius: 8px 8px 0 0;
   }
-
+  
   &:last-child {
     border-radius: 0 0 8px 8px;
   }
+  
+  &:only-child {
+    border-radius: 8px;
+  }
 `;
 
-const DarkModeToggle = styled.button<{ $darkMode?: boolean }>`
-  padding: 8px;
-  border: 1px solid ${props => props.$darkMode ? '#4a5568' : '#d1d5db'};
-  border-radius: 6px;
-  background: ${props => props.$darkMode ? '#4a5568' : '#ffffff'};
-  color: ${props => props.$darkMode ? '#fbbf24' : '#6b7280'};
-  cursor: pointer;
-  font-size: 16px;
-  transition: all 0.2s ease;
+const NavDropdownContainer = styled.div`
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 8px;
+`;
+
+const DiagramNameContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const DiagramNameButton = styled.button<{ $darkMode?: boolean }>`
+  background: transparent;
+  border: 1px solid transparent;
+  color: ${props => props.$darkMode ? '#ffffff' : '#2d3748'};
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
 
   &:hover {
-    background: ${props => props.$darkMode ? '#718096' : '#f3f4f6'};
-    border-color: ${props => props.$darkMode ? '#718096' : '#9ca3af'};
+    background: ${props => props.$darkMode ? '#4a5568' : '#f7fafc'};
+    border-color: ${props => props.$darkMode ? '#718096' : '#e2e8f0'};
+  }
+`;
+
+const DiagramNameInput = styled.input<{ $darkMode?: boolean }>`
+  background: ${props => props.$darkMode ? '#4a5568' : '#ffffff'};
+  border: 1px solid ${props => props.$darkMode ? '#718096' : '#e2e8f0'};
+  color: ${props => props.$darkMode ? '#ffffff' : '#2d3748'};
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 150px;
+
+  &:focus {
+    outline: none;
+    border-color: #4299e1;
+  }
+`;
+
+const NavButton = styled.button<{ $darkMode?: boolean }>`
+  background: transparent;
+  border: none;
+  color: ${props => props.$darkMode ? '#ffffff' : '#2d3748'};
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: ${props => props.$darkMode ? '#4a5568' : '#f7fafc'};
+  }
+`;
+
+const NavDropdownMenu = styled.div<{ $darkMode?: boolean; $isOpen?: boolean }>`
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: ${props => props.$darkMode ? '#2d3748' : '#ffffff'};
+  border: 1px solid ${props => props.$darkMode ? '#4a5568' : '#e2e8f0'};
+  border-radius: 8px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  margin-top: 4px;
+  opacity: ${props => props.$isOpen ? 1 : 0};
+  visibility: ${props => props.$isOpen ? 'visible' : 'hidden'};
+  transform: translateY(${props => props.$isOpen ? '0' : '-10px'});
+  transition: all 0.2s ease;
+  z-index: 1000;
+`;
+
+const NavDropdownItem = styled.div<{ $darkMode?: boolean }>`
+  padding: 12px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+  color: ${props => props.$darkMode ? '#e2e8f0' : '#2d3748'};
+  border-bottom: 1px solid ${props => props.$darkMode ? '#4a5568' : '#f0f0f0'};
+
+  &:hover {
+    background: ${props => props.$darkMode ? '#4a5568' : '#f7fafc'};
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:first-child {
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+  }
+
+  &:last-child {
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
   }
 `;
 
@@ -156,6 +279,8 @@ interface ClassHeaderProps {
   onExportSQL: () => void;
   onDataDelete: () => void;
   hasData: boolean;
+  isPublic?: boolean;
+  onTogglePublic?: () => void;
 }
 
 const ClassHeader: React.FC<ClassHeaderProps> = ({
@@ -170,88 +295,266 @@ const ClassHeader: React.FC<ClassHeaderProps> = ({
   onExportImage,
   onExportSQL,
   onDataDelete,
-  hasData
+  hasData,
+  isPublic = false,
+  onTogglePublic
 }) => {
-  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const router = useRouter();
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isNavDropdownOpen, setIsNavDropdownOpen] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [diagramName, setDiagramName] = useState('제목 없는 클래스 다이어그램');
+  const [tempName, setTempName] = useState('');
 
-  // 외부 클릭시 드롭다운 닫기
+  const navDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Navigation 드롭다운 외부 클릭 감지
   useEffect(() => {
-    const handleClickOutside = () => {
-      setExportDropdownOpen(false);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (navDropdownRef.current?.contains(event.target as Node)) {
+        return;
+      }
+      setIsNavDropdownOpen(false);
     };
 
-    if (exportDropdownOpen) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
+    if (isNavDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [exportDropdownOpen]);
+  }, [isNavDropdownOpen]);
 
-  const handleExportClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setExportDropdownOpen(!exportDropdownOpen);
+  const handleHomeClick = () => {
+    router.push('/home');
+  };
+
+  const handleSave = () => {
+    if (onSave) {
+      onSave();
+    } else {
+      console.log('클래스 다이어그램 저장');
+    }
+  };
+
+  const handleExportImage = () => {
+    if (onExportImage) {
+      onExportImage();
+    } else {
+      console.log('클래스 다이어그램 이미지 내보내기');
+    }
+    setIsExportOpen(false);
+  };
+
+  const handleExportSQL = () => {
+    if (onExportSQL) {
+      onExportSQL();
+    } else {
+      console.log('클래스 다이어그램 SQL 내보내기');
+    }
+    setIsExportOpen(false);
+  };
+
+  const handleDataDelete = () => {
+    if (onDataDelete) {
+      onDataDelete();
+    } else {
+      console.log('클래스 다이어그램 데이터 삭제');
+    }
+  };
+
+  // 다이어그램 이름 편집 관련 함수들
+  const startEditingName = () => {
+    setTempName(diagramName);
+    setIsEditingName(true);
+    setTimeout(() => {
+      const input = document.querySelector('input[type="text"]') as HTMLInputElement;
+      if (input) input.select();
+    }, 0);
+  };
+
+  const saveNameChange = () => {
+    const newName = tempName.trim() || '제목 없는 클래스 다이어그램';
+    setDiagramName(newName);
+    setIsEditingName(false);
+  };
+
+  const cancelNameEdit = () => {
+    setIsEditingName(false);
+    setTempName('');
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      saveNameChange();
+    } else if (e.key === 'Escape') {
+      cancelNameEdit();
+    }
   };
 
   return (
     <HeaderContainer $darkMode={darkMode}>
       <LeftSection>
-        <ActionButton onClick={onSave} $darkMode={darkMode}>
+        {/* 저장 버튼 */}
+        <ThemeToggleButton 
+          $darkMode={darkMode} 
+          onClick={handleSave}
+        >
           <FaSave />
           저장
-        </ActionButton>
-        
-        <ActionButton 
-          onClick={onUndo} 
-          $disabled={!canUndo}
-          $darkMode={darkMode}
+        </ThemeToggleButton>
+
+        {/* Undo/Redo 버튼들 */}
+        <ThemeToggleButton 
+          $darkMode={darkMode} 
+          onClick={onUndo}
+          disabled={!canUndo}
+          style={{ 
+            opacity: canUndo ? 1 : 0.5, 
+            cursor: canUndo ? 'pointer' : 'not-allowed' 
+          }}
         >
           <FaUndo />
-          실행취소
-        </ActionButton>
-        
-        <ActionButton 
-          onClick={onRedo} 
-          $disabled={!canRedo}
-          $darkMode={darkMode}
+        </ThemeToggleButton>
+
+        <ThemeToggleButton 
+          $darkMode={darkMode} 
+          onClick={onRedo}
+          disabled={!canRedo}
+          style={{ 
+            opacity: canRedo ? 1 : 0.5, 
+            cursor: canRedo ? 'pointer' : 'not-allowed' 
+          }}
         >
           <FaRedo />
-          다시실행
-        </ActionButton>
-        
-        <ActionButton 
-          onClick={onDataDelete}
-          $disabled={!hasData}
-          $darkMode={darkMode}
+        </ThemeToggleButton>
+
+        {/* 데이터 삭제 버튼 */}
+        <ThemeToggleButton 
+          $darkMode={darkMode} 
+          onClick={handleDataDelete}
+          disabled={!hasData}
+          style={{ 
+            opacity: hasData ? 1 : 0.5,
+            cursor: hasData ? 'pointer' : 'not-allowed'
+          }}
         >
           <FaTrash />
-          데이터삭제
-        </ActionButton>
+          데이터 삭제
+        </ThemeToggleButton>
 
-        <NavDropdown>
-          <DropdownButton onClick={handleExportClick} $darkMode={darkMode}>
+        {/* 내보내기 드롭다운 */}
+        <ExportContainer>
+          <ThemeToggleButton 
+            $darkMode={darkMode} 
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsExportOpen(!isExportOpen);
+            }}
+            disabled={!hasData}
+            style={{ 
+              opacity: hasData ? 1 : 0.5,
+              cursor: hasData ? 'pointer' : 'not-allowed'
+            }}
+          >
+            <FaDownload />
             내보내기
             <FaChevronDown />
-          </DropdownButton>
-          <DropdownMenu $show={exportDropdownOpen} $darkMode={darkMode}>
-            <DropdownItem onClick={onExportImage} $darkMode={darkMode}>
-              <FaFileImage />
+          </ThemeToggleButton>
+          
+          <ExportDropdown $darkMode={darkMode} $isOpen={isExportOpen && hasData}>
+            <ExportOption 
+              $darkMode={darkMode}
+              onClick={handleExportImage}
+            >
+              <FaImage style={{ marginRight: '8px' }} />
               이미지로 내보내기
-            </DropdownItem>
-            <DropdownItem onClick={onExportSQL} $darkMode={darkMode}>
-              <GrMysql />
+            </ExportOption>
+            <ExportOption 
+              $darkMode={darkMode}
+              onClick={handleExportSQL}
+            >
+              <GrMysql style={{ marginRight: '8px' }} />
               SQL로 내보내기
-            </DropdownItem>
-          </DropdownMenu>
-        </NavDropdown>
+            </ExportOption>
+          </ExportDropdown>
+        </ExportContainer>
+
+        {/* 다크모드 토글 */}
+        <ThemeToggleButton 
+          $darkMode={darkMode} 
+          onClick={onToggleDarkMode}
+        >
+          {darkMode ? '☀️ ' : '🌙 '}
+          {darkMode ? 'Light' : 'Dark'}
+        </ThemeToggleButton>
       </LeftSection>
 
       <RightSection>
-        <DiagramName $darkMode={darkMode}>
-          클래스 다이어그램
-        </DiagramName>
-        
-        <DarkModeToggle onClick={onToggleDarkMode} $darkMode={darkMode}>
-          {darkMode ? '🌙' : '☀️'}
-        </DarkModeToggle>
+        {/* Navigation 드롭다운 */}
+        <NavDropdownContainer ref={navDropdownRef}>
+          <DiagramNameContainer>
+            {/* Public/Private 토글 스위치 */}
+            {onTogglePublic && (
+              <ToggleSwitch $darkMode={darkMode}>
+                <ToggleInput
+                  type="checkbox"
+                  checked={isPublic}
+                  onChange={onTogglePublic}
+                />
+                <ToggleSlider 
+                  $darkMode={darkMode} 
+                  $isPublic={isPublic}
+                >
+                  <ToggleIcon $isPublic={isPublic}>
+                    {isPublic ? <FaUnlock /> : <FaLock />}
+                  </ToggleIcon>
+                </ToggleSlider>
+              </ToggleSwitch>
+            )}
+            
+            {isEditingName ? (
+              <DiagramNameInput
+                $darkMode={darkMode}
+                value={tempName}
+                onChange={(e) => setTempName(e.target.value)}
+                onBlur={saveNameChange}
+                onKeyDown={handleNameKeyDown}
+              />
+            ) : (
+              <DiagramNameButton
+                $darkMode={darkMode}
+                onClick={startEditingName}
+              >
+                {diagramName}
+              </DiagramNameButton>
+            )}
+            
+            <NavButton 
+              $darkMode={darkMode}
+              onClick={() => setIsNavDropdownOpen(!isNavDropdownOpen)}
+            >
+              <FaChevronDown />
+            </NavButton>
+          </DiagramNameContainer>
+
+          <NavDropdownMenu $darkMode={darkMode} $isOpen={isNavDropdownOpen}>
+            <NavDropdownItem $darkMode={darkMode} onClick={handleHomeClick}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FaHome />
+                홈으로 가기
+              </div>
+            </NavDropdownItem>
+
+            <NavDropdownItem $darkMode={darkMode} onClick={() => {
+              router.push('/class/new');
+              setIsNavDropdownOpen(false);
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FaPlus />
+                새 클래스 다이어그램
+              </div>
+            </NavDropdownItem>
+          </NavDropdownMenu>
+        </NavDropdownContainer>
       </RightSection>
     </HeaderContainer>
   );

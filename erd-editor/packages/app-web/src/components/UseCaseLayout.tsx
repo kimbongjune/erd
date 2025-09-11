@@ -51,6 +51,7 @@ const UseCaseLayout: React.FC<UseCaseLayoutProps> = ({ usecaseId }) => {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [hasData, setHasData] = useState(false);
+  const [isPublic, setIsPublic] = useState(false); // public/private 상태 추가
   const [zoom, setZoom] = useState(1);
   const [searchActive, setSearchActive] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
@@ -87,6 +88,12 @@ const UseCaseLayout: React.FC<UseCaseLayoutProps> = ({ usecaseId }) => {
     // 데이터 삭제 로직 (나중에 구현)
     console.log('유즈케이스 다이어그램 데이터 삭제');
   }, []);
+
+  const handleTogglePublic = useCallback(() => {
+    // public/private 토글 로직 (나중에 구현)
+    setIsPublic(!isPublic);
+    console.log('유즈케이스 다이어그램 public/private 토글:', !isPublic);
+  }, [isPublic]);
 
   const handleSearch = useCallback(() => {
     setSearchActive(!searchActive);
@@ -137,6 +144,8 @@ const UseCaseLayout: React.FC<UseCaseLayoutProps> = ({ usecaseId }) => {
           onExportSQL={handleExportSQL}
           onDataDelete={handleDataDelete}
           hasData={hasData}
+          isPublic={isPublic}
+          onTogglePublic={handleTogglePublic}
         />
         <ToolboxContainer $darkMode={darkMode}>
           <UseCaseToolbox darkMode={darkMode} />

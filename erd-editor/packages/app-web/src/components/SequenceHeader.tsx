@@ -115,6 +115,63 @@ const DiagramNameContainer = styled.div`
   gap: 8px;
 `;
 
+const ToggleSwitch = styled.label<{ $darkMode?: boolean }>`
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+  margin-right: 8px;
+`;
+
+const ToggleSlider = styled.span<{ $darkMode?: boolean; $isPublic?: boolean }>`
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: ${props => props.$isPublic ? '#48BB78' : '#CBD5E0'};
+  transition: .4s;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: ${props => props.$isPublic ? 'flex-start' : 'flex-end'};
+  padding: 0 6px;
+  
+  &:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: ${props => props.$isPublic ? '29px' : '3px'};
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+    z-index: 2;
+  }
+`;
+
+const ToggleIcon = styled.span<{ $isPublic?: boolean }>`
+  font-size: 10px;
+  color: white;
+  z-index: 1;
+  margin: ${props => props.$isPublic ? '0 0 0 4px' : '0 4px 0 0'};
+`;
+
+const ToggleInput = styled.input`
+  opacity: 0;
+  width: 0;
+  height: 0;
+`;
+
+const ToggleLabel = styled.span<{ $darkMode?: boolean; $isPublic?: boolean }>`
+  font-size: 12px;
+  color: ${props => props.$darkMode ? '#ffffff' : '#2d3748'};
+  margin-left: 4px;
+  font-weight: 500;
+`;
+
 const DiagramNameButton = styled.button<{ $darkMode?: boolean }>`
   background: transparent;
   border: 1px solid transparent;
@@ -222,6 +279,8 @@ interface SequenceHeaderProps {
   onExportSQL?: () => void;
   onDataDelete?: () => void;
   hasData?: boolean;
+  isPublic?: boolean;
+  onTogglePublic?: () => void;
 }
 
 const SequenceHeader: React.FC<SequenceHeaderProps> = ({
@@ -236,7 +295,9 @@ const SequenceHeader: React.FC<SequenceHeaderProps> = ({
   onExportImage,
   onExportSQL,
   onDataDelete,
-  hasData = false
+  hasData = false,
+  isPublic = false,
+  onTogglePublic
 }) => {
   const router = useRouter();
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -448,6 +509,25 @@ const SequenceHeader: React.FC<SequenceHeaderProps> = ({
         {/* Navigation 드롭다운 */}
         <NavDropdownContainer ref={navDropdownRef}>
           <DiagramNameContainer>
+            {/* Public/Private 토글 스위치 */}
+            {onTogglePublic && (
+              <ToggleSwitch $darkMode={darkMode}>
+                <ToggleInput
+                  type="checkbox"
+                  checked={isPublic}
+                  onChange={onTogglePublic}
+                />
+                <ToggleSlider 
+                  $darkMode={darkMode} 
+                  $isPublic={isPublic}
+                >
+                  <ToggleIcon $isPublic={isPublic}>
+                    {isPublic ? <FaUnlock /> : <FaLock />}
+                  </ToggleIcon>
+                </ToggleSlider>
+              </ToggleSwitch>
+            )}
+            
             {isEditingName ? (
               <DiagramNameInput
                 $darkMode={darkMode}
@@ -464,16 +544,14 @@ const SequenceHeader: React.FC<SequenceHeaderProps> = ({
                 {diagramName}
               </DiagramNameButton>
             )}
-
-            <NavButton
+            
+            <NavButton 
               $darkMode={darkMode}
               onClick={() => setIsNavDropdownOpen(!isNavDropdownOpen)}
             >
               <FaChevronDown />
             </NavButton>
-          </DiagramNameContainer>
-
-          <NavDropdownMenu $darkMode={darkMode} $isOpen={isNavDropdownOpen}>
+          </DiagramNameContainer>          <NavDropdownMenu $darkMode={darkMode} $isOpen={isNavDropdownOpen}>
             <NavDropdownItem $darkMode={darkMode} onClick={handleHomeClick}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FaHome />

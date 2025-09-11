@@ -632,6 +632,183 @@ const ModalButton = styled.button<{ $primary?: boolean }>`
   `}
 `;
 
+const DiagramTypeModal = styled.div<{ $show: boolean }>`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: ${props => props.$show ? 'flex' : 'none'};
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+`;
+
+const DiagramTypeModalContent = styled.div`
+  background: #1f2937;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 500px;
+  width: 90%;
+  text-align: center;
+  border: 1px solid #374151;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: modalSlideIn 0.3s ease-out;
+`;
+
+const DiagramTypeTitle = styled.h3`
+  margin: 0 0 8px 0;
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 600;
+`;
+
+const DiagramTypeSubtitle = styled.p`
+  margin: 0 0 32px 0;
+  color: #9ca3af;
+  line-height: 1.5;
+`;
+
+const DiagramTypeGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+`;
+
+const DiagramTypeButton = styled.button<{ $primary?: boolean }>`
+  padding: 24px 16px;
+  border: 1px solid #374151;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: #4f46e5;
+    transform: translateY(-2px);
+  }
+  
+  ${props => props.$primary ? `
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    border-color: #4f46e5;
+    
+    &:hover {
+      background: linear-gradient(135deg, #4338ca, #6d28d9);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(79, 70, 229, 0.3);
+    }
+  ` : ''}
+`;
+
+const DiagramTypeIcon = styled.div`
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 20px;
+`;
+
+const DiagramTypeLabel = styled.div`
+  font-weight: 600;
+  color: #ffffff;
+`;
+
+const DiagramTypeDescription = styled.div`
+  font-size: 12px;
+  color: #9ca3af;
+  text-align: center;
+  line-height: 1.4;
+`;
+
+interface DiagramTypeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelectType: (type: string) => void;
+}
+
+const DiagramTypeModalComponent: React.FC<DiagramTypeModalProps> = ({ isOpen, onClose, onSelectType }) => {
+  if (!isOpen) return null;
+
+  return (
+    <DiagramTypeModal 
+      $show={isOpen} 
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <DiagramTypeModalContent onClick={(e) => e.stopPropagation()}>
+        <DiagramTypeTitle>새 다이어그램 만들기</DiagramTypeTitle>
+        <DiagramTypeSubtitle>
+          생성할 다이어그램의 유형을 선택하세요
+        </DiagramTypeSubtitle>
+        
+        <DiagramTypeGrid>
+          <DiagramTypeButton onClick={() => onSelectType('erd')}>
+            <DiagramTypeIcon>
+              <FaDatabase />
+            </DiagramTypeIcon>
+            <DiagramTypeLabel>ERD 다이어그램</DiagramTypeLabel>
+            <DiagramTypeDescription>
+              Entity Relationship Diagram으로 데이터베이스 설계를 시각화하세요
+            </DiagramTypeDescription>
+          </DiagramTypeButton>
+          
+          <DiagramTypeButton onClick={() => onSelectType('usecase')}>
+            <DiagramTypeIcon>
+              <FaUsers />
+            </DiagramTypeIcon>
+            <DiagramTypeLabel>유즈케이스 다이어그램</DiagramTypeLabel>
+            <DiagramTypeDescription>
+              시스템의 기능과 사용자 상호작용을 모델링하세요
+            </DiagramTypeDescription>
+          </DiagramTypeButton>
+          
+          <DiagramTypeButton onClick={() => onSelectType('sequence')}>
+            <DiagramTypeIcon>
+              <FaSitemap />
+            </DiagramTypeIcon>
+            <DiagramTypeLabel>시퀀스 다이어그램</DiagramTypeLabel>
+            <DiagramTypeDescription>
+              객체 간의 상호작용과 메시지 흐름을 표현하세요
+            </DiagramTypeDescription>
+          </DiagramTypeButton>
+          
+          <DiagramTypeButton onClick={() => onSelectType('class')}>
+            <DiagramTypeIcon>
+              <FaCubes />
+            </DiagramTypeIcon>
+            <DiagramTypeLabel>클래스 다이어그램</DiagramTypeLabel>
+            <DiagramTypeDescription>
+              시스템의 클래스 구조와 관계를 설계하세요
+            </DiagramTypeDescription>
+          </DiagramTypeButton>
+        </DiagramTypeGrid>
+        
+        <ModalButton onClick={onClose}>
+          취소
+        </ModalButton>
+      </DiagramTypeModalContent>
+    </DiagramTypeModal>
+  );
+};
+
 interface Diagram {
   id: string;
   name: string;
@@ -657,6 +834,9 @@ const HomePage: React.FC = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isDiagramsLoading, setIsDiagramsLoading] = useState(false);
+  
+  // 다이어그램 타입 선택 모달 상태
+  const [diagramTypeModalOpen, setDiagramTypeModalOpen] = useState(false);
   
   // 모달 상태 관리
   const [loginModalOpen, setLoginModalOpen] = useState(false);
@@ -905,6 +1085,23 @@ const HomePage: React.FC = () => {
     setMenuOpenId(menuOpenId === id ? null : id);
   };
 
+  const handleDiagramTypeSelect = async (type: string) => {
+    setDiagramTypeModalOpen(false);
+    
+    if (type === 'erd') {
+      await createNewDiagram();
+    } else if (type === 'usecase') {
+      // 유즈케이스 다이어그램 생성 (나중에 구현)
+      toast.info('유즈케이스 다이어그램은 곧 지원될 예정입니다.');
+    } else if (type === 'sequence') {
+      // 시퀀스 다이어그램 생성 (나중에 구현)
+      toast.info('시퀀스 다이어그램은 곧 지원될 예정입니다.');
+    } else if (type === 'class') {
+      // 클래스 다이어그램 생성 (나중에 구현)
+      toast.info('클래스 다이어그램은 곧 지원될 예정입니다.');
+    }
+  };
+
   const getDiagramStats = (diagramId: string) => {
     // MongoDB에서 로드된 diagrams 배열에서 해당 다이어그램 찾기
     const diagram = (diagrams || []).find(d => d.id === diagramId);
@@ -1080,7 +1277,7 @@ const HomePage: React.FC = () => {
           </StatsSection>
           
           <ButtonGroup>
-            <ActionButton $primary onClick={createNewDiagram}>
+            <ActionButton $primary onClick={() => setDiagramTypeModalOpen(true)}>
               <FaPlus />
               새 다이어그램 만들기
             </ActionButton>
@@ -1245,7 +1442,7 @@ const HomePage: React.FC = () => {
                     : '새 다이어그램을 만들어 데이터베이스 설계를 시작해보세요!'
                   }
                 </p>
-                <ActionButton $primary onClick={createNewDiagram}>
+                <ActionButton $primary onClick={() => setDiagramTypeModalOpen(true)}>
                   <FaPlus />
                   새 다이어그램 만들기
                 </ActionButton>
@@ -1255,6 +1452,13 @@ const HomePage: React.FC = () => {
           </DiagramsSection>
         )}
       </MainContent>
+      
+      {/* 다이어그램 타입 선택 모달 */}
+      <DiagramTypeModalComponent
+        isOpen={diagramTypeModalOpen}
+        onClose={() => setDiagramTypeModalOpen(false)}
+        onSelectType={handleDiagramTypeSelect}
+      />
       
       {/* 삭제 확인 모달 */}
       {deleteModal.show && (

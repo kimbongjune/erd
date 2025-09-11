@@ -1087,18 +1087,18 @@ const HomePage: React.FC = () => {
 
   const handleDiagramTypeSelect = async (type: string) => {
     setDiagramTypeModalOpen(false);
-    
+
     if (type === 'erd') {
       await createNewDiagram();
     } else if (type === 'usecase') {
-      // 유즈케이스 다이어그램 생성 (나중에 구현)
-      toast.info('유즈케이스 다이어그램은 곧 지원될 예정입니다.');
+      // 유즈케이스 다이어그램 생성
+      router.push('/usecase/new');
     } else if (type === 'sequence') {
-      // 시퀀스 다이어그램 생성 (나중에 구현)
-      toast.info('시퀀스 다이어그램은 곧 지원될 예정입니다.');
+      // 시퀀스 다이어그램 생성
+      router.push('/sequence/temp');
     } else if (type === 'class') {
-      // 클래스 다이어그램 생성 (나중에 구현)
-      toast.info('클래스 다이어그램은 곧 지원될 예정입니다.');
+      // 클래스 다이어그램 생성
+      router.push('/class/temp');
     }
   };
 

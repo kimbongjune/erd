@@ -1,21 +1,53 @@
-import React, { useState } from 'react';
 import styled from 'styled-components';
-import {
-  FiMousePointer,
-  FiUser,
-  FiSquare,
-  FiArrowRight,
-  FiArrowLeft,
-  FiRotateCcw,
-  FiFileText,
-  FiImage,
+import useStore from '../store/useStore';
+import { 
+  FiMousePointer, 
   FiMessageSquare,
-  FiBox,
-  FiZap,
-  FiRefreshCw,
-  FiPlus,
-  FiMinus
+  FiImage,
 } from 'react-icons/fi';
+import { FaTable } from "react-icons/fa";
+
+import { 
+  BsDashLg,
+  BsArrowRight,
+  BsDot,
+} from 'react-icons/bs';
+import { 
+  TbTriangle,
+} from 'react-icons/tb';
+
+// Custom SVG icons for relationships
+const OneToOneIdentifyingIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+    <line x1="2" y1="10" x2="18" y2="10" stroke="currentColor" strokeWidth="3"/>
+  </svg>
+);
+
+const OneToOneNonIdentifyingIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+    <line x1="2" y1="10" x2="18" y2="10" stroke="currentColor" strokeWidth="2" strokeDasharray="3,2"/>
+  </svg>
+);
+
+const OneToManyIdentifyingIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+    <line x1="2" y1="10" x2="11" y2="10" stroke="currentColor" strokeWidth="3"/>
+    {/* 더 길고 명확한 삼발이 Crow's foot */}
+    <line x1="11" y1="10" x2="17" y2="5" stroke="currentColor" strokeWidth="2"/>
+    <line x1="11" y1="10" x2="18" y2="10" stroke="currentColor" strokeWidth="2"/>
+    <line x1="11" y1="10" x2="17" y2="15" stroke="currentColor" strokeWidth="2"/>
+  </svg>
+);
+
+const OneToManyNonIdentifyingIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+    <line x1="2" y1="10" x2="11" y2="10" stroke="currentColor" strokeWidth="2" strokeDasharray="3,2"/>
+    {/* 더 길고 명확한 삼발이 Crow's foot */}
+    <line x1="11" y1="10" x2="17" y2="5" stroke="currentColor" strokeWidth="2"/>
+    <line x1="11" y1="10" x2="18" y2="10" stroke="currentColor" strokeWidth="2"/>
+    <line x1="11" y1="10" x2="17" y2="15" stroke="currentColor" strokeWidth="2"/>
+  </svg>
+);
 
 const ToolboxContainer = styled.div<{ $darkMode?: boolean }>`
   display: flex;
@@ -50,6 +82,11 @@ const ToolButton = styled.button<{ $isActive?: boolean; $darkMode?: boolean }>`
     color: #007acc;
   }
 
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   &::after {
     content: attr(title);
     position: absolute;
@@ -64,133 +101,165 @@ const ToolButton = styled.button<{ $isActive?: boolean; $darkMode?: boolean }>`
     font-size: 12px;
     white-space: nowrap;
     opacity: 0;
-    visibility: hidden;
-    transition: all 0.2s ease;
     pointer-events: none;
-    z-index: 1000;
+    transition: opacity 0.2s ease-in-out;
+    z-index: 10000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
   &:hover::after {
     opacity: 1;
-    visibility: visible;
+  }
+
+  /* disabled 상태에서도 툴팁이 보이도록 */
+  &:disabled:hover::after {
+    opacity: 1;
   }
 `;
 
-interface SequenceToolboxProps {
-  darkMode: boolean;
-}
+const Toolbox = () => {
+  const connectionMode = useStore((state) => state.connectionMode);
+  const createMode = useStore((state) => state.createMode);
+  const selectMode = useStore((state) => state.selectMode);
+  const setConnectionMode = useStore((state) => state.setConnectionMode);
+  const setCreateMode = useStore((state) => state.setCreateMode);
+  const setSelectMode = useStore((state) => state.setSelectMode);
+  const theme = useStore((state) => state.theme);
+  const isReadOnlyMode = useStore((state) => state.isReadOnlyMode);
 
-const SequenceToolbox: React.FC<SequenceToolboxProps> = ({ darkMode }) => {
-  const [activeTool, setActiveTool] = useState<string>('select');
+  const isDarkMode = theme === 'dark';
 
-  const handleToolClick = (toolId: string) => {
-    setActiveTool(toolId);
-    // 툴 선택 로직 (나중에 구현)
-    console.log(`툴 선택: ${toolId}`);
+  const handleToolClick = (tool: string) => {
+    // 읽기 전용 모드에서는 선택 모드만 허용
+    if (isReadOnlyMode && tool !== 'select') {
+      return;
+    }
+    
+    if (tool === 'select') {
+      setSelectMode(true);
+      setConnectionMode(null);
+      setCreateMode(null);
+    } else if (tool === 'entity' || tool === 'comment' || tool === 'image') {
+      setCreateMode(tool);
+      setConnectionMode(null);
+      setSelectMode(false);
+    } else {
+      setConnectionMode(tool);
+      setCreateMode(null);
+      setSelectMode(false);
+    }
   };
 
   return (
-    <ToolboxContainer $darkMode={darkMode}>
+    <ToolboxContainer $darkMode={isDarkMode}>
       <ToolButton
-        $isActive={activeTool === 'select'}
-        $darkMode={darkMode}
+        $isActive={selectMode}
+        $darkMode={isDarkMode}
         onClick={() => handleToolClick('select')}
-        title="선택"
+        title="선택 도구"
       >
         <FiMousePointer />
       </ToolButton>
 
       <ToolButton
-        $isActive={activeTool === 'lifeline'}
-        $darkMode={darkMode}
-        onClick={() => handleToolClick('lifeline')}
-        title="생명선"
+        $isActive={createMode === 'entity'}
+        $darkMode={isDarkMode}
+        onClick={() => handleToolClick('entity')}
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 엔터티를 생성할 수 없습니다" : "엔터티 생성"}
+        disabled={isReadOnlyMode}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
       >
-        <FiSquare />
+        <FaTable />
       </ToolButton>
 
       <ToolButton
-        $isActive={activeTool === 'syncMessage'}
-        $darkMode={darkMode}
-        onClick={() => handleToolClick('syncMessage')}
-        title="메시지"
-      >
-        <FiArrowRight />
-      </ToolButton>
-
-      <ToolButton
-        $isActive={activeTool === 'selfMessage'}
-        $darkMode={darkMode}
-        onClick={() => handleToolClick('selfMessage')}
-        title="셀프 메시지"
-      >
-        <FiRefreshCw />
-      </ToolButton>
-
-      <ToolButton
-        $isActive={activeTool === 'asyncMessage'}
-        $darkMode={darkMode}
-        onClick={() => handleToolClick('asyncMessage')}
-        title="비동기 메시지"
-      >
-        <FiZap />
-      </ToolButton>
-
-      <ToolButton
-        $isActive={activeTool === 'returnMessage'}
-        $darkMode={darkMode}
-        onClick={() => handleToolClick('returnMessage')}
-        title="리턴 메시지"
-      >
-        <FiArrowLeft />
-      </ToolButton>
-
-      <ToolButton
-        $isActive={activeTool === 'createMessage'}
-        $darkMode={darkMode}
-        onClick={() => handleToolClick('createMessage')}
-        title="생성 메시지"
-      >
-        <FiPlus />
-      </ToolButton>
-
-      <ToolButton
-        $isActive={activeTool === 'deleteMessage'}
-        $darkMode={darkMode}
-        onClick={() => handleToolClick('deleteMessage')}
-        title="삭제 메시지"
-      >
-        <FiMinus />
-      </ToolButton>
-
-      <ToolButton
-        $isActive={activeTool === 'boundary'}
-        $darkMode={darkMode}
-        onClick={() => handleToolClick('boundary')}
-        title="바운더리"
-      >
-        <FiSquare />
-      </ToolButton>
-
-      <ToolButton
-        $isActive={activeTool === 'comment'}
-        $darkMode={darkMode}
+        $isActive={createMode === 'comment'}
+        $darkMode={isDarkMode}
         onClick={() => handleToolClick('comment')}
-        title="코멘트"
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 코멘트를 생성할 수 없습니다" : "코멘트 생성"}
+        disabled={isReadOnlyMode}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
       >
         <FiMessageSquare />
       </ToolButton>
 
       <ToolButton
-        $isActive={activeTool === 'image'}
-        $darkMode={darkMode}
+        $isActive={createMode === 'image'}
+        $darkMode={isDarkMode}
         onClick={() => handleToolClick('image')}
-        title="이미지"
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 이미지를 생성할 수 없습니다" : "이미지 생성"}
+        disabled={isReadOnlyMode}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
       >
         <FiImage />
+      </ToolButton>
+
+      <ToolButton
+        $isActive={connectionMode === 'oneToOneIdentifying'}
+        $darkMode={isDarkMode}
+        onClick={() => handleToolClick('oneToOneIdentifying')}
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 관계를 생성할 수 없습니다" : "1:1 식별 관계"}
+        disabled={isReadOnlyMode}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
+      >
+        <OneToOneIdentifyingIcon />
+      </ToolButton>
+
+      <ToolButton
+        $isActive={connectionMode === 'oneToOneNonIdentifying'}
+        $darkMode={isDarkMode}
+        onClick={() => handleToolClick('oneToOneNonIdentifying')}
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 관계를 생성할 수 없습니다" : "1:1 비식별 관계"}
+        disabled={isReadOnlyMode}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
+      >
+        <OneToOneNonIdentifyingIcon />
+      </ToolButton>
+
+      <ToolButton
+        $isActive={connectionMode === 'oneToManyIdentifying'}
+        $darkMode={isDarkMode}
+        onClick={() => handleToolClick('oneToManyIdentifying')}
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 관계를 생성할 수 없습니다" : "1:N 식별 관계"}
+        disabled={isReadOnlyMode}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
+      >
+        <OneToManyIdentifyingIcon />
+      </ToolButton>
+
+      <ToolButton
+        $isActive={connectionMode === 'oneToManyNonIdentifying'}
+        $darkMode={isDarkMode}
+        onClick={() => handleToolClick('oneToManyNonIdentifying')}
+        title={isReadOnlyMode ? "읽기 전용 모드에서는 관계를 생성할 수 없습니다" : "1:N 비식별 관계"}
+        disabled={isReadOnlyMode}
+        style={{ 
+          opacity: isReadOnlyMode ? 0.5 : 1,
+          cursor: isReadOnlyMode ? 'not-allowed' : 'pointer'
+        }}
+      >
+        <OneToManyNonIdentifyingIcon />
       </ToolButton>
     </ToolboxContainer>
   );
 };
 
-export default SequenceToolbox;
+export default Toolbox;

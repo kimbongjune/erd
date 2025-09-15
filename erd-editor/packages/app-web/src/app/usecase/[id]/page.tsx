@@ -1,17 +1,55 @@
+import { use } from 'react';
 import UseCaseEditor from '../../../views/UseCaseEditor';
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = {
-  title: '유즈케이스 다이어그램 편집기',
-  description: '유즈케이스 다이어그램을 만들고 편집하세요.',
-};
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
 
-interface UseCasePageProps {
-  params: {
-    id: string;
+// 동적 메타데이터 생성
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  
+  // 실제로는 API에서 다이어그램 정보를 가져와야 하지만, 
+  // 일단 기본값으로 설정
+  const diagramTitle = `유즈케이스 다이어그램 ${id}`;
+  
+  return {
+    title: `${diagramTitle} - No ERD 편집기`,
+    description: `${diagramTitle}을(를) No ERD 편집기에서 편집하고 있습니다. 실시간으로 유즈케이스 다이어그램을 생성하고 수정할 수 있습니다.`,
+    keywords: [
+      '유즈케이스 편집', `${diagramTitle}`, '시스템 분석', 'Use Case Diagram',
+      'UML 다이어그램', '온라인 유즈케이스 편집기', 'System Analysis', 'Use Case Design'
+    ],
+    openGraph: {
+      title: `${diagramTitle} - No ERD 편집기`,
+      description: `${diagramTitle}을(를) No ERD 편집기에서 편집하고 있습니다.`,
+      url: `https://erd-dusky.vercel.app/usecase/${id}`,
+      images: [
+        {
+          url: `/api/usecase/${id}/og-image`, // 나중에 구현할 동적 OG 이미지
+          width: 1200,
+          height: 630,
+          alt: `${diagramTitle} 유즈케이스 다이어그램`,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${diagramTitle} - No ERD 편집기`,
+      description: `${diagramTitle}을(를) No ERD 편집기에서 편집하고 있습니다.`,
+    },
+    robots: {
+      index: false, // 다이어그램 편집 페이지는 인덱싱하지 않음
+      follow: true,
+    },
+    alternates: {
+      canonical: `/usecase/${id}`,
+    },
   };
 }
 
-export default function UseCasePage({ params }: UseCasePageProps) {
-  return <UseCaseEditor usecaseId={params.id} />;
+export default function UseCaseEditorRoute({ params }: PageProps) {
+  const { id } = use(params);
+  return <UseCaseEditor usecaseId={id} />;
 }
